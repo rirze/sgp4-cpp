@@ -1,0 +1,14 @@
+0    --------------------- Tests for Math ----------------------
+  2  xx GETPART
+     1239239847374618765
+     4 5
+  3  xx GETPART
+     192343484723876
+     6 7
+  4  xx GetPartR
+     2387456.34509825
+     2 8
+  5  xx FACTORIAL
+     4
+  6  xx BINOMIAL
+     3 4
