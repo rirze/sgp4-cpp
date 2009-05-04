@@ -1,2325 +1,2303 @@
-/*----------------------------------------------------------------      
+/* -----------------------------------------------------------------------------
+*
+*                                astiod.cpp
+*
+*   this file contains fundamental astrodynamic procedures and functions
+*   relating to the initial orbit determination techniques. see ch 4, and ch 7
+*   for a complete discussion of these routines.
+*
+*                            companion code for
+*               fundamentals of astrodynamics and applications
+*                                    2007
+*                             by david vallado
+*
+*      (w) 719-573-2600, email dvallado@agi.com
+*
+*      *****************************************************************
+*
+*   current :
+*              31 mar 08  david vallado
+*                           misc updates
+*   changes :
+*              14 feb 08  david vallado
+*                           fix razel conversions
+*              15 mar 07  david vallado
+*                           3rd edition baseline
+*              14 may 01  david vallado
+*                           2nd edition baseline
+*              23 nov 87  david vallado
+*                           original baseline
+  ----------------------------------------------------------------------      */
 
-
-                               UNIT ASTIOD;
-
-
-    This file contains fundamental Astrodynamic procedures and functions     
-    relating to the Initial Orbit Determination techniques. See Ch 7 for     
-    a complete discussion of these routines.                                 
-
-                            Companion code for                               
-               Fundamentals of Astrodyanmics and Applications                
-                                     2001                                    
-                              by David Vallado                               
-
-       (H)               email valladodl@worldnet.att.net                    
-       (W) 303-344-6037, email davallado@west.raytheon.com                   
-
-       *****************************************************************     
-
-
-                             MICROCOSM
-                    email: bookproject@smad.com
-
-                                 or
-
-              Contact: Donna Klungle at (310) 726-4100
-
-
-       *****************************************************************     
-
-    Current :                                                                
-              14 May 01  David Vallado                                       
-                           2nd edition baseline                              
-
-       ----------------------------------------------------------------     
-
-                                  IMPLEMENTATION
-
-       ----------------------------------------------------------------      */
-#include "ast2body.h"
 #include "astiod.h"
 
-#include <math.h>
+/* utility functions for lambertbattin, etc */
+static double k(double v);
 
-/* --------- only for testgau test ----------- */
-Real lambda, BigT, Testamt;
-
-/* Utility functions for LambertBattin, etc */
-static Real k(Real v);
-static Real See(Real v);
+static double see(double v);
 
 /*---------------------------------------------------------------------------
-|
-|                           PROCEDURE SITE
-|
-|  This PROCEDURE finds the position and velocity vectors for a SITE.  The
-|    answer is returned in the Geocentric Equatorial (IJK) coordinate system.
-|
-|  Author        : David Vallado                  303-344-6037    1 Mar 2001
-|
-|  Inputs          Description                    Range / Units
-|    Latgd       - Geodetic Latitude              -Pi/2 to Pi/2 rad
-|    Alt         - Altitude                       ER
-|    LST         - Local SIDEREAL Time            -2Pi to 2Pi rad
-|
-|  OutPuts       :
-|    RSijk       - IJK SITE position vector       ER
-|    VSijk       - IJK SITE velocity vector       ER/TU
-|
-|  Locals        :
-|    EarthRate   - IJK Earth's rotation rate      rad/TU
-|    SinLat      - Variable containing  SIN(Lat)  rad
-|    Temp        - Temporary Real value
-|    Rdel        - Rdel component of SITE vector  ER
-|    Rk          - Rk component of SITE vector    ER
-|    CEarth      -
-|
-|  Coupling      :
-|    MAG           Magnitude of a vector
-|    CROSS         CROSS product of two vectors
-|
-|  References    :
-|    Vallado       2001, 404-407, Alg 47, Ex 7-1
-|
+*
+*                           procedure site
+*
+*  this function finds the position and velocity vectors for a site.  the
+*    answer is returned in the geocentric equatorial (ecef) coordinate system.
+*    note that the velocity is zero because the coordinate system is fixed to
+*    the earth.
+*
+*  author        : david vallado                  719-573-2600   25 jun 2002
+*
+*  inputs          description                    range / units
+*    latgd       - geodetic latitude              -pi/2 to pi/2 rad
+*    lon         - longitude of site              -2pi to 2pi rad
+*    alt         - altitude                       km
+*
+*  outputs       :
+*    rsecef      - ecef site position vector      km
+*    vsecef      - ecef site velocity vector      km/s
+*
+*  locals        :
+*    sinlat      - variable containing  sin(lat)  rad
+*    temp        - temporary real value
+*    rdel        - rdel component of site vector  km
+*    rk          - rk component of site vector    km
+*    cearth      -
+*
+*  coupling      :
+*    none
+*
+*  references    :
+*    vallado       2007, 404-407, alg 47, ex 7-1
+*
  ----------------------------------------------------------------------------*/
-void Site(Real Latgd, Real Alt, Real LST, Vector& RSijk, Vector& VSijk)
-{
-  const Real EESqrd     = 0.00669437999013;
-  const Real OmegaEarth = 0.05883359980154919;
 
-  Vector EarthRate(3);
-  Real   SinLat, CEarth, Rdel, Rk;
-
-  /* ---------------------  Initialize values   ------------------- */
-  SinLat = sin(Latgd);
-  EarthRate.Set(0.0, 1);
-  EarthRate.Set(0.0, 2);
-  EarthRate.Set(OmegaEarth, 2);
-
-  /* -------  Find Rdel and Rk components of SITE vector  --------- */
-  CEarth = 1.0 / sqrt(1.0 - (EESqrd * SinLat * SinLat));
-  Rdel   = (CEarth + Alt) * cos(Latgd);
-  Rk     = ((1.0 - EESqrd) * CEarth + Alt) * SinLat;
-
-  /* ----------------  Find SITE position vector  ----------------- */
-  RSijk.Set(Rdel * cos(LST), 1);
-  RSijk.Set(Rdel * sin(LST), 2);
-  RSijk.Set(Rk, 3);
-
-  /* ----------------  Find SITE velocity vector  ----------------- */
-  VSijk = EarthRate.Cross(RSijk);
-
-  if (Show == 'Y')
-    if (FileOut != NULL)
+void site
+     (
+       double latgd, double lon, double alt,
+       double rsecef[3], double vsecef[3]
+     )
     {
-      fprintf(FileOut, "RdelRk %11.7f %11.7f CEarth %11.7f %11.7f\n",
-                        Rdel, Rk, CEarth, (1.0 - EESqrd) * CEarth);
-    }
-}
+      const double rearth     = 6378.137;  // km
+      const double eesqrd     = 0.00669437999013;
+      double   sinlat, cearth, rdel, rk;
 
-/* ------------------- Angles-only techniques --------------------- */
+      /* ---------------------  initialize values   ------------------- */
+      sinlat = sin(latgd);
+
+      /* -------  find rdel and rk components of site vector  --------- */
+      cearth = rearth / sqrt(1.0 - (eesqrd * sinlat * sinlat));
+      rdel   = (cearth + alt) * cos(latgd);
+      rk     = ((1.0 - eesqrd) * cearth + alt) * sinlat;
+
+      /* ----------------  find site position vector  ----------------- */
+      rsecef[0] = rdel * cos(lon);
+      rsecef[1] = rdel * sin(lon);
+      rsecef[2] = rk;
+
+      /* ----------------  find site velocity vector  ----------------- */
+      vsecef[0] = 0.0;
+      vsecef[1] = 0.0;
+      vsecef[2] = 0.0;
+   }  // procedure site
+
+
+
+/* -------------------------- angles-only techniques ------------------------ */
+
+
 /*------------------------------------------------------------------------------
-|
-|                           PROCEDURE ANGLESGAUSS
-|
-|  This PROCEDURE solves the problem of orbit determination using three
-|    optical sightings.  The solution PROCEDURE uses the Gaussian technique.
-|
-|  Author        : David Vallado                  303-344-6037    1 Mar 2001
-|
-|  Inputs          Description                    Range / Units
-|    TRtAsc1      - Right Ascension #1            rad
-|    TRtAsc2      - Right Ascension #2            rad
-|    TRtAsc3      - Right Ascension #3            rad
-|    TDecl1       - Declination #1                rad
-|    TDecl2       - Declination #2                rad
-|    TDecl3       - Declination #3                rad
-|    JD1          - Julian Date of 1st sighting   Days from 4713 BC
-|    JD2          - Julian Date of 2nd sighting   Days from 4713 BC
-|    JD3          - Julian Date of 3rd sighting   Days from 4713 BC
-|    RSijk        - IJK SITE position vector      ER
-|
-|  OutPuts        :
-|    R            - IJK position vector at t2     ER
-|    V            - IJK velocity vector at t2     ER / TU
-|
-|  Locals         :
-|    L1           - Line of SIGHT vector for 1st
-|    L2           - Line of SIGHT vector for 2nd
-|    L3           - Line of SIGHT vector for 3rd
-|    Tau          - Taylor expansion series about
-|                   Tau ( t - to )
-|    TauSqr       - Tau squared
-|    t21t23       - (t2-t1) * (t2-t3)
-|    t31t32       - (t3-t1) * (t3-t2)
-|    i            - index
-|    D            -
-|    Rho          - Range from SITE to sat at t2  ER
-|    RhoDot       -
-|    DMat         -
-|    RS1          - SITE vectors
-|    RS2          -
-|    RS3          -
-|    EarthRate    - Velocity of Earth rotation
-|    P            -
-|    Q            -
-|    OldR         -
-|    OldV         -
-|    F1           - F coefficient
-|    G1           -
-|    F3           -
-|    G3           -
-|    L2DotRS      -
-|
-|  Coupling       :
-|    MAG          - Magnitude of a vector
-|    Detrminant   - Evaluate the determinant of a matrix
-|    FACTOR       - Find roots of a polynomial
-|    MATMULT      - Multiply two matrices together
-|    ASSIGNVAL    - Assign a value to a matrix
-|    GETVAL       - Get a value from a matrix
-|    INITMATRIX   - Initialize a matrix and fil with 0.0's
-|    DELMATRIX    - Delete a matrix
-|    GIBBS        - GIBBS method of orbit determination
-|    HGIBBS       - Herrick GIBBS method of orbit determination
-|    ANGLE        - ANGLE between two vectors
-|
-|  References     :
-|    Vallado       2001, 417-421, Alg 49, Ex 7-2 (425-427)
-|
+*
+*                           procedure anglesgauss
+*
+*  this procedure solves the problem of orbit determination using three
+*    optical sightings.  the solution procedure uses the gaussian technique.
+*
+*  author        : david vallado                  719-573-2600   22 jun 2002
+*
+*  inputs          description                    range / units
+*    trtasc1      - right ascension #1            rad
+*    trtasc2      - right ascension #2            rad
+*    trtasc3      - right ascension #3            rad
+*    tdecl1       - declination #1                rad
+*    tdecl2       - declination #2                rad
+*    tdecl3       - declination #3                rad
+*    jd1          - julian date of 1st sighting   days from 4713 bc
+*    jd2          - julian date of 2nd sighting   days from 4713 bc
+*    jd3          - julian date of 3rd sighting   days from 4713 bc
+*    rsijk        - ijk site position vector      er
+*
+*  outputs        :
+*    r            - ijk position vector at t2     er
+*    v            - ijk velocity vector at t2     er / tu
+*
+*  locals         :
+*    l1           - line of sight vector for 1st
+*    l2           - line of sight vector for 2nd
+*    l3           - line of sight vector for 3rd
+*    tau          - taylor expansion series about
+*                   tau ( t - to )
+*    tausqr       - tau squared
+*    t21t23       - (t2-t1) * (t2-t3)
+*    t31t32       - (t3-t1) * (t3-t2)
+*    i            - index
+*    d            -
+*    rho          - range from site to sat at t2  er
+*    rhodot       -
+*    dmat         -
+*    rs1          - site vectors
+*    rs2          -
+*    rs3          -
+*    earthrate    - velocity of earth rotation
+*    p            -
+*    q            -
+*    oldr         -
+*    oldv         -
+*    f1           - f coefficient
+*    g1           -
+*    f3           -
+*    g3           -
+*    l2dotrs      -
+*
+*  coupling       :
+*    mag          - magnitude of a vector
+*    detrminant   - evaluate the determinant of a matrix
+*    factor       - find roots of a polynomial
+*    matmult      - multiply two matrices together
+*    assignval    - assign a value to a matrix
+*    getval       - get a value from a matrix
+*    initmatrix   - initialize a matrix and fil with 0.0's
+*    delmatrix    - delete a matrix
+*    gibbs        - gibbs method of orbit determination
+*    hgibbs       - herrick gibbs method of orbit determination
+*    angle        - angle between two vectors
+*
+*  references     :
+*    vallado       2001, 417-421, alg 49, ex 7-2 (425-427)
+*
  -----------------------------------------------------------------------------*/
-void AnglesGauss
-    (
-      Real TDecl1,  Real TDecl2,  Real TDecl3, 
-      Real TRtAsc1, Real TRtAsc2, Real TRtAsc3, 
-      Real JD1,     Real JD2,     Real JD3,
-      Vector RS1, Vector RS2, Vector RS3, Vector& R2, Vector& V2
-    )
+void anglesgauss
+     (
+       double tdecl1,  double tdecl2,  double tdecl3,
+       double trtasc1, double trtasc2, double trtasc3,
+       double jd1,     double jd2,     double jd3,
+       double rs1[3], double rs2[3], double rs3[3], double r2[3], double v2[3]
+     )
 {
-  const Real TUDay = 0.00933809017716;
-  const Real Mu    = 1.0;
-  const Real Small = 0.0000001;
-  const Real Rad   = 180.0 / PI;
-
-  char Error[12];
-  Real Poly[16];
-  Real Roots[15][2];
-  Vector R1(3), R3(3), L1(3), L2(3), L3(3);
-  Matrix LMatIi(3, 3), CMat(3, 3), RhoMat(3, 3), 
-         LMatI(3, 3), RSMat(3, 3), LIR(3,3);
-  Real rDot, Tau1, Tau3, u, uDot, p, f1, g1, f3, g3, a, ecc, incl, omega, argp,
-       Nu, m, l, ArgPer, BigR2, a1, a1u, a3, a3u, D, D1, D2, c1, c3, L2DotRS,
-       Rhoold1, Rhoold2, Rhoold3, Temproot, theta, theta1, copa, TauSqr;
+  const double tuday = 0.00933809017716;
+  const double mu    = 1.0;
+  const double small = 0.0000001;
+  const double rad   = 180.0 / pi;
+  int i, j, ll;
+  char error[12];
+  double poly[16];
+  double roots[15][2];
+  double r1[3], r3[3], l1[3], l2[3], l3[3];
+  std::vector< std::vector<double> > lmatii(3,3), cmat(3,3), rhomat(3,3),
+         lmati(3,3), rsmat(3,3), lir(3,3);
+  double rdot, tau1, tau3, u, udot, p, f1, g1, f3, g3, a, ecc, incl, omega, argp,
+       nu, m, l, argper, bigr2, a1, a1u, a3, a3u, d, d1, d2, c1, c3, l2dotrs,
+       rhoold1, rhoold2, rhoold3, temproot, theta, theta1, copa, tausqr;
   char tc, chg;
-  Byte ScHi;
 
-
-  /* ----------------------   Initialize   ------------------------ */
-  CMat.Clear();
-  LIR.Clear();
-  LMatI.Clear();
-  LMatIi.Clear();
-  RhoMat.Clear();
-  RSMat.Clear();
-
-  JD1 = JD1 / TUDay;   // Convert days to TU
-  JD2 = JD2 / TUDay;
-  JD3 = JD3 / TUDay;
+  /* ----------------------   initialize   ------------------------ */
+  jd1 = jd1 / tuday;   // convert days to tu
+  jd2 = jd2 / tuday;
+  jd3 = jd3 / tuday;
   /* ---- set middle to 0, deltas to other times ---- */
-  Tau1 = JD1 - JD2;
-  Tau3 = JD3 - JD2;
+  tau1 = jd1 - jd2;
+  tau3 = jd3 - jd2;
 
-  /* ----------------  Find Line of SIGHT vectors  ---------------- */
-  L1.Set(cos(TDecl1) * cos(TRtAsc1), 1);
-  L1.Set(cos(TDecl1) * sin(TRtAsc1), 2);
-  L1.Set(sin(TDecl1), 3);
+  /* ----------------  find line of sight vectors  ---------------- */
+  l1[0] = cos(tdecl1) * cos(trtasc1);
+  l1[1] = cos(tdecl1) * sin(trtasc1);
+  l1[2] = sin(tdecl1);
 
-  L2.Set(cos(TDecl2) * cos(TRtAsc2), 1);
-  L2.Set(cos(TDecl2) * sin(TRtAsc2), 2);
-  L2.Set(sin(TDecl2), 3);
+  l2[0] = cos(tdecl2) * cos(trtasc2);
+  l2[1] = cos(tdecl2) * sin(trtasc2);
+  l2[2] = sin(tdecl2);
 
-  L3.Set(cos(TDecl3) * cos(TRtAsc3), 1);
-  L3.Set(cos(TDecl3) * sin(TRtAsc3), 2);
-  L3.Set(sin(TDecl3), 3);
+  l3[0] = cos(tdecl3) * cos(trtasc3);
+  l3[1] = cos(tdecl3) * sin(trtasc3);
+  l3[2] = sin(tdecl3);
 
-  /* -------------- Find L matrix and determinant ----------------- */
-  /* -------- Called LMatI since it is only used for determ ------- */
-  for (UINT i = 1; i <= 3; i++)
+  /* -------------- find l matrix and determinant ----------------- */
+  /* -------- called lmati since it is only used for determ ------- */
+  for (i = 1; i <= 3; i++)
   {
-    L1.Set(LMatIi.Get(i, 1), i);
-    L2.Set(LMatIi.Get(i, 2), i);
-    L3.Set(LMatIi.Get(i, 3), i);
-    RS1.Set(RSMat.Get(i, 1), i);
-    RS2.Set(RSMat.Get(i, 2), i);
-    RS3.Set(RSMat.Get(i, 3), i);
+    l1[0] = lmatii[i][1];
+    l2[1] = lmatii[i][2];
+    l3[2] = lmatii[i][3];
+    rs1[0] = rsmat[i][1];
+    rs2[1] = rsmat[i][2];
+    rs3[2] = rsmat[i][3];
   }
 
-  D = LMatIi.Determinant();
+/// fix xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  ///  d = determinant(lmatii);
 
-  /* ------------------- Now assign the inverse ------------------- */
-  LMatI.Set(( L2.Get(2) * L3.Get(3) - L2.Get(3) * L3.Get(2)) / D, 1, 1);
-  LMatI.Set((-L1.Get(2) * L3.Get(3) + L1.Get(3) * L3.Get(2)) / D, 2, 1);
-  LMatI.Set(( L1.Get(2) * L2.Get(3) - L1.Get(3) * L2.Get(2)) / D, 3, 1);
-  LMatI.Set((-L2.Get(1) * L3.Get(3) + L2.Get(3) * L3.Get(1)) / D, 1, 2);
-  LMatI.Set(( L1.Get(1) * L3.Get(3) - L1.Get(3) * L3.Get(1)) / D, 2, 2);
-  LMatI.Set((-L1.Get(1) * L2.Get(3) + L1.Get(3) * L2.Get(1)) / D, 3, 2);
-  LMatI.Set(( L2.Get(1) * L3.Get(2) - L2.Get(2) * L3.Get(1)) / D, 1, 3);
-  LMatI.Set((-L1.Get(1) * L3.Get(2) + L1.Get(2) * L3.Get(1)) / D, 2, 3);
-  LMatI.Set(( L1.Get(1) * L2.Get(2) - L1.Get(2) * L2.Get(1)) / D, 3, 3);
+  /* ------------------- now assign the inverse ------------------- */
+  lmati[0][0] = ( l2[2] * l3[3] - l2[3] * l3[2]) / d;
+  lmati[1][1] = (-l1[2] * l3[3] + l1[3] * l3[2]) / d;
+  lmati[2][2] = ( l1[2] * l2[3] - l1[3] * l2[2]) / d;
+  lmati[0][0] = (-l2[1] * l3[3] + l2[3] * l3[1]) / d;
+  lmati[1][1] = ( l1[1] * l3[3] - l1[3] * l3[1]) / d;
+  lmati[2][2] = (-l1[1] * l2[3] + l1[3] * l2[1]) / d;
+  lmati[0][0] = ( l2[1] * l3[2] - l2[2] * l3[1]) / d;
+  lmati[1][1] = (-l1[1] * l3[2] + l1[2] * l3[1]) / d;
+  lmati[2][2] = ( l1[1] * l2[2] - l1[2] * l2[1]) / d;
 
-  LIR = LMatI * RSMat;
+  matmult( lmati, rsmat, lir, 3, 3, 3);
 
-  /* ------------- Find f and g series at 1st and 3rd obs --------- */
-  /* speed by assuming circ sat vel for uDot here ??                */
+  /* ------------- find f and g series at 1st and 3rd obs --------- */
+  /* speed by assuming circ sat vel for udot here ??                */
   /* some similartities in 1/6t3t1 ...                              */
   /* ---- keep separated this time ----                             */
-  a1  = Tau3 / (Tau3 - Tau1);
-  a1u = (Tau3 * ((Tau3 - Tau1) * (Tau3 - Tau1) - Tau3 * Tau3)) / 
-        (6.0 * (Tau3 - Tau1));
-  a3  = -Tau1 / (Tau3 - Tau1);
-  a3u = -(Tau1 * ((Tau3 - Tau1) * (Tau3 - Tau1) - Tau1 * Tau1)) / 
-        (6.0 * (Tau3 - Tau1));
+  a1  = tau3 / (tau3 - tau1);
+  a1u = (tau3 * ((tau3 - tau1) * (tau3 - tau1) - tau3 * tau3)) /
+        (6.0 * (tau3 - tau1));
+  a3  = -tau1 / (tau3 - tau1);
+  a3u = -(tau1 * ((tau3 - tau1) * (tau3 - tau1) - tau1 * tau1)) /
+        (6.0 * (tau3 - tau1));
 
-  /* ---- Form initial guess of r2 ---- */
-  D1 = LIR.Get(2, 1) * a1  - LIR.Get(2, 2) + LIR.Get(2, 3) * a3;
-  D2 = LIR.Get(2, 1) * a1u                 + LIR.Get(2, 3) * a3u;
+  /* ---- form initial guess of r2 ---- */
+  d1 = lir[2][1] * a1  - lir[2][2] + lir[2][3] * a3;
+  d2 = lir[2][1] * a1u                 + lir[2][3] * a3u;
 
-  /* -------- Solve eighth order poly NOT same as LAPLACE --------- */
-  L2DotRS = L2.Dot(RS2);
-  Poly[ 0] = 1.0;  // r2
-  Poly[ 1] = 0.0;
-  Poly[ 2] = -(D1 * D1 + 2.0 * D1 * L2DotRS + RS2.Mag() * RS2.Mag());
-  Poly[ 3] = 0.0;
-  Poly[ 4] = 0.0;
-  Poly[ 5] = -2.0* Mu * (L2DotRS * D2 + D1 * D2);
-  Poly[ 6] = 0.0;
-  Poly[ 7] = 0.0;
-  Poly[ 8] = -Mu * Mu * D2 * D2;
-  Poly[ 9] = 0.0;
-  Poly[10] = 0.0;
-  Poly[11] = 0.0;
-  Poly[12] = 0.0;
-  Poly[13] = 0.0;
-  Poly[14] = 0.0;
-  Poly[15] = 0.0;
-  Factor(Poly, 8, (Real **) Roots);
+  /* -------- solve eighth order poly not same as laplace --------- */
+  /// fixxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  ///  dot( l2, rs2, l2dotrs);
+  poly[ 0] = 1.0;  // r2
+  poly[ 1] = 0.0;
+  poly[ 2] = -(d1 * d1 + 2.0 * d1 * l2dotrs + mag(rs2) * mag(rs2));
+  poly[ 3] = 0.0;
+  poly[ 4] = 0.0;
+  poly[ 5] = -2.0* mu * (l2dotrs * d2 + d1 * d2);
+  poly[ 6] = 0.0;
+  poly[ 7] = 0.0;
+  poly[ 8] = -mu * mu * d2 * d2;
+  poly[ 9] = 0.0;
+  poly[10] = 0.0;
+  poly[11] = 0.0;
+  poly[12] = 0.0;
+  poly[13] = 0.0;
+  poly[14] = 0.0;
+  poly[15] = 0.0;
+//// fixxxxxxxxxxxxxxxxxxxxxxxxxx
+  ///  factor(poly, 8, (double **) roots);
 
-  /* ------------------- Select the correct root ------------------ */
-  BigR2 = 0.0;
-  for (UINT j = 0; j < 8; j++)
+  /* ------------------- select the correct root ------------------ */
+  bigr2 = 0.0;
+  for (j = 0; j < 8; j++)
   {
-    if (fabs(Roots[j][1]) < Small)
+    if (fabs(roots[j][1]) < small)
     {
-      Temproot = Roots[j][0] * Roots[j][0];
-      Temproot = Temproot * Temproot * Temproot * Temproot +
-                 Poly[2]  * Temproot * Temproot * Temproot +
-                 Poly[5]  * Roots[j][0] * Temproot + Poly[8];
-      if (FileOut != NULL)
-      {
-        fprintf(FileOut, "Root %d %0.7f + %0.7f j  value = %0.7f\n",
-                          j, Roots[j][0], Roots[j][1], Temproot);
-        fprintf(FileOut, "Root %d %0.7f + %0.7f j  value = %0.7f\n",
-                          j, Roots[j][0], Roots[j][1], Temproot);
-      }
-      if (Roots[j][0] > BigR2)
-        BigR2 = Roots[j][0];
+      temproot = roots[j][0] * roots[j][0];
+      temproot = temproot * temproot * temproot * temproot +
+                 poly[2]  * temproot * temproot * temproot +
+                 poly[5]  * roots[j][0] * temproot + poly[8];
+//      if (fileout != null)
+//      {
+//        fprintf(fileout, "root %d %0.7f + %0.7f j  value = %0.7f\n",
+//                          j, roots[j][0], roots[j][1], temproot);
+//        fprintf(fileout, "root %d %0.7f + %0.7f j  value = %0.7f\n",
+//                          j, roots[j][0], roots[j][1], temproot);
+//      }
+      if (roots[j][0] > bigr2)
+        bigr2 = roots[j][0];
     }
   }
   printf("input r2 ");
-  scanf("%f\n", &BigR2);
+  scanf("%f\n", &bigr2);
 
-  /* ------------- Solve matrix with u2 better known -------------- */
-  u = Mu / (BigR2 * BigR2 * BigR2);
+  /* ------------- solve matrix with u2 better known -------------- */
+  u = mu / (bigr2 * bigr2 * bigr2);
 
   c1 = a1 + a1u * u;
   c3 = a3 + a3u * u;
-  CMat.Set(-c1, 1, 1);
-  CMat.Set(1.0, 2, 1);
-  CMat.Set(-c3, 3, 1);
-  RhoMat = LIR * CMat;
+  cmat[1][1] = -c1;
+  cmat[2][1] = 1.0;
+  cmat[3][1] = -c3;
+  /// fixxxxxxx
+  ///  matmult(lir, cmat, rhomat);
 
-  Rhoold1 =  RhoMat.Get(1, 1) / c1;
-  Rhoold2 = -RhoMat.Get(2, 1);
-  Rhoold3 =  RhoMat.Get(3, 1) / c3;
+  rhoold1 =  rhomat[1][1] / c1;
+  rhoold2 = -rhomat[2][1];
+  rhoold3 =  rhomat[3][1] / c3;
 
-  if (FileOut != NULL)
-    fprintf(FileOut, " Now start refining the guess\n");
+//  if (fileout != null)
+//    fprintf(fileout, " now start refining the guess\n");
 
-  /* --------- Loop through the refining process ------------ */
-  for (UINT ll = 1; ll <= 3; ll++)
+  /* --------- loop through the refining process ------------ */
+  for (ll = 1; ll <= 3; ll++)
   {
-    if (FileOut != NULL)
-      fprintf(FileOut, " Iteration # %2d\n", ll);
-    /* ---- Now form the three position vectors ----- */
-    for (UINT i = 1; i <= 3; i++)
+//    if (fileout != null)
+//      fprintf(fileout, " iteration # %2d\n", ll);
+    /* ---- now form the three position vectors ----- */
+    for (i = 1; i <= 3; i++)
     {
-      R1.Set( RhoMat.Get(1, 1) * L1.Get(i) / c1 + RS1.Get(i), i);
-      R2.Set(-RhoMat.Get(2, 1) * L2.Get(i)      + RS2.Get(i), i);
-      R3.Set( RhoMat.Get(3, 1) * L3.Get(i) / c3 + RS3.Get(i), i);
+      r1[0] =  rhomat[1][1] * l1[i] / c1 + rs1[i];
+      r2[1] = -rhomat[2][1] * l2[i]      + rs2[i];
+      r3[2] =  rhomat[3][1] * l3[i] / c3 + rs3[i];
     }
 
-    Gibbs(R1,R2,R3, V2, theta, theta1, copa, Error);
+    gibbs(r1,r2,r3, v2, theta, theta1, copa, error);
 
-    if ((strcmp(Error, "ok") == 0) && (copa < 1.0 / Rad))
+    if ((strcmp(error, "ok") == 0) && (copa < 1.0 / rad))
     {
-      /* HGibbs to get middle vector ---- */
-      JD1 = JD1 * TUDay;   // Convert TU to days
-      JD2 = JD2 * TUDay;
-      JD3 = JD3 * TUDay;
+      /* hgibbs to get middle vector ---- */
+      jd1 = jd1 * tuday;   // convert tu to days
+      jd2 = jd2 * tuday;
+      jd3 = jd3 * tuday;
 
-      HerrGibbs(R1,R2,R3,JD1,JD2,JD3, V2,theta,theta1,copa,Error);
+      herrgibbs(r1,r2,r3,jd1,jd2,jd3, v2,theta,theta1,copa,error);
 
-      if (FileOut != NULL)
-        fprintf(FileOut, "hgibbs\n");
+//      if (fileout != null)
+//        fprintf(fileout, "hgibbs\n");
     }
 
-    ElOrb(R2, V2, p, a, ecc, incl, omega, argp, Nu, m, u, l, ArgPer);
+    rv2coe(r2, v2, p, a, ecc, incl, omega, argp, nu, m, u, l, argper);
 
-    if (FileOut != NULL)
+//    if (fileout != null)
+//    {
+//      fprintf(fileout, "t123 %18.7f %18.7f %18.7f tu\n", jd1, jd2, jd3);
+//      fprintf(fileout, "t123 %18.7f %18.7f %18.7f days\n",
+//                        jd1 * tuday, jd2 * tuday, jd3 * tuday);
+//      fprintf(fileout, "los 1    %12.6f %12.6f %12.6f\n",
+//                        l1[1), l1[2], l1[3]);
+//      fprintf(fileout, "los 2    %12.6f %12.6f %12.6f\n",
+//                        l2[1), l2[2], l2[3]);
+//      fprintf(fileout, "los 3    %12.6f %12.6f %12.6f\n",
+//                        l3[1), l3[2], l3[3]);
+//      fileprint(rsmat, " rsmat ", 3, fileout);
+//    }
+
+/// fixxxxxxxxxxxxxx
+///    lmatii = lmati.inverse();
+
+/*
+    lir    = lmati * lmatii;
+    lmati.display(" lmati matrix\n", 3);
+    lir.display(" i matrix\n", 6);
+    printf("%14.7f\n", d);
+    if (fileout != null)
+      fileprint(lmati,  " lmat matinv " ,3, fileout);
+    lir = lmati * lmatii;
+    lir.display(" should be i matrix ", 6);
+    lir.display(" lir matrix ", 6);
+*/
+/*    if (fileout != null)
     {
-      fprintf(FileOut, "t123 %18.7f %18.7f %18.7f TU\n", JD1, JD2, JD3);
-      fprintf(FileOut, "t123 %18.7f %18.7f %18.7f days\n", 
-                        JD1 * TUDay, JD2 * TUDay, JD3 * TUDay);
-      fprintf(FileOut, "los 1    %12.6f %12.6f %12.6f\n",
-                        L1.Get(1), L1.Get(2), L1.Get(3));
-      fprintf(FileOut, "los 2    %12.6f %12.6f %12.6f\n",
-                        L2.Get(1), L2.Get(2), L2.Get(3));
-      fprintf(FileOut, "los 3    %12.6f %12.6f %12.6f\n",
-                        L3.Get(1), L3.Get(2), L3.Get(3));
-      FilePrint(RSMat, " RSMat ", 3, FileOut);
+      fprintf(fileout, "tau  %11.7f %11.7f tu %14.7f\n",tau1, tau3, u);
+      fprintf(fileout, "a13, u %11.7f %11.7f %11.7f%11.7f\n", a1, a3, a1u, a3u);
+      fprintf(fileout, "d1, d2 %11.7f %11.7f ldotr %11.7f\n", d1, d2, l2dotrs);
+      fprintf(fileout, "coeff %11.7f %11.7f %11.7f %11.7f\n",
+                        poly[0], poly[2], poly[5], poly[8]);
+      fileprint(cmat, " c matrix ", 3, fileout);
+      fileprint(rhomat, " rho matrix ", 3, fileout);
+      fprintf(fileout, "r1 %11.7f %11.7f %11.7f %11.7f\n",
+                        r1[1), r1[2], r1[3], r1.mag());
+      fprintf(fileout, "r2 %11.7f %11.7f %11.7f %11.7f\n",
+                        r2[1), r2[2], r2[3], r2.mag());
+      fprintf(fileout, "r3 %11.7f %11.7f %11.7f %11.7f\n",
+                        r3[1), r3[2], r3[3], r3.mag());
+      fprintf(fileout, "hggau r2 %12.6 %12.6 %12.6 %s %11.7f ",
+                 r2[1), r2[2], r2[3], r2.mag(), error, copa * rad);
+      fprintf(fileout, "%12.6 %12.6 %12.6\n", v2[1), v2[2], v2[3]);
+      fprintf(fileout, "p=%11.7f  a%11.7f  e %11.7f i %11.7f omeg %10.6f \
+                        argp %10.6f\n",
+                        p, a, ecc, incl * rad, omega * rad, argp * rad);
+      printf("p=%11.7f  a%11.7f  e %11.7f i %11.7f w%10.6f w%10.6f\n",
+                        p, a, ecc, incl * rad, omega * rad, argp * rad);
     }
-    LMatIi = LMatI.Inverse();
-    LIR    = LMatI * LMatIi;
-    LMatI.Display(" LMatI Matrix\n", 3);
-    LIR.Display(" I Matrix\n", 6);
-    printf("%14.7f\n", D);
-    if (FileOut != NULL)
-      FilePrint(LMatI,  " Lmat MatInv " ,3, FileOut);
-    LIR = LMatI * LMatIi;
-    LIR.Display(" should be I Matrix ", 6);
-    LIR.Display(" LIR Matrix ", 6);
-    if (FileOut != NULL)
-    {
-      fprintf(FileOut, "tau  %11.7f %11.7f TU %14.7f\n",Tau1, Tau3, u);
-      fprintf(FileOut, "a13, u %11.7f %11.7f %11.7f%11.7f\n", a1, a3, a1u, a3u);
-      fprintf(FileOut, "d1, d2 %11.7f %11.7f lDotr %11.7f\n", D1, D2, L2DotRS);
-      fprintf(FileOut, "coeff %11.7f %11.7f %11.7f %11.7f\n",
-                        Poly[0], Poly[2], Poly[5], Poly[8]);
-      FilePrint(CMat, " c Matrix ", 3, FileOut);
-      FilePrint(RhoMat, " Rho Matrix ", 3, FileOut);
-      fprintf(FileOut, "r1 %11.7f %11.7f %11.7f %11.7f\n",
-                        R1.Get(1), R1.Get(2), R1.Get(3), R1.Mag());
-      fprintf(FileOut, "r2 %11.7f %11.7f %11.7f %11.7f\n",
-                        R2.Get(1), R2.Get(2), R2.Get(3), R2.Mag());
-      fprintf(FileOut, "r3 %11.7f %11.7f %11.7f %11.7f\n",
-                        R3.Get(1), R3.Get(2), R3.Get(3), R3.Mag());
-      fprintf(FileOut, "hgGau r2 %12.6 %12.6 %12.6 %s %11.7f ",
-                 R2.Get(1), R2.Get(2), R2.Get(3), R2.Mag(), Error, copa * Rad);
-      fprintf(FileOut, "%12.6 %12.6 %12.6\n", V2.Get(1), V2.Get(2), V2.Get(3));
-      fprintf(FileOut, 
-              "p=%11.7f  a%11.7f  e %11.7f i %11.7f Omeg %10.6f argp %10.6f\n",
-                        p, a, ecc, incl * Rad, omega * Rad, argp * Rad);
-      printf("p=%11.7f  a%11.7f  e %11.7f i %11.7f W%10.6f w%10.6f\n",
-                        p, a, ecc, incl * Rad, omega * Rad, argp * Rad);
-    }
+*/
     if (ll <= 2)
     {
-      /* ---- Now get an improved estimate of the f and g series ---- */
+      /* ---- now get an improved estimate of the f and g series ---- */
       /* or can the analytic functions be found now??                 */
-      u    = Mu / (R2.Mag() * R2.Mag() * R2.Mag());
-      rDot = R2.Dot(V2) / R2.Mag();
-      uDot = (-3.0 * Mu * rDot) / sqrt(R2.Mag()* R2.Mag());
+      u    = mu / (mag(r2) * mag(r2) * mag(r2));
+      rdot = dot(r2, v2) / mag(r2);
+      udot = (-3.0 * mu * rdot) / ( pow(mag(r2),4) );
 
-      TauSqr = Tau1 * Tau1;
-      f1 =  1.0 - 0.5 * u * TauSqr - 
-                  (1.0 / 6.0) * uDot * TauSqr * Tau1 +
-                  (1.0 / 24.0) * u * u * TauSqr * TauSqr +
-                  (1.0 / 30.0) * u * uDot * TauSqr * TauSqr * Tau1;
-      g1 = Tau1 - (1.0 / 6.0) * u * Tau1 * TauSqr - 
-                  (1.0 / 12.0) * uDot * TauSqr * TauSqr +
-                  (1.0 / 120.0) * u * u * TauSqr * TauSqr * Tau1 +
-                  (1.0 / 120.0) * u * uDot * TauSqr * TauSqr * TauSqr;
-      TauSqr = Tau3 * Tau3;
-      f3 =  1.0 - 0.5 * u * TauSqr - 
-                  (1.0 / 6.0) * uDot* TauSqr * Tau3 +
-                  (1.0 / 24.0) * u * u * TauSqr * TauSqr +
-                  (1.0 / 30.0) * u * uDot * TauSqr * TauSqr * Tau3;
-      g3 = Tau3 - (1.0 / 6.0) * u * Tau3 * TauSqr -
-                  (1.0 / 12.0) * uDot * TauSqr * TauSqr +
-                  (1.0 / 120.0) * u * u * TauSqr * TauSqr * Tau3 +
-                  (1.0 / 120.0) * u * uDot * TauSqr * TauSqr * TauSqr;
-      if (FileOut != NULL)
-        fprintf(FileOut, "tau1 %11.7f tau3 %11.7f u %14.7f %14.7f\n",
-                          Tau1, Tau3, u, uDot);
+      tausqr = tau1 * tau1;
+      f1 =  1.0 - 0.5 * u * tausqr -
+                  (1.0 / 6.0) * udot * tausqr * tau1 +
+                  (1.0 / 24.0) * u * u * tausqr * tausqr +
+                  (1.0 / 30.0) * u * udot * tausqr * tausqr * tau1;
+      g1 = tau1 - (1.0 / 6.0) * u * tau1 * tausqr -
+                  (1.0 / 12.0) * udot * tausqr * tausqr +
+                  (1.0 / 120.0) * u * u * tausqr * tausqr * tau1 +
+                  (1.0 / 120.0) * u * udot * tausqr * tausqr * tausqr;
+      tausqr = tau3 * tau3;
+      f3 =  1.0 - 0.5 * u * tausqr -
+                  (1.0 / 6.0) * udot* tausqr * tau3 +
+                  (1.0 / 24.0) * u * u * tausqr * tausqr +
+                  (1.0 / 30.0) * u * udot * tausqr * tausqr * tau3;
+      g3 = tau3 - (1.0 / 6.0) * u * tau3 * tausqr -
+                  (1.0 / 12.0) * udot * tausqr * tausqr +
+                  (1.0 / 120.0) * u * u * tausqr * tausqr * tau3 +
+                  (1.0 / 120.0) * u * udot * tausqr * tausqr * tausqr;
+//      if (fileout != null)
+//        fprintf(fileout, "tau1 %11.7f tau3 %11.7f u %14.7f %14.7f\n",
+//                          tau1, tau3, u, udot);
     }
     else
     {
-      /* --- Now use exact method to find f and g --- */
-      theta  = R1.Angle(R2);
-      theta1 = R2.Angle(R3);
+      /* --- now use exact method to find f and g --- */
+      theta  = angle(r1, r2);
+      theta1 = angle(r2, r3);
 
-      f1 = 1.0 - ((R1.Mag() * (1.0 - cos(theta)) / p));
-      g1 = (R1.Mag()*R2.Mag() * sin(-theta) ) / sqrt(p); // - ANGLE because backwards!!
-      f3 = 1.0 - ((R3.Mag() * cos(1.0 - cos(theta1))/p));
-      g3 = ( R3.Mag()*R2.Mag() * sin(theta1)) / sqrt(p);
-      if (FileOut != NULL)
-        fprintf(FileOut, "f1n%11.7f %11.7f f3 %11.7f %11.7f\n", f1, g1, f3, g3);
+      f1 = 1.0 - ((mag(r1) * (1.0 - cos(theta)) / p));
+      g1 = (mag(r1)*mag(r2) * sin(-theta) ) / sqrt(p); // - angle because backwards!!
+      f3 = 1.0 - ((mag(r3) * cos(1.0 - cos(theta1))/p));
+      g3 = ( mag(r3)*mag(r2) * sin(theta1)) / sqrt(p);
+//    if (fileout != null)
+//      fprintf(fileout, "f1n%11.7f %11.7f f3 %11.7f %11.7f\n", f1, g1, f3, g3);
       c1 =  g3 / (f1 * g3 - f3 * g1);
       c3 = -g1 / (f1 * g3 - f3 * g1);
     }
-    /* ---- Solve for all three ranges via matrix equation ---- */
-    CMat.Set(-c1, 1, 1);
-    CMat.Set(1.0, 2, 1);
-    CMat.Set(-c3, 3, 1);
-    RhoMat = LIR * CMat;
-    if (FileOut != NULL)
-    {
-      fprintf(FileOut, "c1, c3 %11.7f %11.7f\n", c1, c3);
-      FilePrint(RhoMat, " Rho Matrix ", 3, FileOut);
-    }
-    /* ---- Check for convergence ---- */
+    /* ---- solve for all three ranges via matrix equation ---- */
+    cmat[1][1] = -c1;
+    cmat[2][1] = 1.0;
+    cmat[3][1] = -c3;
+  /// fixxxxxxx
+  ///  matmult(lir, cmat, rhomat);
+
+//    if (fileout != null)
+//    {
+//      fprintf(fileout, "c1, c3 %11.7f %11.7f\n", c1, c3);
+//      fileprint(rhomat, " rho matrix ", 3, fileout);
+//    }
+    /* ---- check for convergence ---- */
   }
-  /* ---- Find all three vectors ri ---- */
-  for (UINT i = 1; i <= 3; i++)
+  /* ---- find all three vectors ri ---- */
+  for (i = 1; i <= 3; i++)
   {
-    R1.Set( RhoMat.Get(1, 1) * L1.Get(i) / c1 + RS1.Get(i), i);
-    R2.Set(-RhoMat.Get(2, 1) * L2.Get(i)      + RS2.Get(i), i);
-    R3.Set( RhoMat.Get(3, 1) * L3.Get(i) / c3 + RS3.Get(i), i);
+    r1[0] = ( rhomat[1][1] * l1[i] / c1 + rs1[i]);
+    r2[1] = (-rhomat[2][1] * l2[i]      + rs2[i]);
+    r3[2] = ( rhomat[3][1] * l3[i] / c3 + rs3[i]);
   }
-  if (FileOut != NULL)
-  {
-    fprintf(FileOut, "r1 %11.7f %11.7f %11.7f %11.7f",
-                      R1.Get(1), R1.Get(2), R1.Get(3), R1.Mag());
-    fprintf(FileOut, "r2 %11.7f %11.7f %11.7f %11.7f",
-                      R2.Get(1), R2.Get(2), R2.Get(3), R2.Mag());
-    fprintf(FileOut, "r3 %11.7f %11.7f %11.7f %11.7f",
-                      R3.Get(1), R3.Get(2), R3.Get(3), R3.Mag());
-  }
-}
+//  if (fileout != null)
+//  {
+//    fprintf(fileout, "r1 %11.7f %11.7f %11.7f %11.7f",
+//                      r1[1), r1[2], r1[3], r1.mag());
+//    fprintf(fileout, "r2 %11.7f %11.7f %11.7f %11.7f",
+//                      r2[1), r2[2], r2[3], r2.mag());
+//    fprintf(fileout, "r3 %11.7f %11.7f %11.7f %11.7f",
+//                      r3[1), r3[2], r3[3], r3.mag());
+//  }
+}    // procedure anglsegauss
 
 /*------------------------------------------------------------------------------
-|
-|                           PROCEDURE ANGLESLAPLACE
-|
-|  This PROCEDURE solves the problem of orbit determination using three
-|    optical sightings and the method of Laplace.
-|
-|  Author        : David Vallado                  303-344-6037    1 Mar 2001
-|
-|  Inputs          Description                    Range / Units
-|    TRtAsc1      - Right Ascension #1            rad
-|    TRtAsc2      - Right Ascension #2            rad
-|    TRtAsc3      - Right Ascension #3            rad
-|    TDecl1       - Declination #1                rad
-|    TDecl2       - Declination #2                rad
-|    TDecl3       - Declination #3                rad
-|    JD1          - Julian Date of 1st sighting   Days from 4713 BC
-|    JD2          - Julian Date of 2nd sighting   Days from 4713 BC
-|    JD3          - Julian Date of 3rd sighting   Days from 4713 BC
-|    RS1          - IJK SITE position vector #1   ER
-|    RS2          - IJK SITE position vector #2   ER
-|    RS3          - IJK SITE position vector #3   ER
-|
-|  OutPuts        :
-|    R            - IJK position vector           ER
-|    V            - IJK velocity vector           ER / TU
-|
-|  Locals         :
-|    L1           - Line of SIGHT vector for 1st
-|    L2           - Line of SIGHT vector for 2nd
-|    L3           - Line of SIGHT vector for 3rd
-|    LDot         - 1st derivative of L2
-|    LDDot        - 2nd derivative of L2
-|    RS2Dot       - 1st Derivative of RS2 - vel
-|    RS2DDot      - 2nd Derivative of RS2
-|    t12t13       - (t1-t2) * (t1-t3)
-|    t21t23       - (t2-t1) * (t2-t3)
-|    t31t32       - (t3-t1) * (t3-t2)
-|    i            - index
-|    D            -
-|    D1           -
-|    D2           -
-|    D3           -
-|    D4           -
-|    OldR         - Previous iteration on r
-|    Rho          - Range from SITE to satellite at t2
-|    RhoDot       -
-|    DMat         -
-|    D1Mat        -
-|    D2Mat        -
-|    D3Mat        -
-|    D4Mat        -
-|    EarthRate    - Angular rotation of the earth
-|    L2DotRS      - Vector L2 Dotted with RSijk
-|    Temp         - Temporary vector
-|    Temp1        - Temporary vector
-|    Small        - Tolerance
-|    Roots        -
-|
-|  Coupling       :
-|    MAG          - Magnitude of a vector
-|    DETERMINANT  - Evaluate the determinant of a matrix
-|    CROSS        - CROSS product of two vectors
-|    NORM         - Normlize a matrix
-|    ASSIGNVAL    - Assign a value to a matrix
-|    GETVAL       - Get a value from a matrix
-|    INITMATRIX   - Initialize a matrix and fil with 0.0's
+*
+*                           procedure angleslaplace
+*
+*  this procedure solves the problem of orbit determination using three
+*    optical sightings and the method of laplace.
+*
+*  author        : david vallado                  719-573-2600   22 jun 2002
+*
+*  inputs          description                    range / units
+*    trtasc1      - right ascension #1            rad
+*    trtasc2      - right ascension #2            rad
+*    trtasc3      - right ascension #3            rad
+*    tdecl1       - declination #1                rad
+*    tdecl2       - declination #2                rad
+*    tdecl3       - declination #3                rad
+*    jd1          - julian date of 1st sighting   days from 4713 bc
+*    jd2          - julian date of 2nd sighting   days from 4713 bc
+*    jd3          - julian date of 3rd sighting   days from 4713 bc
+*    rs1          - ijk site position vector #1   er
+*    rs2          - ijk site position vector #2   er
+*    rs3          - ijk site position vector #3   er
+*
+*  outputs        :
+*    r            - ijk position vector           er
+*    v            - ijk velocity vector           er / tu
+*
+*  locals         :
+*    l1           - line of sight vector for 1st
+*    l2           - line of sight vector for 2nd
+*    l3           - line of sight vector for 3rd
+*    ldot         - 1st derivative of l2
+*    lddot        - 2nd derivative of l2
+*    rs2dot       - 1st derivative of rs2 - vel
+*    rs2ddot      - 2nd derivative of rs2
+*    t12t13       - (t1-t2) * (t1-t3)
+*    t21t23       - (t2-t1) * (t2-t3)
+*    t31t32       - (t3-t1) * (t3-t2)
+*    i            - index
+*    d            -
+*    d1           -
+*    d2           -
+*    d3           -
+*    d4           -
+*    oldr         - previous iteration on r
+*    rho          - range from site to satellite at t2
+*    rhodot       -
+*    dmat         -
+*    d1mat        -
+*    d2mat        -
+*    d3mat        -
+*    d4mat        -
+*    earthrate    - angular rotation of the earth
+*    l2dotrs      - vector l2 dotted with rsijk
+*    temp         - temporary vector
+*    temp1        - temporary vector
+*    small        - tolerance
+*    roots        -
+*
+*  coupling       :
+*    mag          - magnitude of a vector
+*    determinant  - evaluate the determinant of a matrix
+*    cross        - cross product of two vectors
+*    norm         - normlize a matrix
+*    assignval    - assign a value to a matrix
+*    getval       - get a value from a matrix
+*    initmatrix   - initialize a matrix and fil with 0.0's
 
-|    DELMATRIX    - Delete a matrix
-|    FACTOR       - Find the roots of a polynomial
-|
-|  References     :
-|    Vallado       2001, 413-417
-|
+*    delmatrix    - delete a matrix
+*    factor       - find the roots of a polynomial
+*
+*  references     :
+*    vallado       2001, 413-417
+*
  -----------------------------------------------------------------------------*/
-void AnglesLaplace
+/*
+ void angleslaplace
     (
-      Real TDecl1, Real TDecl2, Real TDecl3, 
-      Real TRtAsc1, Real TRtAsc2, Real TRtAsc3, 
-      Real JD1, Real JD2, Real JD3,
-      Vector RS1, Vector RS2, Vector RS3, Vector& r2, Vector& v2
+      double tdecl1, double tdecl2, double tdecl3, 
+      double trtasc1, double trtasc2, double trtasc3, 
+      double jd1, double jd2, double jd3,
+      vector rs1, vector rs2, vector rs3, vector& r2, vector& v2
     )
 {
-  const Real OmegaEarth = 0.05883359980154919;
-  const Real TUDay      = 0.00933809017716;   // TUDay:= 58.132440906;
-  const Real Mu         = 1.0;
-  const Real Small      = 0.0000001;
+  const double omegaearth = 0.05883359980154919;
+  const double tuday      = 0.00933809017716;   // tuday:= 58.132440906;
+  const double mu         = 1.0;
+  const double small      = 0.0000001;
 
-  Real Poly[16];
-  Real Roots[15][2];
-  Matrix DMat(3, 3), DMat1(3, 3), DMat2(3, 3), DMat3(3, 3), DMat4(3, 3);
-  Vector L1(3), L2(3), L3(3), LDot(3), LDDot(3), RS2Dot(3), RS2DDot(3), 
-         EarthRate(3), Temp(3), Temp1(3);
-  Real   D, D1, D2, D3, D4, Rho, RhoDot, t1t13, t1t3, t31t3, TempRoot,
-         tau1, tau3, BigR2, L2DotRS;
+  double poly[16];
+  double roots[15][2];
+  matrix dmat(3, 3), dmat1(3, 3), dmat2(3, 3), dmat3(3, 3), dmat4(3, 3);
+  vector l1(3), l2(3), l3(3), ldot(3), lddot(3), rs2dot(3), rs2ddot(3), 
+         earthrate(3), temp(3), temp1(3);
+  double   d, d1, d2, d3, d4, rho, rhodot, t1t13, t1t3, t31t3, temproot,
+         tau1, tau3, bigr2, l2dotrs;
   char   tc, chg;
-  Byte   ScHi;
+  byte   schi;
 
-  /* ----------------------   Initialize   ------------------------ */
-  EarthRate.Set(0.0, 1);
-  EarthRate.Set(0.0, 2);
-  EarthRate.Set(OmegaEarth, 3);
+  // ----------------------   initialize   ------------------------
+  earthrate[0] = 0.0;
+  earthrate[1] = 0.0;
+  earthrate[2] = omegaearth;
 
-  JD1 = JD1 / TUDay;   // days to TU
-  JD2 = JD2 / TUDay;   // days to TU
-  JD3 = JD3 / TUDay;   // days to TU
+  jd1 = jd1 / tuday;   // days to tu
+  jd2 = jd2 / tuday;   // days to tu
+  jd3 = jd3 / tuday;   // days to tu
 
-  /* ---- set middle to 0, deltas to other times ---- */
-  tau1 = JD1 - JD2;
-  tau3 = JD3 - JD2;
+  // ---- set middle to 0, deltas to other times ----
+  tau1 = jd1 - jd2;
+  tau3 = jd3 - jd2;
 
-  /* --------------- Find Line of SIGHT vectors ------------------- */
-  L1.Set(cos(TDecl1) * cos(TRtAsc1), 1);
-  L2.Set(cos(TDecl1) * sin(TRtAsc1), 2);
-  L2.Set(sin(TDecl1), 3);
-  L1.Set(cos(TDecl2) * cos(TRtAsc2), 1);
-  L2.Set(cos(TDecl2) * sin(TRtAsc2), 2);
-  L2.Set(sin(TDecl2), 3);
-  L1.Set(cos(TDecl3) * cos(TRtAsc3), 1);
-  L2.Set(cos(TDecl3) * sin(TRtAsc3), 2);
-  L2.Set(sin(TDecl3), 3);
+  // --------------- find line of sight vectors -------------------
+  l1[] = (cos(tdecl1) * cos(trtasc1), 1);
+  l2[] = (cos(tdecl1) * sin(trtasc1), 2);
+  l2[] = (sin(tdecl1), 3);
+  l1[] = (cos(tdecl2) * cos(trtasc2), 1);
+  l2[] = (cos(tdecl2) * sin(trtasc2), 2);
+  l2[] = (sin(tdecl2), 3);
+  l1[] = (cos(tdecl3) * cos(trtasc3), 1);
+  l2[] = (cos(tdecl3) * sin(trtasc3), 2);
+  l2[] = (sin(tdecl3), 3);
 
-  /* -------------------------------------------------------------- */
-  // Using Lagrange Interpolation formula to derive an expression
-  // for L(t), substitute t=t2 and differentiate to obtain the
-  // derivatives of L.
-  /* --------------------------------------------------------------- */
+  // --------------------------------------------------------------
+  // using lagrange interpolation formula to derive an expression
+  // for l(t), substitute t=t2 and differentiate to obtain the
+  // derivatives of l.
+  // ---------------------------------------------------------------
   t1t13 = 1.0 / (tau1 * (tau1 - tau3));
   t1t3  = 1.0 / (tau1 * tau3);
   t31t3 = 1.0 / ((tau3 - tau1) * tau3);
-  for (UINT i = 1; i <= 3; i++)
+  for (uint i = 1; i <= 3; i++)
   {
-    LDot.Set((-tau3 * t1t13) * L1.Get(i) + 
-             ((-tau1 - tau3) * t1t3) * L2.Get(i) + 
-             (-tau1 * t31t3) * L3.Get(i), i);
-    LDDot.Set((2.0 * t1t13) * L1.Get(i) +
-              (2.0 * t1t3)  * L2.Get(i) +
-              (2.0 * t31t3) * L3.Get(i), i);
+    ldot[] = ((-tau3 * t1t13) * l1[i) +
+             ((-tau1 - tau3) * t1t3) * l2[i) +
+             (-tau1 * t31t3) * l3[i), i);
+    lddot[] = ((2.0 * t1t13) * l1[i) +
+              (2.0 * t1t3)  * l2[i) +
+              (2.0 * t31t3) * l3[i), i);
   }
 
-  /* -------------------- Find 2nd derivative of RSijk --------------- */
-  Temp  = RS1.Cross(RS2);
-  Temp1 = RS2.Cross(RS3);
+  // -------------------- find 2nd derivative of rsijk ---------------
+  temp  = rs1.cross(rs2);
+  temp1 = rs2.cross(rs3);
 
   // needs a different test xxxx!!
-  if ((fabs(Temp.Mag()) > Small) && (fabs(Temp1.Mag()) > Small))
+  if ((fabs(temp.mag()) > small) && (fabs(temp1.mag()) > small))
   {
-    /* ------- All sightings from one SITE --------- */
+    // ------- all sightings from one site ---------
     // fix this testhere
-    for (UINT i = 1; i <= 3; i++)
+    for (uint i = 1; i <= 3; i++)
     {
-      // eSc pg 268  doesn't seem to work!!! xx
-      RS2Dot.Set((-tau3 * t1t13) * RS1.Get(i) +
-                 ((-tau1 - tau3) * t1t3) * RS2.Get(i) +
-                 (-tau1 * t31t3) * RS3.Get(i), i);
-      RS2DDot.Set((2.0 * t1t13) * RS1.Get(i) +
-                  (2.0 * t1t3 ) * RS2.Get(i) +
-                  (2.0 * t31t3) * RS3.Get(i), i);
+      // esc pg 268  doesn't seem to work!!! xx
+      rs2dot[] = ((-tau3 * t1t13) * rs1[i) +
+                 ((-tau1 - tau3) * t1t3) * rs2[i) +
+                 (-tau1 * t31t3) * rs3[i), i);
+      rs2ddot[] = ((2.0 * t1t13) * rs1[i) +
+                  (2.0 * t1t3 ) * rs2[i) +
+                  (2.0 * t31t3) * rs3[i), i);
     }
 
-    RS2Dot = EarthRate.Cross(RS2);
-    RS2DDot = EarthRate.Cross(RS2Dot);
+    rs2dot = earthrate.cross(rs2);
+    rs2ddot = earthrate.cross(rs2dot);
   }
   else
   {
-    /* ---- Each sighting from a different SITE ---- */
-    for (UINT i = 1; i <= 3; i++)
+    // ---- each sighting from a different site ----
+    for (uint i = 1; i <= 3; i++)
     {
-      RS2Dot.Set((-tau3 * t1t13) * RS1.Get(i) +
-                 ((-tau1 - tau3) * t1t3) * RS2.Get(i) +
-                 (-tau1 * t31t3) * RS3.Get(i), i);
-      RS2DDot.Set((2.0 * t1t13) * RS1.Get(i) +
-                  (2.0 * t1t3 ) * RS2.Get(i) +
-                  (2.0 * t31t3) * RS3.Get(i), i);
+      rs2dot[] = ((-tau3 * t1t13) * rs1[i) +
+                 ((-tau1 - tau3) * t1t3) * rs2[i) +
+                 (-tau1 * t31t3) * rs3[i), i);
+      rs2ddot[] = ((2.0 * t1t13) * rs1[i) +
+                  (2.0 * t1t3 ) * rs2[i) +
+                  (2.0 * t31t3) * rs3[i), i);
     }
   }
-  for (UINT i = 1; i <= 3; i++)
+  for (uint i = 1; i <= 3; i++)
   {
-    DMat.Set(2.0 * L2.Get(i), i, 1);
-    DMat.Set(2.0 * LDot.Get(i), i, 2);
-    DMat.Set(2.0 * LDot.Get(i), i, 3);
+    dmat[] = (2.0 * l2[i), i, 1);
+    dmat[] = (2.0 * ldot[i), i, 2);
+    dmat[] = (2.0 * ldot[i), i, 3);
 
-    /* ----  Position determinants ---- */
-    DMat1.Set(L2.Get(i), i, 1);
-    DMat1.Set(LDot.Get(i), i, 2);
-    DMat1.Set(RS2DDot.Get(i), i, 3);
-    DMat2.Set(L2.Get(i), i, 1);
-    DMat2.Set(LDot.Get(i), i, 2);
-    DMat2.Set(RS2.Get(i), i, 3);
+    // ----  position determinants ----
+    dmat1[] = (l2[i), i, 1);
+    dmat1[] = (ldot[i), i, 2);
+    dmat1[] = (rs2ddot[i), i, 3);
+    dmat2[] = (l2[i), i, 1);
+    dmat2[] = (ldot[i), i, 2);
+    dmat2[] = (rs2[i), i, 3);
 
-    /* ----  Velocity determinants ---- */
-    DMat3.Set(L2.Get(i), i, 1);
-    DMat3.Set(RS2DDot.Get(i), i, 2);
-    DMat3.Set(LDDot.Get(i), i, 3);
-    DMat4.Set(L2.Get(i), i, 1);
-    DMat4.Set(RS2.Get(i), i, 2);
-    DMat4.Set(LDDot.Get(i), i, 3);
+    // ----  velocity determinants ----
+    dmat3[] = (l2[i), i, 1);
+    dmat3[] = (rs2ddot[i), i, 2);
+    dmat3[] = (lddot[i), i, 3);
+    dmat4[] = (l2[i), i, 1);
+    dmat4[] = (rs2[i), i, 2);
+    dmat4[] = (lddot[i), i, 3);
   }
 
-  D  = DMat.Determinant();
-  D1 = DMat1.Determinant();
-  D2 = DMat2.Determinant();
-  D3 = DMat3.Determinant();
-  D4 = DMat4.Determinant();
+  d  = dmat.determinant();
+  d1 = dmat1.determinant();
+  d2 = dmat2.determinant();
+  d3 = dmat3.determinant();
+  d4 = dmat4.determinant();
 
-  /* --------------  Iterate to find Rho magnitude --------------- */
+  // --------------  iterate to find rho magnitude ---------------
 /*
-|     r[4]:= 1.5;  { First Guess }
-|     WriteLn( 'Input initial guess for r[4] ' );
-|     Readln( r[4] );
-|     i:= 1;
-|     REPEAT
-|         OldR:= r[4];
-|         Rho:= -2.0*D1/D - 2.0*D2/(r[4]*r[4]*r[4]*D);
-|         r[4]:= SQRT( Rho*Rho + 2.0*Rho*L2DotRS + RS2[4]*RS2[4] );
-|         INC(i);
-|         r[4]:= (OldR - r[4] ) / 2.0;            // Simple bissection }
-|         WriteLn( FileOut,'Rho guesses ',i:2,'Rho ',Rho:14:7,' r[4] ',r[4]:14:7,oldr:14:7 );
-|// seems to converge, but wrong Numbers 
-|         INC(i);
-|     UNTIL ( ABS( OldR-R[4] ) < Small ) or ( i >= 30 );
-*/
+*     r[4]:= 1.5;  { first guess }
+*     writeln( 'input initial guess for r[4] ' );
+*     readln( r[4] );
+*     i:= 1;
+*     repeat
+*         oldr:= r[4];
+*         rho:= -2.0*d1/d - 2.0*d2/(r[4]*r[4]*r[4]*d);
+*         r[4]:= sqrt( rho*rho + 2.0*rho*l2dotrs + rs2[4]*rs2[4] );
+*         inc(i);
+*         r[4]:= (oldr - r[4] ) / 2.0;            // simple bissection }
+*         writeln( fileout,'rho guesses ',i:2,'rho ',rho:14:7,' r[4] ',r[4]:14:7,oldr:14:7 );
+*  // seems to converge, but wrong numbers
+*         inc(i);
+*     until ( abs( oldr-r[4] ) < small ) or ( i >= 30 );
 
-  if (fabs(D) > 0.000001)
+
+  if (fabs(d) > 0.000001)
   {
-    /* ---------------- Solve eighth order poly ----------------- */
-    L2DotRS  = L2.Dot(RS2);
-    Poly[ 0] =  1.0; // r2^8th variable!!!!!!!!!!!!!!
-    Poly[ 1] =  0.0; 
-    Poly[ 2] =  (L2DotRS * 4.0 * D1 / D - 4.0 * D1 * D1 / (D * D) - 
-               RS2.Mag() * RS2.Mag());
-    Poly[ 3] =  0.0; 
-    Poly[ 4] =  0.0; 
-    Poly[ 5] =  Mu * (L2DotRS * 4.0 * D2 / D - 8.0 * D1 * D2 / (D * D));
-    Poly[ 6] =  0.0; 
-    Poly[ 7] =  0.0; 
-    Poly[ 8] = -4.0 * Mu * D2 * D2 / (D * D);
-    Poly[ 9] =  0.0; 
-    Poly[10] =  0.0; 
-    Poly[11] =  0.0; 
-    Poly[12] =  0.0; 
-    Poly[13] =  0.0; 
-    Poly[14] =  0.0; 
-    Poly[15] =  0.0; 
-    Factor(Poly, 8, (Real **)Roots);
+    // ---------------- solve eighth order poly -----------------
+    l2dotrs  = l2.dot(rs2);
+    poly[ 0] =  1.0; // r2^8th variable!!!!!!!!!!!!!!
+    poly[ 1] =  0.0;
+    poly[ 2] =  (l2dotrs * 4.0 * d1 / d - 4.0 * d1 * d1 / (d * d) -
+               rs2.mag() * rs2.mag());
+    poly[ 3] =  0.0;
+    poly[ 4] =  0.0;
+    poly[ 5] =  mu * (l2dotrs * 4.0 * d2 / d - 8.0 * d1 * d2 / (d * d));
+    poly[ 6] =  0.0;
+    poly[ 7] =  0.0;
+    poly[ 8] = -4.0 * mu * d2 * d2 / (d * d);
+    poly[ 9] =  0.0;
+    poly[10] =  0.0;
+    poly[11] =  0.0;
+    poly[12] =  0.0;
+    poly[13] =  0.0;
+    poly[14] =  0.0;
+    poly[15] =  0.0;
+    factor(poly, 8, (double **)roots);
 
-    /* ---- Find correct (xx) root ---- */
-    BigR2 = 0.0;
-    for (UINT j = 0; j < 8; j++)
-      if (fabs(Roots[j][2]) < Small)
+    // ---- find correct (xx) root ----
+    bigr2 = 0.0;
+    for (uint j = 0; j < 8; j++)
+      if (fabs(roots[j][2]) < small)
       {
-        printf("Root %d %f + %f\n", j+1, Roots[j][1], Roots[j][2]);
-        TempRoot = Roots[j][0] * Roots[j][0];
-        TempRoot = TempRoot * TempRoot * TempRoot * TempRoot +
-                   Poly[2]  * TempRoot * TempRoot * TempRoot + 
-                   Poly[5]  * Roots[j][0] * TempRoot + Poly[8];
-        if (FileOut != NULL)
-          fprintf(FileOut, "Root %d %f + %f j  value = %f\n",
-                            j, Roots[j][0], Roots[j][1], TempRoot);
-        if (Roots[j][0] > BigR2)
-          BigR2 = Roots[j][0];
+        printf("root %d %f + %f\n", j+1, roots[j][1], roots[j][2]);
+        temproot = roots[j][0] * roots[j][0];
+        temproot = temproot * temproot * temproot * temproot +
+                   poly[2]  * temproot * temproot * temproot +
+                   poly[5]  * roots[j][0] * temproot + poly[8];
+        if (fileout != null)
+          fprintf(fileout, "root %d %f + %f j  value = %f\n",
+                            j, roots[j][0], roots[j][1], temproot);
+        if (roots[j][0] > bigr2)
+          bigr2 = roots[j][0];
       }
-    printf("BigR2 %14.7f\n", BigR2);
-    if (FileOut != NULL)
-      fprintf(FileOut, "BigR2 %14.7f\n", BigR2);
-    printf("Keep this root ? ");
-    scanf("%f\n", &BigR2);
-    
-    Rho = -2.0 * D1 / D - 2.0 * Mu * D2 / (BigR2 * BigR2 * BigR2 * D);
+    printf("bigr2 %14.7f\n", bigr2);
+    if (fileout != null)
+      fprintf(fileout, "bigr2 %14.7f\n", bigr2);
+    printf("keep this root ? ");
+    scanf("%f\n", &bigr2);
 
-    /* ---- Find the middle position vector ---- */
-    for (UINT k = 1; k <= 3; k++)
-      r2.Set(Rho * L2.Get(k) + RS2.Get(k), k);
+    rho = -2.0 * d1 / d - 2.0 * mu * d2 / (bigr2 * bigr2 * bigr2 * d);
 
-    /* -------- Find RhoDot magnitude -------- */
-    RhoDot = -D3 / D - Mu * D4 / (r2.Mag() * r2.Mag() * r2.Mag() * D);
-    if (FileOut != NULL)
+    // ---- find the middle position vector ----
+    for (uint k = 1; k <= 3; k++)
+      r2[] = (rho * l2[k) + rs2[k), k);
+
+    // -------- find rhodot magnitude --------
+    rhodot = -d3 / d - mu * d4 / (r2.mag() * r2.mag() * r2.mag() * d);
+    if (fileout != null)
     {
-      fprintf(FileOut, "Rho %14.7f\n", Rho);
-      fprintf(FileOut, "RhoDot %14.7f\n", RhoDot);
+      fprintf(fileout, "rho %14.7f\n", rho);
+      fprintf(fileout, "rhodot %14.7f\n", rhodot);
     }
 
-    /* ----- Find middle velocity vector ----- */
-    for (UINT i = 1; i <= 3; i++)
-      v2.Set(RhoDot * L2.Get(i) + Rho * LDot.Get(i) + RS2Dot.Get(i), i);
+    // ----- find middle velocity vector -----
+    for (uint i = 1; i <= 3; i++)
+      v2[] = (rhodot * l2[i) + rho * ldot[i) + rs2dot[i), i);
   }
   else
-    printf("Determinant value was zero %f\n", D);
+    printf("determinant value was zero %f\n", d);
 
-  if (FileOut != NULL)
-  {
-    fprintf(FileOut, "t123 %18.7f %18.7f %18.7f TU\n", JD1, JD2, JD3);
-    fprintf(FileOut, "t123 %18.7f %18.7f %18.7f Days\n", 
-                      JD1 * TUDay, JD2 * TUDay, JD3 * TUDay);
-    fprintf(FileOut, "tau  %11.7f %11.7f TU\n", tau1, tau3);
-    fprintf(FileOut, "tau  %11.7f %11.7f MIN\n", 
+//  if (fileout != null)
+//  {
+    fprintf(fileout, "t123 %18.7f %18.7f %18.7f tu\n", jd1, jd2, jd3);
+    fprintf(fileout, "t123 %18.7f %18.7f %18.7f days\n",
+                      jd1 * tuday, jd2 * tuday, jd3 * tuday);
+    fprintf(fileout, "tau  %11.7f %11.7f tu\n", tau1, tau3);
+    fprintf(fileout, "tau  %11.7f %11.7f min\n",
                       tau1 * 13.446849, tau3 * 13.446849);
-    fprintf(FileOut, "delta123 %12.6f %12.6f %12.6f\n",
-                      TDecl1 * 57.2957, TDecl2 * 57.2957, TDecl3 * 57.2957);
-    fprintf(FileOut, "RtAsc123 %12.6f %12.6f %12.6f\n",
-                     TRtAsc1 * 57.2957, TRtAsc2 * 57.2957, TRtAsc3 * 57.2957);
-    fprintf(FileOut, "RtAsc1   %12.6f %12.6f %12.6f\n",
-                      RS1.Get(1), RS1.Get(2), RS1.Get(3));
-    fprintf(FileOut, "RtAsc 2  %12.6f %12.6f %12.6f\n",
-                      RS2.Get(1), RS2.Get(2), RS2.Get(3));
-    fprintf(FileOut, "RtAsc  3 %12.6f %12.6f %12.6f\n",
-                      RS3.Get(1), RS3.Get(2), RS3.Get(3));
-    fprintf(FileOut, "los 1    %12.6f %12.6f %12.6f\n",
-                      L1.Get(1), L1.Get(2), L1.Get(3));
-    fprintf(FileOut, "los 2    %12.6f %12.6f %12.6f\n",
-                      L2.Get(1), L2.Get(2), L2.Get(3));
-    fprintf(FileOut, "los 3    %12.6f %12.6f %12.6f\n",
-                      L3.Get(1), L3.Get(2), L3.Get(3));
-    fprintf(FileOut, "LDot     %12.6f %12.6f %12.6f\n",
-                      LDot.Get(1), LDot.Get(2), LDot.Get(3));
-    fprintf(FileOut, "LDDot    %12.6f %12.6f %12.6f\n",
-                      LDDot.Get(1), LDDot.Get(2), LDDot.Get(3));
-    fprintf(FileOut, "RS2     %12.6f %12.6f %12.6f\n",
-                      RS2.Get(1), RS2.Get(2), RS2.Get(3));
-    fprintf(FileOut, "RS2Dot  %12.6f %12.6f %12.6f\n",
-                      RS2Dot.Get(1), RS2Dot.Get(2), RS2Dot.Get(3));
-    fprintf(FileOut, "RS2DDot %12.6f %12.6f %12.6f\n",
-                      RS2DDot.Get(1), RS2DDot.Get(2), RS2DDot.Get(3));
-    fprintf(FileOut, "D 01234 = %12.6f %12.6f %12.6f %12.6f %12.6f\n",
-                      D, D1, D2, D3, D4);
-  }
-  DMat.Display(" D Matrix ", 6);
-  DMat1.Display(" D1 Matrix ", 6);
-  DMat2.Display(" D2 Matrix ", 6);
-  DMat3.Display(" D3 Matrix ", 6);
-  DMat4.Display(" D4 Matrix ", 6);
+    fprintf(fileout, "delta123 %12.6f %12.6f %12.6f\n",
+                      tdecl1 * 57.2957, tdecl2 * 57.2957, tdecl3 * 57.2957);
+    fprintf(fileout, "rtasc123 %12.6f %12.6f %12.6f\n",
+                     trtasc1 * 57.2957, trtasc2 * 57.2957, trtasc3 * 57.2957);
+    fprintf(fileout, "rtasc1   %12.6f %12.6f %12.6f\n",
+                      rs1[1], rs1[2], rs1[3]);
+    fprintf(fileout, "rtasc 2  %12.6f %12.6f %12.6f\n",
+                      rs2[1], rs2[2], rs2[3]);
+    fprintf(fileout, "rtasc  3 %12.6f %12.6f %12.6f\n",
+                      rs3[1], rs3[2], rs3[3]);
+    fprintf(fileout, "los 1    %12.6f %12.6f %12.6f\n",
+                      l1[1], l1[2], l1[3]);
+    fprintf(fileout, "los 2    %12.6f %12.6f %12.6f\n",
+                      l2[1], l2[2], l2[3]);
+    fprintf(fileout, "los 3    %12.6f %12.6f %12.6f\n",
+                      l3[1], l3[2], l3[3]);
+    fprintf(fileout, "ldot     %12.6f %12.6f %12.6f\n",
+                      ldot[1], ldot[2], ldot[3]);
+    fprintf(fileout, "lddot    %12.6f %12.6f %12.6f\n",
+                      lddot[1], lddot[2], lddot[3]);
+    fprintf(fileout, "rs2     %12.6f %12.6f %12.6f\n",
+                      rs2[1], rs2[2], rs2[3]);
+    fprintf(fileout, "rs2dot  %12.6f %12.6f %12.6f\n",
+                      rs2dot[1], rs2dot[2], rs2dot[3]);
+    fprintf(fileout, "rs2ddot %12.6f %12.6f %12.6f\n",
+                      rs2ddot[1], rs2ddot[2], rs2ddot[3]);
+    fprintf(fileout, "d 01234 = %12.6f %12.6f %12.6f %12.6f %12.6f\n",
+                      d, d1, d2, d3, d4);
+//  }
+  dmat.display(" d matrix ", 6);
+  dmat1.display(" d1 matrix ", 6);
+  dmat2.display(" d2 matrix ", 6);
+  dmat3.display(" d3 matrix ", 6);
+  dmat4.display(" d4 matrix ", 6);
 }
 
-/* -------------------- Conversion techniques --------------------- */
-/*------------------------------------------------------------------------------
-|
-|                           PROCEDURE RADEC_AZEL
-|
-| This PROCEDURE converts right ascension declination values with
-|   azimuth, and elevation.  Notice the range is not defined because
-|   Right ascension declination only allows a unit vector to be formed.
-|
-|  Author        : David Vallado                  303-344-6037    1 Mar 2001
-|
-|  Inputs          Description                    Range / Units
-|    RtAsc       - Right Ascension                0.0 to 2Pi rad
-|    Decl        - Declination                    -Pi/2 to Pi/2 rad
-|    LST         - Local SIDEREAL Time            -2Pi to 2Pi rad
-|    Latgd       - Geodetic Latitude              -Pi/2 to Pi/2 rad
-|    Direction   - Which set of vars to output    FROM  TOO
-|
-|  Outputs       :
-|    Az          - Azimuth                        0.0 to 2Pi rad
-|    El          - Elevation                      -Pi/2 to Pi/2 rad
-|
-|  Locals        :
-|    LHA         - Local Hour ANGLE               -2Pi to 2Pi rad
-|    Sinv        - Sine value
-|    Cosv        - Cosine value
-|
-|  Coupling      :
-|    ARCSIN      - Arc sine FUNCTION
-|    ATAN2       - Arc Tangent FUNCTION that resolves quadrant ambiguites
-|
-|  References    :
-|    Vallado       2001, 255-257, Alg 28
-|
- -----------------------------------------------------------------------------*/
-void RaDec_AzEl
-    (
-      Real& RtAsc, Real& Decl, Real& LST, Real& Latgd, Direction dir, 
-      Real& Az, Real& El
-    )
-{
-  Real Sinv, Cosv, LHA;
-  if (dir == FROM)
-  {
-    Decl  = asin(sin(El) * sin(Latgd) + cos(El) * cos(Latgd) * cos(Az));
-
-    Sinv  = -(sin(Az) * cos(El) * cos(Latgd)) / (cos(Latgd) * cos(Decl));
-    Cosv  = (sin(El) - sin(Latgd) * sin(Decl)) / (cos(Latgd) * cos(Decl));
-    LHA   = Atan2(Sinv, Cosv);
-    RtAsc = LST - LHA;
-  }
-  else
-  {
-    LHA  = LST - RtAsc;
-    El   = asin(sin(Decl) * sin(Latgd) + cos(Decl) * cos(Latgd) * cos(LHA));
-    Sinv = -sin(LHA) * cos(Decl) * cos(Latgd) / (cos(El) * cos(Latgd));
-    Cosv = (sin(Decl) - sin(El) * sin(Latgd)) / (cos(El) * cos(Latgd));
-    Az   = Atan2(Sinv, Cosv);
-  }
-
-  if (Show == 'Y')
-    if (FileOut != NULL)
-      fprintf(FileOut, "%f\n", LHA * 180.0 / PI);
-}
+/* -------------------------- conversion techniques ------------------------- */
 
 /*------------------------------------------------------------------------------
-|
-|                           PROCEDURE RADEC_ELATLON
-|
-|  This PROCEDURE converts right-ascension declination values with ecliptic
-|    latitude and longitude values.
-|
-|  Author        : David Vallado                  303-344-6037    1 Mar 2001
-|
-|  Inputs          Description                    Range / Units
-|    RtAsc       - Right Ascension                rad
-|    Decl        - Declination                    rad
-|    Direction   - Which set of vars to output    FROM  TOO
-|
-|  OutPuts       :
-|    EclLat      - Ecliptic Latitude              -Pi/2 to Pi/2 rad
-|    EclLon      - Ecliptic Longitude             -Pi/2 to Pi/2 rad
-|
-|  Locals        :
-|    Obliquity   - Obliquity of the ecliptic      rad
-|    Sinv        -
-|    Cosv        -
-|
-|  Coupling      :
-|    ARCSIN      - Arc sine FUNCTION
-|    ATAN2       - Arc tangent FUNCTION that resolves quadrant ambiguites
-|
-|  References    :
-|    Vallado       2001, 259, Eq 4-19, Eq 4-20
-|
+*
+*                           procedure radec_azel
+*
+* this procedure converts right ascension declination values with
+*   azimuth, and elevation.  notice the range is not defined because
+*   right ascension declination only allows a unit vector to be formed.
+*
+*  author        : david vallado                  719-573-2600   22 jun 2002
+*
+*  inputs          description                    range / units
+*    rtasc       - right ascension                0.0 to 2pi rad
+*    decl        - declination                    -pi/2 to pi/2 rad
+*    lst         - local sidedouble time            -2pi to 2pi rad
+*    latgd       - geodetic latitude              -pi/2 to pi/2 rad
+*    direct      -  direction to convert          eFrom  eTo
+*
+*  outputs       :
+*    az          - azimuth                        0.0 to 2pi rad
+*    el          - elevation                      -pi/2 to pi/2 rad
+*
+*  locals        :
+*    lha         - local hour angle               -2pi to 2pi rad
+*    sinv        - sine value
+*    cosv        - cosine value
+*
+*  coupling      :
+*    arcsin      - arc sine function
+*    atan2       - arc tangent function that resolves quadrant ambiguites
+*
+*  references    :
+*    vallado       2001, 255-257, alg 28
+*
  -----------------------------------------------------------------------------*/
-void RaDec_ELatLon
-    (
-      Real& RtAsc, Real& Decl, Direction dir, Real& EclLat, Real& EclLon
-    )
-{
-  Real Sinv, Cosv, Obliquity;
 
-  Obliquity = 0.40909280; // 23.439291/rad
-  if (dir == FROM)
-  {
-    Decl  = asin(sin(EclLat) * cos(Obliquity) + 
-            cos(EclLat) * sin(Obliquity) * sin(EclLon));
-    Sinv  = (-sin(EclLat) * sin(Obliquity) +
-            cos(EclLat) * cos(Obliquity) * sin(EclLon)) / cos(Decl);
-    Cosv  = cos(EclLat) * cos(EclLon) / cos(Decl);
-    RtAsc = Atan2(Sinv, Cosv);
-  }
-  else
-  {
-    EclLat = asin(-cos(Decl) * sin(RtAsc) * sin(Obliquity) +
-             sin(Decl) * cos(Obliquity));
-    Sinv   = (cos(Decl) * sin(RtAsc) * cos(Obliquity) +
-             sin(Decl) * sin(Obliquity)) / cos(EclLat);
-    Cosv   = cos(Decl) * cos(RtAsc) / cos(EclLat);
-    EclLon = Atan2(Sinv, Cosv);
-  }
-}
+void radec_azel
+     (
+       double& rtasc, double& decl, double& lst, double& latgd,
+       edirection direct,
+       double& az, double& el
+     )
+   {
+     double sinv, cosv, lha;
+     if (direct == eFrom)
+       {
+         decl  = asin(sin(el) * sin(latgd) + cos(el) * cos(latgd) * cos(az));
+
+         sinv  = -(sin(az) * cos(el) * cos(latgd)) / (cos(latgd) * cos(decl));
+         cosv  = (sin(el) - sin(latgd) * sin(decl)) / (cos(latgd) * cos(decl));
+         lha   = atan2(sinv, cosv);
+         rtasc = lst - lha;
+       }
+       else
+       {
+         lha  = lst - rtasc;
+         el   = asin(sin(decl) * sin(latgd) + cos(decl) * cos(latgd) * cos(lha));
+         sinv = -sin(lha) * cos(decl) * cos(latgd) / (cos(el) * cos(latgd));
+         cosv = (sin(decl) - sin(el) * sin(latgd)) / (cos(el) * cos(latgd));
+         az   = atan2(sinv, cosv);
+       }
+
+//  if (show == 'y')
+//    if (fileout != null)
+//      fprintf(fileout, "%f\n", lha * 180.0 / pi);
+   } // procedure radec_azel
+
 
 /*------------------------------------------------------------------------------
-|
-|                           PROCEDURE RV_ELATLON
-|
-|  This PROCEDURE converts ecliptic latitude and longitude with position and
-|    velocity vectors. Uses velocity vector to find the solution of singular
-|    cases.
-|
-|  Author        : David Vallado                  303-344-6037    1 Mar 2001
-|
-|  Inputs          Description                    Range / Units
-|    Rijk        - IJK position vector            ER
-|    Vijk        - IJK velocity vector            ER/TU
-|    Direction   - Which set of vars to output    FROM  TOO
-|
-|  OutPuts       :
-|    Rr          - Radius of the sat              ER
-|    EclLat      - Ecliptic Latitude              -Pi/2 to Pi/2 rad
-|    EclLon      - Ecliptic Longitude             -Pi/2 to Pi/2 rad
-|    DRr         - Radius of the sat rate         ER/TU
-|    DEclLat     - Ecliptic Latitude rate         -Pi/2 to Pi/2 rad
-|    EEclLon     - Ecliptic Longitude rate        -Pi/2 to Pi/2 rad
-|
-|  Locals        :
-|    Obliquity   - Obliquity of the ecliptic      rad
-|    Temp        -
-|    Temp1       -
-|    Re          - Position vec in eclitpic frame
-|    Ve          - Velocity vec in ecliptic frame
-|
-|  Coupling      :
-|    MAG         - Magnitude of a vector
-|    ROT1        - Rotation about 1st axis
-|    DOT         - DOT product
-|    ARCSIN      - Arc sine FUNCTION
-|    ATAN2       - Arc tangent FUNCTION that resolves quadrant ambiguites
-|
-|  References    :
-|    Vallado       2001, 257-259, Eq 4-15
-|
+*
+*                           procedure radec_elatlon
+*
+*  this procedure converts right-ascension declination values with ecliptic
+*    latitude and longitude values.
+*
+*  author        : david vallado                  719-573-2600   22 jun 2002
+*
+*  inputs          description                    range / units
+*    rtasc       - right ascension                rad
+*    decl        - declination                    rad
+*    direct      -  direction to convert          eFrom  eTo
+*
+*  outputs       :
+*    ecllat      - ecliptic latitude              -pi/2 to pi/2 rad
+*    ecllon      - ecliptic longitude             -pi/2 to pi/2 rad
+*
+*  locals        :
+*    obliquity   - obliquity of the ecliptic      rad
+*    sinv        -
+*    cosv        -
+*
+*  coupling      :
+*    arcsin      - arc sine function
+*    atan2       - arc tangent function that resolves quadrant ambiguites
+*
+*  references    :
+*    vallado       2001, 259, eq 4-19, eq 4-20
+*
  -----------------------------------------------------------------------------*/
-void RV_ELatLon
-    (
-      Vector& Rijk, Vector& Vijk, Direction dir,
-      Real& rr, Real& EclLat, Real& EclLon, 
-      Real& DRr, Real& DEclLat, Real& DEclLon
-    )
-{
-  const Real Small = 0.00000001;
 
-  Vector Re(3), Ve(3);
-  Real   Obliquity, Temp, Temp1;
+void radec_elatlon
+     (
+       double& rtasc, double& decl,
+       edirection direct,
+       double& ecllat, double& ecllon
+     )
+   {
+     double sinv, cosv, obliquity;
 
-  Obliquity = 0.40909280; // 23.439291/rad
-  if (dir == FROM)
-  {
-    Re.Set(rr * cos(EclLat) * cos(EclLon), 1);
-    Re.Set(rr * cos(EclLat) * sin(EclLon), 2);
-    Re.Set(rr               * sin(EclLon), 3);
-    Ve.Set(DRr * cos(EclLat) * cos(EclLon) -
-            rr * sin(EclLat) * cos(EclLon) * DEclLat -
-            rr * cos(EclLat) * sin(EclLon) * DEclLon, 1);
-    Ve.Set(DRr * cos(EclLat) * sin(EclLon) -
-            rr * sin(EclLat) * cos(EclLon) * DEclLat +
-            rr * cos(EclLat) * cos(EclLon) * DEclLon, 2);
-    Ve.Set(DRr * sin(EclLat) + rr * cos(EclLat) * DEclLat, 3);
+     obliquity = 0.40909280; // 23.439291/rad
+     if (direct == eFrom)
+       {
+         decl  = asin(sin(ecllat) * cos(obliquity) +
+                 cos(ecllat) * sin(obliquity) * sin(ecllon));
+         sinv  = (-sin(ecllat) * sin(obliquity) +
+                 cos(ecllat) * cos(obliquity) * sin(ecllon)) / cos(decl);
+         cosv  = cos(ecllat) * cos(ecllon) / cos(decl);
+         rtasc = atan2(sinv, cosv);
+       }
+       else
+       {
+         ecllat = asin(-cos(decl) * sin(rtasc) * sin(obliquity) +
+                  sin(decl) * cos(obliquity));
+         sinv   = (cos(decl) * sin(rtasc) * cos(obliquity) +
+                  sin(decl) * sin(obliquity)) / cos(ecllat);
+         cosv   = cos(decl) * cos(rtasc) / cos(ecllat);
+         ecllon = atan2(sinv, cosv);
+       }
+   }  // procedure radec_elatlon
 
-    Rijk = Re.Rot1(-Obliquity);
-    Vijk = Ve.Rot1(-Obliquity);
-  }
-  else
-  {
-    /* -------------- Calculate Angles and Rates ---------------- */
-    rr = Re.Mag();
-    Temp = sqrt(Re.Get(1) * Re.Get(1) + Re.Get(2) * Re.Get(2));
-    if (Temp < Small)
-    {
-      Temp1 = sqrt(Ve.Get(1) * Ve.Get(1) + Ve.Get(2) * Ve.Get(2));
-      if (fabs(Temp1) > Small)
-        EclLon = Atan2(Ve.Get(2) / Temp1, Ve.Get(1) / Temp1);
-      else
-        EclLon = 0.0;
-    }
-    else
-      EclLon = Atan2(Re.Get(2) / Temp, Re.Get(1) / Temp);
-    EclLat = asin(Re.Get(3) / Re.Mag());
-
-    Temp1 = -Re.Get(2) * Re.Get(2) - Re.Get(1) * Re.Get(1); // different now
-    DRr   = Re.Dot(Ve) / rr;
-    if (fabs(Temp1) > Small)
-      DEclLon = (Ve.Get(1) * Re.Get(2) - Ve.Get(2) * Re.Get(1)) / Temp1;
-    else
-      DEclLon = 0.0;
-    if (fabs(Temp) > Small)
-      DEclLat = (Ve.Get(3) - DRr * sin(EclLat)) / Temp;
-    else
-      DEclLat = 0.0;
-  }
-}
 
 /*------------------------------------------------------------------------------
-|
-|                           PROCEDURE RV_RADEC
-|
-|  This PROCEDURE converts the right ascension and declination values with
-|    position and velocity vectors of a satellite. Uses velocity vector to
-|    find the solution of singular cases.
-|
-|  Author        : David Vallado                  303-344-6037    1 Mar 2001
-|
-|  Inputs          Description                    Range / Units
-|    Rijk        - IJK position vector            ER
-|    Vijk        - IJK velocity vector            ER/TU
-|    Direction   - Which set of vars to output    FROM  TOO
-|
-|  OutPuts       :
-|    Rr          - Radius of the satellite        ER
-|    RtAsc       - Right Ascension                rad
-|    Decl        - Declination                    rad
-|    DRr         - Radius of the satellite rate   ER/TU
-|    DRtAsc      - Right Ascension rate           rad/TU
-|    DDecl       - Declination rate               rad/TU
-|
-|  Locals        :
-|    Temp        - Temporary position vector
-|    Temp1       - Temporary variable
-|
-|  Coupling      :
-|    MAG         - Magnitude of a vector
-|    ATAN2       - ARCTAN FUNCTION that resolves the quadrant ambiguities
-|    DOT         - DOT product of two vectors
-|    ARCSIN      - Arc sine FUNCTION
-|
-|  References    :
-|    Vallado       2001, 246-248, Alg 25
-|
+*
+*                           procedure rv_elatlon
+*
+*  this procedure converts ecliptic latitude and longitude with position and
+*    velocity vectors. uses velocity vector to find the solution of singular
+*    cases.
+*
+*  author        : david vallado                  719-573-2600   22 jun 2002
+*
+*  inputs          description                    range / units
+*    rijk        - ijk position vector            er
+*    vijk        - ijk velocity vector            er/tu
+*    direction   - which set of vars to output    from  too
+*
+*  outputs       :
+*    rr          - radius of the sat              er
+*    ecllat      - ecliptic latitude              -pi/2 to pi/2 rad
+*    ecllon      - ecliptic longitude             -pi/2 to pi/2 rad
+*    drr         - radius of the sat rate         er/tu
+*    decllat     - ecliptic latitude rate         -pi/2 to pi/2 rad
+*    eecllon     - ecliptic longitude rate        -pi/2 to pi/2 rad
+*
+*  locals        :
+*    obliquity   - obliquity of the ecliptic      rad
+*    temp        -
+*    temp1       -
+*    re          - position vec in eclitpic frame
+*    ve          - velocity vec in ecliptic frame
+*
+*  coupling      :
+*    mag         - magnitude of a vector
+*    rot1        - rotation about 1st axis
+*    dot         - dot product
+*    arcsin      - arc sine function
+*    atan2       - arc tangent function that resolves quadrant ambiguites
+*
+*  references    :
+*    vallado       2001, 257-259, eq 4-15
+*
  -----------------------------------------------------------------------------*/
-void RV_RaDec
-    (
-      Vector& Rijk, Vector& Vijk, Direction dir,
-      Real& rr, Real& RtAsc, Real& Decl, Real& DRr, Real& DRtAsc, Real& DDecl
-    )
-{
-  const Real Small = 0.00000001;
 
-  Real Temp, Temp1;
+void rv_elatlon
+     (
+       double rijk[3], double vijk[3],
+       edirection direct,
+       double& rr, double& ecllat, double& ecllon,
+       double& drr, double& decllat, double& decllon
+     )
+   {
+     const double small = 0.00000001;
+     double re[3], ve[3];
+     double   obliquity, temp, temp1;
 
-  if (dir == FROM)
-  {
-    Rijk.Set(rr * cos(Decl) * cos(RtAsc), 1);
-    Rijk.Set(rr * cos(Decl) * sin(RtAsc), 2);
-    Rijk.Set(rr * sin(Decl), 3);
-    Vijk.Set(DRr * cos(Decl) * cos(RtAsc) - 
-              rr * sin(Decl) * cos(RtAsc) * DDecl -
-              rr * cos(Decl) * sin(RtAsc) * DRtAsc, 1);
-    Vijk.Set(DRr * cos(Decl) * sin(RtAsc) - 
-              rr * sin(Decl) * sin(RtAsc) * DDecl +
-              rr * cos(Decl) * cos(RtAsc) * DRtAsc, 2);
-    Vijk.Set(DRr * sin(Decl) + rr * cos(Decl) * DDecl, 3);
-  }
-  else
-  {
-    /* -------------- Calculate Angles and Rates ---------------- */
-    rr   = Rijk.Mag();
-    Temp = sqrt(Rijk.Get(1) * Rijk.Get(1) + Rijk.Get(2) * Rijk.Get(2));
-    if (Temp < Small)
-    {
-      Temp1 = sqrt(Vijk.Get(1) * Vijk.Get(1) + Vijk.Get(2) * Vijk.Get(2));
-      if (fabs(Temp1) > Small)
-        RtAsc = Atan2(Vijk.Get(2) / Temp1, Vijk.Get(1) / Temp1);
-      else
-        RtAsc = 0.0;
-    }
-    else
-      RtAsc = Atan2(Rijk.Get(2) / Temp, Rijk.Get(1) / Temp);
-    Decl    = asin(Rijk.Get(3) / Rijk.Mag());
+     obliquity = 0.40909280; // 23.439291/rad
+     if (direct == eFrom)
+       {
+         re[0] = (rr * cos(ecllat) * cos(ecllon));
+         re[1] = (rr * cos(ecllat) * sin(ecllon));
+         re[2] = (rr               * sin(ecllon));
+         ve[0] = (drr * cos(ecllat) * cos(ecllon) -
+                 rr * sin(ecllat) * cos(ecllon) * decllat -
+                 rr * cos(ecllat) * sin(ecllon) * decllon);
+         ve[1] = (drr * cos(ecllat) * sin(ecllon) -
+                 rr * sin(ecllat) * cos(ecllon) * decllat +
+                 rr * cos(ecllat) * cos(ecllon) * decllon);
+         ve[2] = (drr * sin(ecllat) + rr * cos(ecllat) * decllat);
 
-    Temp1 = -Rijk.Get(2) * Rijk.Get(2) - Rijk.Get(1) * Rijk.Get(1);
-    DRr   = Rijk.Dot(Vijk) / rr;
-    if (fabs(Temp1) > Small)
-      DRtAsc = (Vijk.Get(1) * Rijk.Get(2) - Vijk.Get(2) * Rijk.Get(1)) / Temp1;
-    else
-      DRtAsc = 0.0;
-    if (fabs(Temp) > Small)
-      DDecl = (Vijk.Get(3) - DRr * sin(Decl)) / Temp;
-    else
-      DDecl = 0.0;
-  }
-}
+         rot1(re, -obliquity, rijk);
+         rot1(ve, -obliquity, vijk);
+       }
+       else
+       {
+         /* -------------- calculate angles and rates ---------------- */
+         rr = mag(re);
+         temp = sqrt(re[0] * re[0] + re[1] * re[1]);
+         if (temp < small)
+           {
+             temp1 = sqrt(ve[0] * ve[0] + ve[1] * ve[1]);
+             if (fabs(temp1) > small)
+                  ecllon = atan2(ve[1] / temp1, ve[0] / temp1);
+               else
+                  ecllon = 0.0;
+           }
+           else
+             ecllon = atan2(re[1] / temp, re[0] / temp);
+             ecllat = asin(re[2] / mag(re));
+
+             temp1 = -re[1] * re[1] - re[0] * re[0]; // different now
+             drr   = dot(re, ve) / rr;
+             if (fabs(temp1) > small)
+                 decllon = (ve[0] * re[1] - ve[1] * re[0]) / temp1;
+               else
+                 decllon = 0.0;
+             if (fabs(temp) > small)
+                 decllat = (ve[2] - drr * sin(ecllat)) / temp;
+               else
+                 decllat = 0.0;
+        }
+   } // procedure rv_elatlon
+
 
 /*------------------------------------------------------------------------------
-|
-|                           PROCEDURE RV_RAZEL
-|
-|  This PROCEDURE converts Range, Azimuth, and Elevation and their rates with
-|    the Geocentric Equatorial (IJK) Position and Velocity vectors.  Notice the
-|    value of small as it can affect rate term calculations. Uses velocity
-|    vector to find the solution of singular cases.
-|
-|  Author        : David Vallado                  303-344-6037    1 Mar 2001
-|
-|  Inputs          Description                    Range / Units
-|    Rijk        - IJK position vector            ER
-|    Vijk        - IJK velocity vector            ER/TU
-|    RSijk       - IJK SITE Position Vector       ER
-|    Latgd       - Geodetic Latitude              -Pi/2 to Pi/2 rad
-|    LST         - Local SIDEREAL Time            -2Pi to Pi rad
-|    Direction   - Which set of vars to output    FROM  TOO
-|
-|  Outputs       :
-|    Rho         - Satellite Range from SITE      ER
-|    Az          - Azimuth                        0.0 to 2Pi rad
-|    El          - Elevation                      -Pi/2 to Pi/2 rad
-|    DRho        - Range Rate                     ER / TU
-|    DAz         - Azimuth Rate                   rad / TU
-|    DEl         - Elevation rate                 rad / TU
-|
-|  Locals        :
-|    RhoVijk     - IJK Range Vector from SITE     ER
-|    DRhoVijk    - IJK Velocity Vector from SITE  ER / TU
-|    Rhosez      - SEZ Range vector from SITE     ER
-|    DRhosez     - SEZ Velocity vector from SITE  ER
-|    WCrossR     - CROSS product result           ER / TU
-|    EarthRate   - IJK Earth's rotation rate vec  rad / TU
-|    TempVec     - Temporary vector
-|    Temp        - Temporary EXTENDED value
-|    Temp1       - Temporary EXTENDED value
-|    i           - Index
-|
-|  Coupling      :
-|    MAG         - Magnitude of a vector
-|    ADDVEC      - Add two vectors
-|    CROSS       - CROSS product of two vectors
-|    ROT3        - Rotation about the 3rd axis
-|    ROT2        - Rotation about the 2nd axis
-|    ATAN2       - Arc tangent FUNCTION which also resloves quadrants
-|    DOT         - DOT product of two vectors
-|    RVSEZ_RAZEL - Find R and V from SITE in Topocentric Horizon (SEZ) system
-|    LNCOM2      - Combine two vectors and constants
-|    ARCSIN      - Arc sine FUNCTION
-|    SGN         - Returns the sign of a variable
-|
-|  References    :
-|    Vallado       2001, 250-255, Alg 27
-|
+*
+*                           procedure rv_radec
+*
+*  this procedure converts the right ascension and declination values with
+*    position and velocity vectors of a satellite. uses velocity vector to
+*    find the solution of singular cases.
+*
+*  author        : david vallado                  719-573-2600   22 jun 2002
+*
+*  inputs          description                    range / units
+*    rijk        - ijk position vector            er
+*    vijk        - ijk velocity vector            er/tu
+*    direct      -  direction to convert          eFrom  eTo
+*
+*  outputs       :
+*    rr          - radius of the satellite        er
+*    rtasc       - right ascension                rad
+*    decl        - declination                    rad
+*    drr         - radius of the satellite rate   er/tu
+*    drtasc      - right ascension rate           rad/tu
+*    ddecl       - declination rate               rad/tu
+*
+*  locals        :
+*    temp        - temporary position vector
+*    temp1       - temporary variable
+*
+*  coupling      :
+*    mag         - magnitude of a vector
+*    atan2       - arctan function that resolves the quadrant ambiguities
+*    dot         - dot product of two vectors
+*    arcsin      - arc sine function
+*
+*  references    :
+*    vallado       2001, 246-248, alg 25
+*
  -----------------------------------------------------------------------------*/
-void RV_RAzEl
-    (
-      Vector& Rijk, Vector& Vijk, Vector& RSijk, Real Latgd, Real LST,
-      Direction dir, 
-      Real& Rho, Real& Az, Real& El, Real& DRho, Real& DAz, Real& DEl
-    )
-{
-  const Real HalfPi = PI / 2.0;
-  const Real OmegaEarth = 0.05883359980154919;
-  const Real Small = 0.0000001;
- 
-  Real Temp, Temp1;
-  Vector Rhoijk(3), DRhoijk(3), Rhosez(3), DRhosez(3), 
-         WCrossR(3), EarthRate(3), TempVec(3);
 
-  /* --------------------  Initialize values   -------------------- */
-  EarthRate.Set(0.0, 1);
-  EarthRate.Set(0.0, 2);
-  EarthRate.Set(OmegaEarth, 3);
+void rv_radec
+     (
+       double rijk[3], double vijk[3], edirection direct,
+       double& rr, double& rtasc, double& decl, double& drr, double& drtasc, double& ddecl
+     )
+   {
+     const double small = 0.00000001;
+     double temp, temp1;
 
-  if (dir == FROM)
-  {
-    /* ---------  Find SEZ range and velocity vectors ----------- */
-    RVSez_RAzEl(Rhosez, DRhosez, FROM, Rho, Az, El, DRho, DAz, DEl);
+     if (direct == eFrom)
+       {
+         rijk[0] = (rr * cos(decl) * cos(rtasc));
+         rijk[1] = (rr * cos(decl) * sin(rtasc));
+         rijk[2] = (rr * sin(decl));
+         vijk[0] = (drr * cos(decl) * cos(rtasc) -
+                   rr * sin(decl) * cos(rtasc) * ddecl -
+                   rr * cos(decl) * sin(rtasc) * drtasc);
+         vijk[1] = (drr * cos(decl) * sin(rtasc) -
+                   rr * sin(decl) * sin(rtasc) * ddecl +
+                   rr * cos(decl) * cos(rtasc) * drtasc);
+         vijk[2] = (drr * sin(decl) + rr * cos(decl) * ddecl);
+       }
+       else
+       {
+         /* -------------- calculate angles and rates ---------------- */
+         rr   = mag(rijk);
+         temp = sqrt(rijk[0] * rijk[0] + rijk[1] * rijk[1]);
+         if (temp < small)
+           {
+             temp1 = sqrt(vijk[0] * vijk[0] + vijk[1] * vijk[1]);
+             if (fabs(temp1) > small)
+                 rtasc = atan2(vijk[1] / temp1, vijk[0] / temp1);
+               else
+                 rtasc = 0.0;
+           }
+           else
+             rtasc = atan2(rijk[1] / temp, rijk[0] / temp);
+          decl    = asin(rijk[2] / mag(rijk));
 
-    /* ----------  Perform SEZ to IJK transformation ------------ */
-    TempVec = Rhosez.Rot2(Latgd - HalfPi);
-    Rhoijk  = TempVec.Rot3(-LST);
-    TempVec = DRhosez.Rot2(Latgd - HalfPi);
-    DRhoijk = TempVec.Rot3(-LST);
+          temp1 = -rijk[1] * rijk[1] - rijk[0] * rijk[0];
+          drr   = dot( rijk, vijk) / rr;
+          if (fabs(temp1) > small)
+              drtasc = (vijk[0] * rijk[1] - vijk[1] * rijk[0]) / temp1;
+            else
+              drtasc = 0.0;
+          if (fabs(temp) > small)
+              ddecl = (vijk[2] - drr * sin(decl)) / temp;
+            else
+              ddecl = 0.0;
+       }
+   }  // procedure rv_radec
 
-    /* ---------  Find IJK range and velocity vectors -----------*/
-    Rijk    = Rhoijk + RSijk;
-    WCrossR = EarthRate.Cross(Rijk);
-    Vijk    = DRhoijk + WCrossR;
 
-    if (Show == 'Y')
-      if (FileOut != NULL)
+/*------------------------------------------------------------------------------
+*
+*                           procedure rv_razel
+*
+*  this procedure converts range, azimuth, and elevation and their rates with
+*    the geocentric equatorial (ecef) position and velocity vectors.  notice the
+*    value of small as it can affect rate term calculations. uses velocity
+*    vector to find the solution of singular cases.
+*
+*  author        : david vallado                  719-573-2600   22 jun 2002
+*
+*  inputs          description                    range / units
+*    recef       - ecef position vector           km
+*    vecef       - ecef velocity vector           km/s
+*    rsecef      - ecef site position vector      km
+*    latgd       - geodetic latitude              -pi/2 to pi/2 rad
+*    lon         - geodetic longitude             -2pi to pi rad
+*    direct      -  direction to convert          eFrom  eTo
+*
+*  outputs       :
+*    rho         - satellite range from site      km
+*    az          - azimuth                        0.0 to 2pi rad
+*    el          - elevation                      -pi/2 to pi/2 rad
+*    drho        - range rate                     km/s
+*    daz         - azimuth rate                   rad/s
+*    del         - elevation rate                 rad/s
+*
+*  locals        :
+*    rhovecef    - ecef range vector from site    km
+*    drhovecef   - ecef velocity vector from site km/s
+*    rhosez      - sez range vector from site     km
+*    drhosez     - sez velocity vector from site  km
+*    tempvec     - temporary vector
+*    temp        - temporary extended value
+*    temp1       - temporary extended value
+*    i           - index
+*
+*  coupling      :
+*    mag         - magnitude of a vector
+*    addvec      - add two vectors
+*    rot3        - rotation about the 3rd axis
+*    rot2        - rotation about the 2nd axis
+*    atan2       - arc tangent function which also resloves quadrants
+*    dot         - dot product of two vectors
+*    rvsez_razel - find r and v from site in topocentric horizon (sez) system
+*    lncom2      - combine two vectors and constants
+*    arcsin      - arc sine function
+*    sgn         - returns the sign of a variable
+*
+*  references    :
+*    vallado       2007, 266-269, alg 27
+*
+ -----------------------------------------------------------------------------*/
+
+void rv_razel
+     (
+        double recef[3], double vecef[3], double rsecef[3], double latgd, double lon,
+        edirection direct,
+        double& rho, double& az, double& el, double& drho, double& daz, double& del
+     )
+   {
+     const double halfpi = pi / 2.0;
+     const double small = 0.0000001;
+
+     double temp, temp1;
+     double rhoecef[3], drhoecef[3], rhosez[3], drhosez[3], tempvec[3];
+
+     if (direct == eFrom)
+     {
+       /* ---------  find sez range and velocity vectors ----------- */
+       rvsez_razel(rhosez, drhosez, direct, rho, az, el, drho, daz, del);
+
+       /* ----------  perform sez to ecef transformation ------------ */
+       rot2( rhosez, latgd - halfpi, tempvec);
+       rot3( tempvec, -lon, rhoecef);
+       rot2( drhosez, latgd - halfpi, tempvec);
+       rot3( tempvec, -lon, drhoecef);
+
+       /* ---------  find ecef range and velocity vectors -----------*/
+       addvec( 1.0, rhoecef, 1.0, rsecef, recef);
+       vecef[0] = drhoecef[0];
+       vecef[1] = drhoecef[1];
+       vecef[2] = drhoecef[2];
+     }
+     else
+     {
+       /* ------- find ecef range vector from site to satellite ----- */
+       addvec( 1.0, recef, -1.0, rsecef, rhoecef);
+       drhoecef[0] = vecef[0];
+       drhoecef[1] = vecef[1];
+       drhoecef[2] = vecef[2];
+       rho     = mag(rhoecef);
+
+       /* ------------ convert to sez for calculations ------------- */
+       rot3( rhoecef, lon, tempvec);
+       rot2( tempvec, halfpi - latgd, rhosez);
+       rot3( drhoecef, lon, tempvec);
+       rot2( tempvec, halfpi - latgd, drhosez);
+
+       /* ------------ calculate azimuth and elevation ------------- */
+       temp = sqrt(rhosez[0] * rhosez[0] + rhosez[1] * rhosez[1]);
+       if (fabs(rhosez[1]) < small)
+           if (temp < small)
+             {
+               temp1 = sqrt(drhosez[0] * drhosez[0] +
+                            drhosez[1] * drhosez[1]);
+               az    = atan2(drhosez[1] / temp1, -drhosez[0] / temp1);
+             }
+             else
+               if (rhosez[0] > 0.0)
+                   az = pi;
+                 else
+                   az = 0.0;
+           else
+             az = atan2(rhosez[1] / temp, -rhosez[0] / temp);
+
+       if (temp < small)  // directly over the north pole
+           el = sgn(rhosez[2]) * halfpi; // +- 90
+         else
+           el = asin(rhosez[2] / mag(rhosez));
+
+       /* ----- calculate range, azimuth and elevation rates ------- */
+       drho = dot(rhosez, drhosez) / rho;
+       if (fabs(temp * temp) > small)
+           daz = (drhosez[0] * rhosez[1] - drhosez[1] * rhosez[0]) /
+                 (temp * temp);
+         else
+           daz = 0.0;
+
+       if (fabs(temp) > 0.00000001)
+           del = (drhosez[2] - drho * sin(el)) / temp;
+         else
+           del = 0.0;
+     }
+   }  // procedure rv_razel
+
+
+/*------------------------------------------------------------------------------
+*
+*                           procedure rv_tradec
+*
+*  this procedure converts topocentric right-ascension declination with
+*    position and velocity vectors. uses velocity vector to find the
+*    solution of singular cases.
+*
+*  author        : david vallado                  719-573-2600   22 jun 2002
+*
+*  inputs          description                    range / units
+*    rijk        - ijk position vector            er
+*    vijk        - ijk velocity vector            er/tu
+*    rsijk       - ijk site position vector       er
+*    direct      -  direction to convert          eFrom  eTo
+*
+*  outputs       :
+*    rho         - top radius of the sat          er
+*    trtasc      - top right ascension            rad
+*    tdecl       - top declination                rad
+*    drho        - top radius of the sat rate     er/tu
+*    tdrtasc     - top right ascension rate       rad/tu
+*    tddecl      - top declination rate           rad/tu
+*
+*  locals        :
+*    rhov        - ijk range vector from site     er
+*    drhov       - ijk velocity vector from site  er / tu
+*    temp        - temporary extended value
+*    temp1       - temporary extended value
+*    i           - index
+*
+*  coupling      :
+*    mag         - magnitude of a vector
+*    atan2       - arc tangent function that resolves the quadrant ambiguities
+*    arcsin      - arc sine function
+*    lncom2      - linear combination of 2 vectors
+*    addvec      - add two vectors
+*    dot         - dot product of two vectors
+*
+*  references    :
+*    vallado       2001, 248-250, alg 26
+*
+ -----------------------------------------------------------------------------*/
+
+void rv_tradec
+     (
+       double rijk[3], double vijk[3], double rsijk[3],
+       edirection direct,
+       double& rho, double& trtasc, double& tdecl,
+       double& drho, double& dtrtasc, double& dtdecl
+     )
+   {
+     const double small = 0.00000001;
+     const double omegaearth = 0.05883359221938136;  // earth rot rad/tu
+
+     double earthrate[3], rhov[3], drhov[3], vsijk[3];
+     double   latgc, temp, temp1;
+
+     latgc = asin(rsijk[3] / mag(rsijk));
+     earthrate[0] = 0.0;
+     earthrate[1] = 0.0;
+     earthrate[2] = omegaearth;
+     cross(earthrate, rsijk, vsijk);
+
+     if (direct == eFrom)
+       {
+         /* --------  calculate topocentric vectors ------------------ */
+         rhov[0] = (rho * cos(tdecl) * cos(trtasc));
+         rhov[1] = (rho * cos(tdecl) * sin(trtasc));
+         rhov[2] = (rho * sin(tdecl));
+
+         drhov[0] = (drho * cos(tdecl) * cos(trtasc) -
+                    rho * sin(tdecl) * cos(trtasc) * dtdecl -
+                    rho * cos(tdecl) * sin(trtasc) * dtrtasc);
+         drhov[1] = (drho * cos(tdecl) * sin(trtasc) -
+                    rho * sin(tdecl) * sin(trtasc) * dtdecl +
+                    rho * cos(tdecl) * cos(trtasc) * dtrtasc);
+         drhov[2] = (drho * sin(tdecl) + rho * cos(tdecl) * dtdecl);
+
+         /* ------ find ijk range vector from site to satellite ------ */
+         addvec(1.0, rhov, 1.0, rsijk, rijk);
+         addvec(1.0, drhov, cos(latgc), vsijk, vijk);
+/*
+    if (show == 'y')
+      if (fileout != null)
       {
-        fprintf(FileOut, "rseb %18.7f %18.7f %18.7f %18.7f ER\n",
-                Rhosez.Get(1), Rhosez.Get(2), Rhosez.Get(3), Rhosez.Mag());
-        fprintf(FileOut, "vseb %18.7f %18.7f %18.7f %18.7f\n",
-                DRhosez.Get(1), DRhosez.Get(2), DRhosez.Get(3), DRhosez.Mag());
-        fprintf(FileOut, "RhoV ijk %117.f %11.7f %11.7f\n",
-                          Rhoijk.Get(1), Rhoijk.Get(2), Rhoijk.Get(3));
-        fprintf(FileOut, "DRhoV ijk %117.f %11.7f %11.7f\n",
-                          DRhoijk.Get(1), DRhoijk.Get(2), DRhoijk.Get(3));
-        fprintf(FileOut, " Mat r1 %11.7f %11.7f %11.7f\n",
-                sin(Latgd) * cos(LST), -sin(LST), cos(Latgd) * cos(LST));
-        fprintf(FileOut, " Mat r2 %11.7f %11.7f %11.7f\n",
-                sin(Latgd) * sin(LST), cos(LST), cos(Latgd) * sin(LST));
-        fprintf(FileOut, " Mat r3 %11.7f %11s %11.7f\n",
-                          -cos(Latgd), "0.00", sin(Latgd));
+        fprintf(fileout, "rtb %18.7f %18.7f %18.7f %18.7f er\n",
+                rhov[1], rhov[2], rhov[3], mag(rhov));
+        fprintf(fileout, "vtb %18.7f %18.7f %18.7f %18.7f\n",
+                drhov[1], drhov[2], drhov[3], mag(drhov));
       }
-  }
-  else
-  {
-    /* ------- Find IJK range vector from SITE to satellite ----- */
-    WCrossR = EarthRate.Cross(Rijk);
-    Rhoijk  = Rijk - RSijk;
-    DRhoijk = Vijk - WCrossR;
-    Rho     = Rhoijk.Mag();
+*/
+       }
+       else
+       {
+         /* ------ find ijk range vector from site to satellite ------ */
+         addvec(1.0, rijk, -1.0, rsijk, rhov);
+         addvec(1.0, vijk, -cos(latgc), vsijk, drhov);
 
-    /* ------------ Convert to SEZ for calculations ------------- */
-    TempVec = Rhoijk.Rot3(LST);
-    Rhosez  = TempVec.Rot2(HalfPi - Latgd);
-    TempVec = DRhoijk.Rot3(LST);
-    DRhosez = TempVec.Rot2(HalfPi - Latgd);
+         /* -------- calculate topocentric angle and rate values ----- */
+         rho = mag(rhov);
+         temp = sqrt(rhov[0] * rhov[0] + rhov[1] * rhov[1]);
+         if (temp < small)
+           {
+             temp1 = sqrt(drhov[0] * drhov[0] + drhov[1] * drhov[1]);
+             trtasc = atan2(drhov[1] / temp1, drhov[0] / temp1);
+           }
+           else
+             trtasc = atan2(rhov[1] / temp, rhov[0] / temp);
 
-    /* ------------ Calculate Azimuth and Elevation ------------- */
-    Temp = sqrt(Rhosez.Get(1) * Rhosez.Get(1) + Rhosez.Get(2) * Rhosez.Get(2));
-    if (fabs(Rhosez.Get(2)) < Small)
-      if (Temp < Small)
+         tdecl = asin(rhov[2] / mag(rhov));
+
+         temp1 = -rhov[1] * rhov[1] - rhov[0] * rhov[0];
+         drho = dot( rhov, drhov) / rho;
+         if (fabs(temp1) > small)
+             dtrtasc = (drhov[0] * rhov[1] - drhov[1] * rhov[0])/temp1;
+           else
+             dtrtasc = 0.0;
+         if (fabs(temp) > small)
+             dtdecl = (drhov[2] - drho * sin(tdecl)) / temp;
+           else
+             dtdecl = 0.0;
+/*
+    if (show == 'y')
+      if (fileout != null)
       {
-        Temp1 = sqrt(DRhosez.Get(1) * DRhosez.Get(1) + 
-                     DRhosez.Get(2) * DRhosez.Get(2));
-        Az    = Atan2(DRhosez.Get(2) / Temp1, -DRhosez.Get(1) / Temp1);
+        fprintf(fileout, "rta %18.7f %18.7f %18.7f %18.7f er\n",
+                rhov[1], rhov[3], rhov[3], mag(rhov));
+        fprintf(fileout, "vta %18.7f %18.7f %18.7f %18.7f er\n",
+                drhov[1], drhov[3], drhov[3], mag(drhov));
       }
-      else
-        if (Rhosez.Get(1) > 0.0)
-          Az = PI;
+*/
+       }
+   } // procedure rv_tradec
+
+
+/*------------------------------------------------------------------------------
+*
+*                           procedure rvsez_razel
+*
+*  this procedure converts range, azimuth, and elevation values with slant
+*    range and velocity vectors for a satellite from a radar site in the
+*    topocentric horizon (sez) system.
+*
+*  author        : david vallado                  719-573-2600   22 jun 2002
+*
+*  inputs          description                    range / units
+*    rhovec      - sez satellite range vector     km
+*    drhovec     - sez satellite velocity vector  km/s
+*    direct      -  direction to convert          eFrom  eTo
+*
+*  outputs       :
+*    rho         - satellite range from site      mk
+*    az          - azimuth                        0.0 to 2pi rad
+*    el          - elevation                      -pi/2 to pi/2 rad
+*    drho        - range rate                     km/s
+*    daz         - azimuth rate                   rad/s
+*    del         - elevation rate                 rad/s
+*
+*  locals        :
+*    sinel       - variable for sin( el )
+*    cosel       - variable for cos( el )
+*    sinaz       - variable for sin( az )
+*    cosaz       - variable for cos( az )
+*    temp        -
+*    temp1       -
+*
+*  coupling      :
+*    mag         - magnitude of a vector
+*    sgn         - returns the sign of a variable
+*    dot         - dot product
+*    arcsin      - arc sine function
+*    atan2       - arc tangent function that resolves quadrant ambiguites
+*
+*  references    :
+*    vallado       2007, eq 4-4, eq 4-5
+*
+ -----------------------------------------------------------------------------*/
+
+void rvsez_razel
+     (
+       double rhosez[3], double drhosez[3],
+       edirection direct,
+       double& rho, double& az, double& el, double& drho, double& daz, double& del
+     )
+   {
+      const double small = 0.00000001;
+      const double halfpi = pi / 2.0;
+
+      double temp1, temp, sinel, cosel, sinaz, cosaz;
+
+      if (direct == eFrom)
+        {
+          sinel = sin(el);
+          cosel = cos(el);
+          sinaz = sin(az);
+          cosaz = cos(az);
+
+          /* ----------------- form sez range vector ------------------ */
+          rhosez[0] = (-rho * cosel * cosaz);
+          rhosez[1] = ( rho * cosel * sinaz);
+          rhosez[2] = ( rho * sinel);
+
+          /* --------------- form sez velocity vector ----------------- */
+          drhosez[0] = (-drho * cosel * cosaz +
+                       rhosez[2] * del * cosaz + rhosez[1] * daz);
+          drhosez[1] = (drho * cosel * sinaz -
+                       rhosez[2] * del * sinaz - rhosez[0] * daz);
+          drhosez[2] = (drho * sinel + rho * del * cosel);
+        }
         else
-          Az = 0.0;
-    else
-      Az = Atan2(Rhosez.Get(2) / Temp, -Rhosez.Get(1) / Temp);
+        {
+          /* ------------ calculate azimuth and elevation ------------- */
+          temp = sqrt(rhosez[0] * rhosez[0] + rhosez[1] * rhosez[1]);
+          if (fabs(rhosez[1]) < small)
+              if (temp < small)
+                {
+                  temp1 = sqrt(drhosez[0] * drhosez[0] +
+                          drhosez[1] * drhosez[1]);
+                  az    = atan2(drhosez[1] / temp1, drhosez[0] / temp1);
+                }
+                else
+                  if (drhosez[0]  > 0.0)
+                    az = pi;
+                  else
+                    az = 0.0;
+            else
+              az = atan2(rhosez[1] / temp, rhosez[0] / temp);
 
-    if (Temp < Small)  // directly over the north pole
-      El = Sgn(Rhosez.Get(3)) * HalfPi; // +- 90
-    else
-      El = asin(Rhosez.Get(3) / Rhosez.Mag());
+          if (temp < small)   // directly over the north pole
+              el = sgn(rhosez[2]) * halfpi;  // +- 90
+            else
+              el = asin(rhosez[2] / mag(rhosez));
 
-    /* ----- Calculate Range, Azimuth and Elevation rates ------- */
-    DRho = Rhosez.Dot(DRhosez) / Rho;
-    if (fabs(Temp * Temp) > Small)
-      DAz = (DRhosez.Get(1) * Rhosez.Get(2) - DRhosez.Get(2) * Rhosez.Get(1)) /
-            (Temp * Temp);
-    else
-      DAz = 0.0;
+          /* ------  calculate range, azimuth and elevation rates ----- */
+          drho = dot(rhosez, drhosez) / rho;
+          if (fabs(temp * temp) > small)
+              daz = (drhosez[0] * rhosez[1] - drhosez[1] * rhosez[0]) /
+                    (temp * temp);
+            else
+              daz = 0.0;
 
-    if (fabs(Temp) > 0.00000001)
-      DEl = (DRhosez.Get(3) - DRho * sin(El)) / Temp;
-    else
-      DEl = 0.0;
+          if (fabs(temp) > small)
+              del = (drhosez[2] - drho * sin(el)) / temp;
+            else
+              del = 0.0;
+        }
+   }   // procedure rvsez_razel
 
-    if (Show == 'Y')
-      if (FileOut != NULL)
-      {
-        fprintf(FileOut, "rsez %18.7f %18.7f %18.7f %18.7f ER\n",
-                Rhosez.Get(1), Rhosez.Get(2), Rhosez.Get(3), Rhosez.Mag());
-        fprintf(FileOut, "vsez %18.7f %18.7f %18.7f %18.7f\n",
-                DRhosez.Get(1), DRhosez.Get(2), DRhosez.Get(3), DRhosez.Mag());
-      }
-  }
-}
+
+/* ------------------------- three vector techniques ------------------------ */
+
+/* -----------------------------------------------------------------------------
+*
+*                           procedure gibbs
+*
+*  this procedure performs the gibbs method of orbit determination.
+*
+*  author        : david vallado                  719-573-2600   22 jun 2002
+*
+*  inputs          description                    range / units
+*    r1          - ijk position vector #1         km
+*    r2          - ijk position vector #2         km
+*    r3          - ijk position vector #3         km
+*
+*  outputs       :
+*    v2          - ijk velocity vector for r2     km / s
+*    theta       - angle between vectors          rad
+*    error       - flag indicating success        'ok',...
+*
+*  locals        :
+*    tover2      -
+*    l           -
+*    small       - tolerance for roundoff errors
+*    r1mr2       - magnitude of r1 - r2
+*    r3mr1       - magnitude of r3 - r1
+*    r2mr3       - magnitude of r2 - r3
+*    p           - p vector     r2 x r3
+*    q           - q vector     r3 x r1
+*    w           - w vector     r1 x r2
+*    d           - d vector     p + q + w
+*    n           - n vector (r1)p + (r2)q + (r3)w
+*    s           - s vector
+*                    (r2-r3)r1+(r3-r1)r2+(r1-r2)r3
+*    b           - b vector     d x r2
+*    theta1      - temp angle between the vectors rad
+*    pn          - p unit vector
+*    r1n         - r1 unit vector
+*    dn          - d unit vector
+*    nn          - n unit vector
+*    i           - index
+*
+*  coupling      :
+*    mag         - magnitude of a vector
+*    cross       - cross product of two vectors
+*    dot         - dot product of two vectors
+*    add3vec     - add three vectors
+*    lncom2      - multiply two vectors by two constants
+*    lncom3      - add three vectors each multiplied by a constant
+*    norm        - creates a unit vector
+*    angle       - angle between two vectors
+*
+*  references    :
+*    vallado       2007, 450-457, alg 53, ex 7-3
+*
+ -----------------------------------------------------------------------------*/
+
+void gibbs
+     (
+       double r1[3], double r2[3], double r3[3],
+       double v2[3], double& theta, double& theta1, double& copa, char error[12]
+     )
+   {
+     const double small = 0.000001;
+     double tover2, l, r1mr2, r3mr1, r2mr3, mu;
+     double p[3], q[3], w[3], d[3], n[3], s[3], b[3], pn[3], r1n[3], dn[3], nn[3];
+
+     /* --------------------  initialize values   -------------------- */
+     mu = 3.986004418e5;
+     strcpy(error, "ok");
+     theta = 0.0;
+     theta1= 0.0;
+     copa  = 0.0;
+
+     /* ----------------------------------------------------------------
+     *  determine if the vectors are coplanar.
+     ----------------------------------------------------------------- */
+     cross(r2, r3, p);
+     cross(r3, r1, q);
+     cross(r1, r2, w);
+     norm(p, pn);
+     norm(r1, r1n);
+     copa = asin(dot(pn, r1n));
+
+     if (fabs(dot(r1n, pn)) > 0.017452406)
+         strcpy(error, "not coplanar");
+
+     /* ---------------- or don't continue processing ---------------- */
+     addvec3( 1.0, p, 1.0, q, 1.0, w, d);
+     addvec3( mag(r1), p, mag(r2), q, mag(r3), w, n);
+     norm(n, nn);
+     norm(d, dn);
+
+     /* ----------------------------------------------------------------
+     *  determine if the orbit is possible.  both d and n must be in
+     *    the same direction, and non-zero.
+     ----------------------------------------------------------------- */
+     if ((fabs(mag(d)) < small) || (fabs(mag(n)) < small) ||
+         (fabs(dot(nn, dn)) < small))
+       strcpy(error, "impossible");
+     else
+       {
+         theta  = angle(r1, r2);
+         theta1 = angle(r2, r3);
+
+         /* ------------ perform gibbs method to find v2 ----------- */
+         r1mr2 = mag(r1) - mag(r2);
+         r3mr1 = mag(r3) - mag(r1);
+         r2mr3 = mag(r2) - mag(r3);
+         addvec3( r1mr2, r3, r3mr1, r2, r2mr3, r1, s);
+         cross(d, r2, b);
+         l = sqrt( mu / (mag(d) * mag(n)) );
+         tover2 = l / mag(r2);
+         addvec( tover2, b, l, s, v2);
+       }
+    /*
+     if (((show == 'y') || (show == 's')) && (strcmp(error, "ok") == 0))
+       if (fileout != null)
+       {
+         fprintf(fileout, "%16s %9.3f %9.3f %9.3f\n",
+                           "p vector = ", p[1], p[2], p[3]);
+         fprintf(fileout, "%16s %9.3f %9.3f %9.3f\n",
+                           "q vector = ", q[1], q[2], q[3]);
+         fprintf(fileout, "%16s %9.3f %9.3f %9.3f\n",
+                           "w vector = ", w[1], w[2], w[3]);
+         fprintf(fileout, "%16s %9.3f %9.3f %9.3f\n",
+                           "n vector = ", n[1], n[2], n[3]);
+         fprintf(fileout, "%16s %9.3f %9.3f %9.3f\n",
+                           "d vector = ", d[1], d[2], d[3]);
+         fprintf(fileout, "%16s %9.3f %9.3f %9.3f\n",
+                           "s vector = ", s[1], s[2], s[3]);
+         fprintf(fileout, "%16s %9.3f %9.3f %9.3f\n",
+                           "b vector = ", b[1], b[2], b[3]);
+       }
+   */
+   }  // procedure gibbs
+
 
 /*------------------------------------------------------------------------------
-|
-|                           PROCEDURE RV_TRADEC
-|
-|  This PROCEDURE converts topocentric right-ascension declination with
-|    position and velocity vectors. Uses velocity vector to find the
-|    solution of singular cases.
-|
-|  Author        : David Vallado                  303-344-6037    1 Mar 2001
-|
-|  Inputs          Description                    Range / Units
-|    Rijk        - IJK position vector            ER
-|    Vijk        - IJK velocity vector            ER/TU
-|    RSijk       - IJK SITE position vector       ER
-|    Direction   - Which set of vars to output    FROM  TOO
-|
-|  OutPuts       :
-|    Rho         - Top Radius of the sat          ER
-|    TRtAsc      - Top Right Ascension            rad
-|    TDecl       - Top Declination                rad
-|    DRho        - Top Radius of the sat rate     ER/TU
-|    TDRtAsc     - Top Right Ascension rate       rad/TU
-|    TDDecl      - Top Declination rate           rad/TU
-|
-|  Locals        :
-|    RhoV        - IJK Range Vector from SITE     ER
-|    DRhoV       - IJK Velocity Vector from SITE  ER / TU
-|    Temp        - Temporary EXTENDED value
-|    Temp1       - Temporary EXTENDED value
-|    i           - Index
-|
-|  Coupling      :
-|    MAG         - Magnitude of a vector
-|    ATAN2       - Arc tangent FUNCTION that resolves the quadrant ambiguities
-|    ARCSIN      - Arc sine FUNCTION
-|    LNCOM2      - Linear combination of 2 vectors
-|    ADDVEC      - Add two vectors
-|    DOT         - DOT product of two vectors
-|
-|  References    :
-|    Vallado       2001, 248-250, Alg 26
-|
+*
+*                           procedure herrgibbs
+*
+*  this procedure implements the herrick-gibbs approximation for orbit
+*    determination, and finds the middle velocity vector for the 3 given
+*    position vectors.
+*
+*  author        : david vallado                  719-573-2600   22 jun 2002
+*
+*  inputs          description                    range / units
+*    r1          - ijk position vector #1         km
+*    r2          - ijk position vector #2         km
+*    r3          - ijk position vector #3         km
+*    jd1         - julian date of 1st sighting    days from 4713 bc
+*    jd2         - julian date of 2nd sighting    days from 4713 bc
+*    jd3         - julian date of 3rd sighting    days from 4713 bc
+*
+*  outputs       :
+*    v2          - ijk velocity vector for r2     km / s
+*    theta       - angle between vectors          rad
+*    error       - flag indicating success        'ok',...
+*
+*  locals        :
+*    dt21        - time delta between r1 and r2   s
+*    dt31        - time delta between r3 and r1   s
+*    dt32        - time delta between r3 and r2   s
+*    p           - p vector    r2 x r3
+*    pn          - p unit vector
+*    r1n         - r1 unit vector
+*    theta1      - temporary angle between vec    rad
+*    tolangle    - tolerance angle  (1 deg)       rad
+*    term1       - 1st term for hgibbs expansion
+*    term2       - 2nd term for hgibbs expansion
+*    term3       - 3rd term for hgibbs expansion
+*    i           - index
+*
+*  coupling      :
+*    mag         - magnitude of a vector
+*    cross       - cross product of two vectors
+*    dot         - dot product of two vectors
+*    arcsin      - arc sine function
+*    norm        - creates a unit vector
+*    lncom3      - combination of three scalars and three vectors
+*    angle       - angle between two vectors
+*
+*  references    :
+*    vallado       2007, 457-463, alg 54, ex 7-4
+*
  -----------------------------------------------------------------------------*/
-void RV_TRaDec
-    (
-      Vector& Rijk, Vector& Vijk, Vector& RSijk, Direction dir,
-      Real& Rho, Real& TRtAsc, Real& TDecl, 
-      Real& DRho, Real& DTRtAsc, Real& DTDecl
-    )
-{
-  const Real Small = 0.00000001;
-  const Real OmegaEarth = 0.05883359221938136;  // Earth Rot rad/TU
 
-  Vector EarthRate(3), RhoV(3), DRhoV(3), VSijk(3);
-  Real   Latgc, Temp, Temp1;
+void herrgibbs
+     (
+       double r1[3], double r2[3], double r3[3], double jd1, double jd2, double jd3,
+       double v2[3], double& theta, double& theta1, double& copa, char error[12]
+     )
+   {
+     double p[3], pn[3], r1n[3], mu;
+     double   dt21, dt31, dt32, term1, term2, term3, tolangle;
 
-  Latgc = asin(RSijk.Get(3) / RSijk.Mag());
-  EarthRate.Set(0.0, 1);
-  EarthRate.Set(0.0, 2);
-  EarthRate.Set(OmegaEarth, 2);
-  VSijk = EarthRate.Cross(RSijk);
+     /* --------------------  initialize values   -------------------- */
+     mu = 3.986004418e5;
+     tolangle = 0.017452406;  // (1.0 deg in rad)
 
-  if (dir == FROM)
-  {
-    /* --------  Calculate Topocentric Vectors ------------------ */
-    RhoV.Set(Rho * cos(TDecl) * cos(TRtAsc), 1);
-    RhoV.Set(Rho * cos(TDecl) * sin(TRtAsc), 2);
-    RhoV.Set(Rho * sin(TDecl), 3);
+     strcpy(error, "ok");
+     theta  = 0.0;
+     theta1 = 0.0;
 
-    DRhoV.Set(DRho * cos(TDecl) * cos(TRtAsc) -
-               Rho * sin(TDecl) * cos(TRtAsc) * DTDecl -
-               Rho * cos(TDecl) * sin(TRtAsc) * DTRtAsc, 1);
-    DRhoV.Set(DRho * cos(TDecl) * sin(TRtAsc) -
-               Rho * sin(TDecl) * sin(TRtAsc) * DTDecl +
-               Rho * cos(TDecl) * cos(TRtAsc) * DTRtAsc, 2);
-    DRhoV.Set(DRho * sin(TDecl) + Rho * cos(TDecl) * DTDecl, 3);
+     dt21 = (jd2 - jd1) * 86400.0;
+     dt31 = (jd3 - jd1) * 86400.0;   // differences in times
+     dt32 = (jd3 - jd2) * 86400.0;
 
-    /* ------ Find IJK range vector from SITE to satellite ------ */
-    Rijk = RhoV + RSijk;
-    Vijk = DRhoV + cos(Latgc) * VSijk;
+     /* ----------------------------------------------------------------
+     *  determine if the vectors are coplanar.
+     ---------------------------------------------------------------- */
+     cross(r2, r3, p);
+     norm(p, pn);
+     norm(r1, r1n);
+     copa = asin(dot(pn, r1n));
+     if (fabs(dot(pn, r1n)) > tolangle)
+        strcpy(error, "not coplanar");
 
-    if (Show == 'Y')
-      if (FileOut != NULL)
-      {
-        fprintf(FileOut, "rtb %18.7f %18.7f %18.7f %18.7f ER\n",
-                RhoV.Get(1), RhoV.Get(2), RhoV.Get(3), RhoV.Mag());
-        fprintf(FileOut, "vtb %18.7f %18.7f %18.7f %18.7f\n",
-                DRhoV.Get(1), DRhoV.Get(2), DRhoV.Get(3), DRhoV.Mag());
-      }
-  }
-  else
-  {
-    /* ------ Find IJK range vector from SITE to satellite ------ */
-    RhoV = Rijk - RSijk;
-    DRhoV = Vijk - cos(Latgc) * VSijk;
+     /* ----------------------------------------------------------------
+     * check the size of the angles between the three position vectors.
+     *   herrick gibbs only gives "reasonable" answers when the
+     *   position vectors are reasonably close.  1.0 deg is only an estimate.
+     ---------------------------------------------------------------- */
+     theta  = angle(r1, r2);
+     theta1 = angle(r2, r3);
+     if ((theta > tolangle) || (theta1 > tolangle))
+        strcpy(error, "angle > 1ø");
 
-    /* -------- Calculate Topocentric ANGLE and Rate Values ----- */
-    Rho = RhoV.Mag();
-    Temp = sqrt(RhoV.Get(1) * RhoV.Get(1) + RhoV.Get(2) * RhoV.Get(2));
-    if (Temp < Small)
-    {
-      Temp1 = sqrt(DRhoV.Get(1) * DRhoV.Get(1) + DRhoV.Get(2) * DRhoV.Get(2));
-      TRtAsc = Atan2(DRhoV.Get(2) / Temp1, DRhoV.Get(1) / Temp1);
-    }
-    else
-      TRtAsc = Atan2(RhoV.Get(2) / Temp, RhoV.Get(1) / Temp);
+     /* ------------ perform herrick-gibbs method to find v2 --------- */
+     term1 = -dt32 *
+             (1.0 / (dt21 * dt31) + mu / (12.0 * mag(r1) * mag(r1) * mag(r1)));
+     term2 = (dt32 - dt21) *
+             (1.0 / (dt21 * dt32) + mu / (12.0 * mag(r2) * mag(r2) * mag(r2)));
+     term3 = dt21 *
+             (1.0 / (dt32 * dt31) + mu / (12.0 * mag(r3) * mag(r3) * mag(r3)));
+     addvec3( term1, r1, term2, r2, term3, r3, v2);
+     }  // procedure herrgibbs
 
-    TDecl = asin(RhoV.Get(3) / RhoV.Mag());
 
-    Temp1 = -RhoV.Get(2) * RhoV.Get(2) - RhoV.Get(1) * RhoV.Get(1);
-    DRho = RhoV.Dot(DRhoV) / Rho;
-    if (fabs(Temp1) > Small)
-      DTRtAsc = (DRhoV.Get(1) * RhoV.Get(2) - DRhoV.Get(2) * RhoV.Get(1))/Temp1;
-    else
-      DTRtAsc = 0.0;
-    if (fabs(Temp) > Small)
-      DTDecl = (DRhoV.Get(3) - DRho * sin(TDecl)) / Temp;
-    else
-      DTDecl = 0.0;
-
-    if (Show == 'Y')
-      if (FileOut != NULL)
-      {
-        fprintf(FileOut, "rta %18.7f %18.7f %18.7f %18.7f ER\n",
-                RhoV.Get(1), RhoV.Get(3), RhoV.Get(3), RhoV.Mag());
-        fprintf(FileOut, "vta %18.7f %18.7f %18.7f %18.7f ER\n",
-                DRhoV.Get(1), DRhoV.Get(3), DRhoV.Get(3), DRhoV.Mag());
-      }
-  }
-}
+/* ----------------------- lambert techniques -------------------- */
 
 /*------------------------------------------------------------------------------
-|
-|                           PROCEDURE RVSEZ_RAZEL
-|
-|  This PROCEDURE converts range, azimuth, and elevation values with slant
-|    range and velocity vectors for a satellite from a radar SITE in the
-|    Topocentric Horizon (SEZ) system.
-|
-|  Author        : David Vallado                  303-344-6037    1 Mar 2001
-|
-|  Inputs          Description                    Range / Units
-|    RhoVec      - SEZ Satellite range vector     ER
-|    DRhoVec     - SEZ Satellite velocity vector  ER / TU
-|    Direction   - Which set of vars to output    FROM  TOO
-|
-|  OutPuts       :
-|    Rho         - Satellite range from SITE      ER
-|    Az          - Azimuth                        0.0 to 2Pi rad
-|    El          - Elevation                      -Pi/2 to Pi/2 rad
-|    DRho        - Range Rate                     ER / TU
-|    DAz         - Azimuth Rate                   rad / TU
-|    DEl         - Elevation rate                 rad / TU
-|
-|  Locals        :
-|    SinEl       - Variable for SIN( El )
-|    CosEl       - Variable for COS( El )
-|    SinAz       - Variable for SIN( Az )
-|    CosAz       - Variable for COS( Az )
-|    Temp        -
-|    Temp1       -
-|
-|  Coupling      :
-|    MAG         - Magnitude of a vector
-|    SGN         - Returns the sign of a variable
-|    DOT         - DOT product
-|    ARCSIN      - Arc sine FUNCTION
-|    ATAN2       - Arc tangent FUNCTION that resolves quadrant ambiguites
-|
-|  References    :
-|    Vallado       2001, 250-251, Eq 4-4, Eq 4-5
-|
+*
+*                           procedure lamberbattin
+*
+*  this procedure solves lambert's problem using battins method. the method is
+*    developed in battin (1987).
+*
+*  author        : david vallado                  719-573-2600   22 jun 2002
+*
+*  inputs          description                    range / units
+*    ro          - ijk position vector 1          er
+*    r           - ijk position vector 2          er
+*   dm          - direction of motion            'l','s'
+*    dttu        - time between r1 and r2         tu
+*
+*  outputs       :
+*    vo          - ijk velocity vector            er / tu
+*    v           - ijk velocity vector            er / tu
+*    error       - error flag                     'ok',...
+*
+*  locals        :
+*    i           - index
+*    loops       -
+*    u           -
+*    b           -
+*    sinv        -
+*    cosv        -
+*    rp          -
+*    x           -
+*    xn          -
+*    y           -
+*    l           -
+*    m           -
+*    cosdeltanu  -
+*    sindeltanu  -
+*    dnu         -
+*    a           -
+*    tan2w       -
+*    ror         -
+*    h1          -
+*    h2          -
+*    tempx       -
+*    eps         -
+*    denom       -
+*    chord       -
+*    k2          -
+*    s           -
+*    f           -
+*    g           -
+*    fdot        -
+*    am          -
+*    ae          -
+*    be          -
+*    tm          -
+*    gdot        -
+*    arg1        -
+*    arg2        -
+*    tc          -
+*    alpe        -
+*    bete        -
+*    alph        -
+*    beth        -
+*    de          -
+*    dh          -
+*
+*  coupling      :
+*    arcsin      - arc sine function
+*    arccos      - arc cosine function
+*    mag         - magnitude of a vector
+*    arcsinh     - inverse hyperbolic sine
+*    arccosh     - inverse hyperbolic cosine
+*    sinh        - hyperbolic sine
+*    power       - raise a base to a power
+*    atan2       - arc tangent function that resolves quadrants
+*
+*  references    :
+*    vallado       2001, 464-467, ex 7-5
+*
  -----------------------------------------------------------------------------*/
-void RVSez_RAzEl
-    (
-      Vector& Rhosez, Vector& DRhosez, Direction dir,
-      Real& Rho, Real& Az, Real& El, Real& DRho, Real& DAz, Real& DEl
-    )
-{
-  const Real Small = 0.00000001;
-  const Real HalfPi = PI / 2.0;
 
-  Real Temp1, Temp, SinEl, CosEl, SinAz, CosAz;
+void lambertbattin
+     (
+       double ro[3], double r[3], char dm, char overrev, double dttu,
+       double vo[3], double v[3], char error[12]
+     )
+   {
+     const double small = 0.000001;
+     double rcrossr[3];
+     int   i, loops;
+     double   u, b, sinv,cosv, rp, x, xn, y, l, m, cosdeltanu, sindeltanu,dnu, a,
+            tan2w, ror, h1, h2, tempx, eps, denom, chord, k2, s, f, g, fdot, am,
+            ae, be, tm, gdot, arg1, arg2, tc, alpe, bete, alph, beth, de, dh,
+            testamt, bigt;
 
-  if (dir == FROM)
-  {
-    SinEl = sin(El);
-    CosEl = cos(El);
-    SinAz = sin(Az);
-    CosAz = cos(Az);
+     strcpy(error, "ok");
+     cosdeltanu = dot(ro, r) / (mag(ro) * mag(r));
+     cross(ro, r, rcrossr);
+     sindeltanu = mag(rcrossr) / (mag(ro) * mag(r));
+     dnu        = atan2(sindeltanu, cosdeltanu);
 
-    /* ----------------- Form SEZ range vector ------------------ */
-    Rhosez.Set(-Rho * CosEl * CosAz, 1);
-    Rhosez.Set( Rho * CosEl * SinAz, 2);
-    Rhosez.Set( Rho * SinEl, 3);
+     ror   = mag(r) / mag(ro);
+     eps   = ror - 1.0;
+     tan2w = 0.25 * eps * eps / (sqrt(ror) + ror *(2.0 + sqrt(ror)));
+   //  rp    = sqrt(mag(ro)*mag(r)) * (power(cos(dnu * 0.25), 2) + tan2w);
 
-    /* --------------- Form SEZ velocity vector ----------------- */
-    DRhosez.Set(-DRho * CosEl * CosAz + 
-                 Rhosez.Get(3) * DEl * CosAz + Rhosez.Get(2) * DAz, 1);
-    DRhosez.Set(DRho * CosEl * SinAz - 
-                 Rhosez.Get(3) * DEl * SinAz - Rhosez.Get(1) * DAz, 2);
-    DRhosez.Set(DRho * SinEl + Rho * DEl * CosEl, 3);
-  }
-  else
-  {
-    /* ------------ Calculate Azimuth and Elevation ------------- */
-    Temp = sqrt(Rhosez.Get(1) * Rhosez.Get(1) + Rhosez.Get(2) * Rhosez.Get(2));
-    if (fabs(Rhosez.Get(2)) < Small)
-      if (Temp < Small)
-      {
-        Temp1 = sqrt(DRhosez.Get(1) * DRhosez.Get(1) + 
-                     DRhosez.Get(2) * DRhosez.Get(2));
-        Az    = Atan2(DRhosez.Get(2) / Temp1, DRhosez.Get(1) / Temp1);
-      }
-      else
-        if (DRhosez.Get(1)  > 0.0)
-          Az = PI;
-        else
-          Az = 0.0;
-    else
-      Az = Atan2(Rhosez.Get(2) / Temp, Rhosez.Get(1) / Temp);
+   //  if (dnu < pi)
+   //    l = (power(sin(dnu * 0.25), 2) + tan2w ) /
+   //        (power(sin(dnu * 0.25), 2) + tan2w + cos(dnu * 0.5));
+   //  else
+   //    l = (power(cos(dnu * 0.25), 2) + tan2w - cos(dnu * 0.5)) /
+   //        (power(cos(dnu * 0.25), 2) + tan2w);
 
-    if (Temp < Small)   // directly over the north pole
-      El = Sgn(Rhosez.Get(3)) * HalfPi;  // +- 90
-    else
-      El = asin(Rhosez.Get(3) / Rhosez.Mag());
+     m     = dttu * dttu / (8.0 * rp * rp * rp);
+     xn    = 0.0;   // 0 for par and hyp
+     chord = sqrt(mag(ro) * mag(ro) + mag(r) * mag(r) -
+                  2.0 * mag(ro) * mag(r) * cos(dnu));
+     s     = (mag(ro) + mag(r) + chord) * 0.5;
 
-    /* ------  Calculate Range, Azimuth and Elevation rates ----- */
-    DRho = Rhosez.Dot(DRhosez) / Rho;
-    if (fabs(Temp * Temp) > Small)
-      DAz = (DRhosez.Get(1) * Rhosez.Get(2) - DRhosez.Get(2) * Rhosez.Get(1)) /
-             (Temp * Temp);
-    else
-      DAz = 0.0;
-
-    if (fabs(Temp) > Small)
-      DEl = (DRhosez.Get(3) - DRho * sin(El)) / Temp;
-    else
-      DEl = 0.0;
-    if (Show == 'Y')
-      if (FileOut != NULL)
-      {
-        fprintf(FileOut, "rsez %18.7f %18.7f %18.7f %18.7f ER\n",
-                Rhosez.Get(1), Rhosez.Get(2), Rhosez.Get(3), Rhosez.Mag());
-        fprintf(FileOut, "vsez %18.7f %18.7f %18.7f %18.7f ER\n",
-                DRhosez.Get(1), DRhosez.Get(2), DRhosez.Get(3), DRhosez.Mag());
-      }
-  }
-}
-
-/* -------------------- Three vector techniques ------------------- */
-/*------------------------------------------------------------------------------
-|
-|                           PROCEDURE GIBBS
-|
-|  This PROCEDURE performs the GIBBS method of orbit determination.
-|
-|  Author        : David Vallado                  303-344-6037    1 Mar 2001
-|
-|  Inputs          Description                    Range / Units
-|    R1          - IJK Position vector #1         ER
-|    R2          - IJK Position vector #2         ER
-|    R3          - IJK Position vector #3         ER
-|
-|  OutPuts       :
-|    V2          - IJK Velocity Vector for R2     ER / TU
-|    Theta       - ANGLE between vectors          rad
-|    Error       - Flag indicating success        'ok',...
-|
-|  Locals        :
-|    tover2      -
-|    l           -
-|    Small       - Tolerance for roundoff errors
-|    r1mr2       - Magnitude of r1 - r2
-|    r3mr1       - Magnitude of r3 - r1
-|    r2mr3       - Magnitude of r2 - r3
-|    p           - P Vector     r2 x r3
-|    q           - Q Vector     r3 x r1
-|    w           - W Vector     r1 x r2
-|    d           - D Vector     p + q + w
-|    n           - N Vector (r1)p + (r2)q + (r3)w
-|    s           - S Vector
-|                    (r2-r3)r1+(r3-r1)r2+(r1-r2)r3
-|    b           - B Vector     d x r2
-|    Theta1      - Temp ANGLE between the vectors rad
-|    Pn          - P Unit Vector
-|    R1N         - R1 Unit Vector
-|    dn          - D Unit Vector
-|    Nn          - N Unit Vector
-|    i           - index
-|
-|  Coupling      :
-|    MAG         - Magnitude of a vector
-|    CROSS       - CROSS product of two vectors
-|    DOT         - DOT product of two vectors
-|    ADD3VEC     - Add three vectors
-|    LNCOM2      - Multiply two vectors by two constants
-|    LNCOM3      - Add three vectors each multiplied by a constant
-|    NORM        - Creates a Unit Vector
-|    ANGLE       - ANGLE between two vectors
-|
-|  References    :
-|    Vallado       2001, 432-445, Alg 52, Ex 7-5
-|
- -----------------------------------------------------------------------------*/
-void Gibbs
-    (
-      Vector R1, Vector R2, Vector R3, 
-      Vector& V2, Real& Theta, Real& Theta1, Real& Copa, char* Error
-    )
-{
-  const Real Small = 0.000001;
-  
-  Real Tover2, L, R1mr2, R3mr1, R2mr3;
-  Vector P(3), Q(3), W(3), D(3), N(3), S(3), B(3), Pn(3), R1N(3), Dn(3), Nn(3);
-
-  /* --------------------  Initialize values   -------------------- */
-  strcpy(Error, "ok");
-  Theta = 0.0;
-  Theta1 = 0.0;
-  Copa   = 0.0;
-  V2.Clear();
-
-  /* ----------------------------------------------------------------
-  |  Determine IF the vectors are coplanar.
-  ----------------------------------------------------------------- */
-  P   = R2.Cross(R3);
-  Q   = R3.Cross(R1);
-  W   = R1.Cross(R2);
-  Pn  = P.Norm();
-  R1N = R1.Norm();
-  Copa = asin(Pn.Dot(R1N));
-
-  if (fabs(R1N.Dot(Pn)) > 0.017452406)
-    strcpy(Error, "not coplanar");
-
-  /* ---------------- or don't continue processing ---------------- */
-  D = P + Q + W;
-  N = R1.Mag() * P + R2.Mag() * Q + R3.Mag() * W;
-  Nn = N.Norm();
-  Dn = D.Norm();
-
-  /* ----------------------------------------------------------------
-  |  Determine IF the orbit is possible.  Both D and N must be in
-  |    the same direction, and non-zero.
-  ----------------------------------------------------------------- */
-  if ((fabs(D.Mag()) < Small) || (fabs(N.Mag()) < Small) || 
-       (Nn.Dot(Dn) < Small))
-    strcpy(Error, "impossible");
-  else
-  {
-    Theta  = R1.Angle(R2);
-    Theta1 = R2.Angle(R3);
-
-    /* ------------ Perform GIBBS method to find V2 ----------- */
-    R1mr2 = R1.Mag() - R2.Mag();
-    R3mr1 = R3.Mag() - R1.Mag();
-    R2mr3 = R3.Mag() - R3.Mag();
-    S     = R1mr2 * R3 + R3mr1 * R2 + R2mr3 * R1;
-    B = D.Cross(R2);
-    L = 1.0 / sqrt(D.Mag() * N.Mag());
-    Tover2 = L / R2.Mag();
-    V2 = Tover2 * B + L * S;
-  }
-
-  if (((Show == 'Y') || (Show == 'S')) && (strcmp(Error, "ok") == 0))
-    if (FileOut != NULL)
-    {
-      fprintf(FileOut, "%16s %9.3f %9.3f %9.3f\n",
-                        "P vector = ", P.Get(1), P.Get(2), P.Get(3));
-      fprintf(FileOut, "%16s %9.3f %9.3f %9.3f\n",
-                        "Q vector = ", Q.Get(1), Q.Get(2), Q.Get(3));
-      fprintf(FileOut, "%16s %9.3f %9.3f %9.3f\n",
-                        "W vector = ", W.Get(1), W.Get(2), W.Get(3));
-      fprintf(FileOut, "%16s %9.3f %9.3f %9.3f\n",
-                        "N vector = ", N.Get(1), N.Get(2), N.Get(3));
-      fprintf(FileOut, "%16s %9.3f %9.3f %9.3f\n",
-                        "D vector = ", D.Get(1), D.Get(2), D.Get(3));
-      fprintf(FileOut, "%16s %9.3f %9.3f %9.3f\n",
-                        "S vector = ", S.Get(1), S.Get(2), S.Get(3));
-      fprintf(FileOut, "%16s %9.3f %9.3f %9.3f\n",
-                        "B vector = ", B.Get(1), B.Get(2), B.Get(3));
-    }
-}
-
-/*------------------------------------------------------------------------------
-|
-|                           PROCEDURE HERRGIBBS
-|
-|  This PROCEDURE implements the Herrick-GIBBS approximation for orbit
-|    determination, and finds the middle velocity vector for the 3 given
-|    position vectors.
-|
-|  Author        : David Vallado                  303-344-6037    1 Mar 2001
-|
-|  Inputs          Description                    Range / Units
-|    R1          - IJK Position vector #1         ER
-|    R2          - IJK Position vector #2         ER
-|    R3          - IJK Position vector #3         ER
-|    JD1         - Julian Date of 1st sighting    days from 4713 BC
-|    JD2         - Julian Date of 2nd sighting    days from 4713 BC
-|    JD3         - Julian Date of 3rd sighting    days from 4713 BC
-|
-|  OutPuts       :
-|    V2          - IJK Velocity Vector for R2     ER / TU
-|    Theta       - ANGLE between vectors          rad
-|    Error       - Flag indicating success        'ok',...
-|
-|  Locals        :
-|    Dt21        - time delta between r1 and r2   TU
-|    Dt31        - time delta between r3 and r1   TU
-|    Dt32        - time delta between r3 and r2   TU
-|    p           - P vector    r2 x r3
-|    Pn          - P Unit Vector
-|    R1N         - R1 Unit Vector
-|    Theta1      - temporary ANGLE between vec    rad
-|    TolAngle    - Tolerance ANGLE  (1 deg)       rad
-|    Term1       - 1st Term for HGibbs expansion
-|    Term2       - 2nd Term for HGibbs expansion
-|    Term3       - 3rd Term for HGibbs expansion
-|    i           - Index
-|
-|  Coupling      :
-|    MAG         - Magnitude of a vector
-|    CROSS       - CROSS product of two vectors
-|    DOT         - DOT product of two vectors
-|    ARCSIN      - Arc sine FUNCTION
-|    NORM        - Creates a Unit Vector
-|    LNCOM3      - Combination of three scalars and three vectors
-|    ANGLE       - ANGLE between two vectors
-|
-|  References    :
-|    Vallado       2001, 439-445, Alg 52, Ex 7-4
-|
- -----------------------------------------------------------------------------*/
-void HerrGibbs
-    (
-      Vector R1, Vector R2, Vector R3, Real JD1, Real JD2, Real JD3,
-      Vector& V2, Real& Theta, Real& Theta1, Real& Copa, char* Error
-    )
-{
-  const Real TUDay = 0.00933809017716;
-
-  Vector P, Pn, R1n;
-  Real   Dt21, Dt31, Dt32, Term1, Term2, Term3, TolAngle;
-
-  /* --------------------  Initialize values   -------------------- */
-  strcpy(Error, "ok");
-  Theta  = 0.0;
-  Theta1 = 0.0;
-  V2.Clear();
-  Dt21 = (JD2 - JD1) / TUDay;
-  Dt31 = (JD3 - JD1) / TUDay;   // differences in times
-  Dt32 = (JD3 - JD2) / TUDay;
-
-  /* ----------------------------------------------------------------
-  |  Determine IF the vectors are coplanar.
-  ---------------------------------------------------------------- */
-  P   = R2.Cross(R3);
-  Pn  = P.Norm();
-  R1n = R1.Norm();
-  Copa = asin(Pn.Dot(R1n));
-  if (fabs(Pn.Dot(R1n)) > 0.017452406)
-    strcpy(Error, "not coplanar");
-
-  /* ----------------------------------------------------------------
-  | Check the size of the angles between the three position vectors.
-  |   Herrick GIBBS only gives "reasonable" answers when the
-  |   position vectors are reasonably close.  10 deg is only an estimate.
-  ---------------------------------------------------------------- */
-  Theta  = R1.Angle(R2);
-  Theta1 = R2.Angle(R3);
-  if ((Theta > TolAngle) || (Theta1 > TolAngle))
-    strcpy(Error, "ANGLE > 1ø");
-
-  /* ------------ Perform Herrick-GIBBS method to find V2 --------- */
-  Term1 = -Dt32 * 
-          (1.0 / (Dt21 * Dt31) + 1.0 / (12.0 * R1.Mag() * R1.Mag() * R1.Mag()));
-  Term2 = (Dt32 - Dt21) * 
-          (1.0 / (Dt21 * Dt32) + 1.0 / (12.0 * R2.Mag() * R2.Mag() * R2.Mag()));
-  Term3 = Dt21 * 
-          (1.0 / (Dt32 * Dt31) + 1.0 / (12.0 * R3.Mag() * R3.Mag() * R3.Mag()));
-  V2    = Term1 * R1 + Term2 * R2 + Term3 * R3;
-}
-
-/* ----------------------- Lambert techniques -------------------- */
-/*------------------------------------------------------------------------------
-|
-|                           PROCEDURE LAMBERBATTIN
-|
-|  This PROCEDURE solves Lambert's problem using Battins method. The method is
-|    developed in Battin (1987).
-|
-|  Author        : David Vallado                  303-344-6037    1 Mar 2001
-|
-|  Inputs          Description                    Range / Units
-|    Ro          - IJK Position vector 1          ER
-|    R           - IJK Position vector 2          ER
-|    DM          - direction of motion            'L','S'
-|    DtTU        - Time between R1 and R2         TU
-|
-|  OutPuts       :
-|    Vo          - IJK Velocity vector            ER / TU
-|    V           - IJK Velocity vector            ER / TU
-|    Error       - Error flag                     'ok',...
-|
-|  Locals        :
-|    i           - Index
-|    Loops       -
-|    u           -
-|    b           -
-|    Sinv        -
-|    Cosv        -
-|    rp          -
-|    x           -
-|    xn          -
-|    y           -
-|    l           -
-|    m           -
-|    CosDeltaNu  -
-|    SinDeltaNu  -
-|    DNu         -
-|    a           -
-|    Tan2w       -
-|    RoR         -
-|    h1          -
-|    h2          -
-|    Tempx       -
-|    eps         -
-|    denom       -
-|    chord       -
-|    k2          -
-|    s           -
-|    f           -
-|    g           -
-|    fDot        -
-|    am          -
-|    ae          -
-|    be          -
-|    tm          -
-|    gDot        -
-|    arg1        -
-|    arg2        -
-|    tc          -
-|    AlpE        -
-|    BetE        -
-|    AlpH        -
-|    BetH        -
-|    DE          -
-|    DH          -
-|
-|  Coupling      :
-|    ARCSIN      - Arc sine FUNCTION
-|    ARCCOS      - Arc cosine FUNCTION
-|    MAG         - Magnitude of a vector
-|    ARCSINH     - Inverse hyperbolic sine
-|    ARCCOSH     - Inverse hyperbolic cosine
-|    SINH        - Hyperbolic sine
-|    POWER       - Raise a base to a POWER
-|    ATAN2       - Arc tangent FUNCTION that resolves quadrants
-|
-|  References    :
-|    Vallado       2001, 464-467, Ex 7-5
-|
- -----------------------------------------------------------------------------*/
-void LambertBattin
-    (
-      Vector Ro, Vector R, char dm, char OverRev, Real DtTU, 
-      Vector& Vo, Vector& V, char* Error
-    )
-{
-  const Real Small = 0.000001;
-
-  Vector RCrossR;
-  SINT   i, Loops;
-  Real   u, b, Sinv,Cosv, rp, x, xn, y, L, m, CosDeltaNu, SinDeltaNu,DNu, a,
-         tan2w, RoR, h1, h2, Tempx, eps, Denom, chord, k2, s, f, g, FDot, am,
-         ae, be, tm, GDot, arg1, arg2, tc, AlpE, BetE, AlpH, BetH, DE, DH;
-
-  strcpy(Error, "ok");
-  CosDeltaNu = Ro.Dot(R) / (Ro.Mag() * R.Mag());
-  RCrossR    = Ro.Cross(R);
-  SinDeltaNu = RCrossR.Mag() / (Ro.Mag() * R.Mag());
-  DNu        = Atan2(SinDeltaNu, CosDeltaNu);
-
-  RoR   = R.Mag() / Ro.Mag();
-  eps   = RoR - 1.0;
-  tan2w = 0.25 * eps * eps / (sqrt(RoR) + RoR *(2.0 + sqrt(RoR)));
-  rp    = sqrt(Ro.Mag()*R.Mag()) * (Power(cos(DNu * 0.25), 2) + tan2w);
-
-  if (DNu < PI)
-    L = (Power(sin(DNu * 0.25), 2) + tan2w ) /
-        (Power(sin(DNu * 0.25), 2) + tan2w + cos(DNu * 0.5));
-  else
-    L = (Power(cos(DNu * 0.25), 2) + tan2w - cos(DNu * 0.5)) /
-        (Power(cos(DNu * 0.25), 2) + tan2w);
-
-  m     = DtTU * DtTU / (8.0 * rp * rp * rp);
-  xn    = 0.0;   // 0 for par and hyp
-  chord = sqrt(Ro.Mag() * Ro.Mag() + R.Mag() * R.Mag() - 
-               2.0 * Ro.Mag() * R.Mag() * cos(DNu));
-  s     = (Ro.Mag() + R.Mag() + chord) * 0.5;
-
-  Loops = 1;
+     loops = 1;
   while (1 == 1)
   {
     x     = xn;
-    Tempx = See(x);
-    Denom = 1.0 / ((1.0 + 2.0 * x + L) * (3.0 + x * (1.0 + 4.0 * Tempx)));
-    h1    = Power(L + x, 2) * ( 1.0 + (1.0 + 3.0 * x) * Tempx) * Denom;
-    h2    = m * ( 1.0 + (x - L) * Tempx) * Denom;
+    tempx = see(x);
+    denom = 1.0 / ((1.0 + 2.0 * x + l) * (3.0 + x * (1.0 + 4.0 * tempx)));
+//    h1    = power(l + x, 2) * ( 1.0 + (1.0 + 3.0 * x) * tempx) * denom;
+    h2    = m * ( 1.0 + (x - l) * tempx) * denom;
 
-    /* ------------------------ Evaluate CUBIC ------------------ */
-    b  = 0.25 * 27.0 * h2 / Power(1.0 + h1, 3);
+    /* ------------------------ evaluate cubic ------------------ */
+//    b  = 0.25 * 27.0 * h2 / power(1.0 + h1, 3);
     u  = -0.5 * b / (1.0 + sqrt(1.0 + b));
     k2 = k(u);
 
     y  = ((1.0 + h1) / 3.0) * (2.0 + sqrt(1.0 + b) /
          (1.0 - 2.0 * u * k2 * k2));
-    xn = sqrt(Power((1.0 - L) * 0.5, 2) + m / (y * y)) - (1.0 + L) * 0.5;
+//    xn = sqrt(power((1.0 - l) * 0.5, 2) + m / (y * y)) - (1.0 + l) * 0.5;
 
-    Loops++;
+    loops++;
 
-    if ((fabs(xn - x) < Small) || (Loops > 30))
+    if ((fabs(xn - x) < small) || (loops > 30))
       break;
   }
 
-  a =  DtTU * DtTU / (16.0 * rp * rp * xn * y * y);
-  
-  /* -------------------- Find Eccentric anomalies ---------------- */
-  /* -------------------------- Hyperbolic ------------------------ */
-  if (a < -Small)
+  a =  dttu * dttu / (16.0 * rp * rp * xn * y * y);
+
+  /* -------------------- find eccentric anomalies ---------------- */
+  /* -------------------------- hyperbolic ------------------------ */
+  if (a < -small)
   {
     arg1 = sqrt(s / (-2.0 * a));
     arg2 = sqrt((s - chord) / (-2.0 * a));
-    /* -------- Evaluate f and g functions -------- */
-    AlpH = 2.0 * asinh(arg1);
-    BetH = 2.0 * asinh(arg2);
-    DH   = AlpH - BetH;
-    f    = 1.0 - (a / Ro.Mag()) * (1.0 - cosh(DH));
-    GDot = 1.0 - (a / R.Mag()) * (1.0 - cosh(DH));
-    FDot = -sqrt(-a) * sinh(DH) / (Ro.Mag() * R.Mag());
+    /* -------- evaluate f and g functions -------- */
+    alph = 2.0 * asinh(arg1);
+    beth = 2.0 * asinh(arg2);
+    dh   = alph - beth;
+    f    = 1.0 - (a / mag(ro)) * (1.0 - cosh(dh));
+    gdot = 1.0 - (a / mag(r)) * (1.0 - cosh(dh));
+    fdot = -sqrt(-a) * sinh(dh) / (mag(ro) * mag(r));
   }
   else
   {
-    /* ------------------------- Elliptical --------------------- */
-    if (a > Small)
+    /* ------------------------- elliptical --------------------- */
+    if (a > small)
     {
       arg1 = sqrt(s / (2.0 * a));
       arg2 = sqrt((s - chord) / (2.0 * a));
-      Sinv = arg2;
-      Cosv = sqrt(1.0 - (Ro.Mag()+R.Mag() - chord) / (4.0 * a));
-      BetE = 2.0 * acos(Cosv);
-      BetE = 2.0 * asin(Sinv);
-      if (DNu > PI)
-        BetE = -BetE;
+      sinv = arg2;
+      cosv = sqrt(1.0 - (mag(ro) + mag(r) - chord) / (4.0 * a));
+      bete = 2.0 * acos(cosv);
+      bete = 2.0 * asin(sinv);
+      if (dnu > pi)
+        bete = -bete;
 
-      Cosv = sqrt(1.0 - s / (2.0 * a));
-      Sinv = arg1;
+      cosv = sqrt(1.0 - s / (2.0 * a));
+      sinv = arg1;
 
       am = s * 0.5;
-      ae = PI;
+      ae = pi;
       be = 2.0 * asin(sqrt((s - chord) / s));
       tm = sqrt(am * am * am) * (ae - (be - sin(be)));
-      if (DtTU > tm)
-        AlpE = 2.0 * PI - 2.0 * asin(Sinv);
+      if (dttu > tm)
+        alpe = 2.0 * pi - 2.0 * asin(sinv);
       else
-        AlpE = 2.0 * asin(Sinv);
-      DE   = AlpE - BetE;
-      f    = 1.0 - (a / Ro.Mag()) * (1.0 - cos(DE));
-      GDot = 1.0 - (a / R.Mag()) * (1.0 - cos(DE));
-      g    = DtTU - sqrt(a * a * a) * (DE - sin(DE));
-      FDot = -sqrt(a) * sin(DE) / (Ro.Mag() * R.Mag());
+        alpe = 2.0 * asin(sinv);
+      de   = alpe - bete;
+      f    = 1.0 - (a / mag(ro)) * (1.0 - cos(de));
+      gdot = 1.0 - (a / mag(r)) * (1.0 - cos(de));
+      g    = dttu - sqrt(a * a * a) * (de - sin(de));
+      fdot = -sqrt(a) * sin(de) / (mag(ro) * mag(r));
     }
     else
     {
-      /* ------------------------- Parabolic -------------------- */
+      /* ------------------------- parabolic -------------------- */
       arg1 = 0.0;
       arg2 = 0.0;
-      strcpy(Error, "a = 0 ");
-      if (FileOut != NULL)
-        fprintf(FileOut, " a parabolic orbit \n");
+      strcpy(error, "a = 0 ");
+//      if (fileout != null)
+//        fprintf(fileout, " a parabolic orbit \n");
     }
   }
 
-  for (UINT i = 1; i <= 3; i++)
+  for (i = 1; i <= 3; i++)
   {
-    Vo.Set((R.Get(i) - f * Ro.Get(i))/ g, i);
-    V.Set((GDot * R.Get(i) - Ro.Get(i))/ g, i);
+    vo[i] = ((r[i] - f * ro[i])/ g);
+    v[i] = ((gdot * r[i] - ro[i])/ g);
   }
 
-  if (strcmp(Error, "ok") == 0)
-    Testamt = f * GDot - FDot * g;
+  if (strcmp(error, "ok") == 0)
+    testamt = f * gdot - fdot * g;
   else
-    Testamt = 2.0;
+    testamt = 2.0;
 
-  if (FileOut != NULL)
-    fprintf(FileOut, "%8.5f %3d\n", Testamt, Loops);
+//  if (fileout != null)
+//    fprintf(fileout, "%8.5f %3d\n", testamt, loops);
 
-  BigT = sqrt(8.0 / (s * s * s)) * DtTU;
-}
+  bigt = sqrt(8.0 / (s * s * s)) * dttu;
+   }  // procedure lambertbattin
+
+
 /*------------------------------------------------------------------------------
-|
-|                           PROCEDURE LAMBERTUNIV
-|
-|  This PROCEDURE solves the Lambert problem for orbit determination and returns
-|    the velocity vectors at each of two given position vectors.  The solution
-|    uses Universal Variables for calculation and a bissection technique for
-|    updating psi.
-|
-|  Algorithm     : Setting the initial bounds:
-|                  Using -8Pi and 4Pi2 will allow single rev solutions
-|                  Using -4Pi2 and 8Pi2 will allow multi-rev solutions
-|                  The farther apart the initial guess, the more iterations
-|                    because of the iteration
-|                  Inner loop is for special cases. Must be sure to exit both!
-|
-|  Author        : David Vallado                  303-344-6037    1 Mar 2001
-|
-|  Inputs          Description                    Range / Units
-|    R1          - IJK Position vector 1          ER
-|    R2          - IJK Position vector 2          ER
-|    DM          - direction of motion            'L','S'
-|    DtTU        - Time between R1 and R2         TU
-|
-|  OutPuts       :
-|    V1          - IJK Velocity vector            ER / TU
-|    V2          - IJK Velocity vector            ER / TU
-|    Error       - Error flag                     'ok', ...
-|
-|  Locals        :
-|    VarA        - Variable of the iteration,
-|                  NOT the semi or axis!
-|    Y           - Area between position vectors
-|    Upper       - Upper bound for Z
-|    Lower       - Lower bound for Z
-|    CosDeltaNu  - Cosine of true anomaly change  rad
-|    F           - f expression
-|    G           - g expression
-|    GDot        - g DOT expression
-|    XOld        - Old Universal Variable X
-|    XOldCubed   - XOld cubed
-|    ZOld        - Old value of z
-|    ZNew        - New value of z
-|    C2New       - C2(z) FUNCTION
-|    C3New       - C3(z) FUNCTION
-|    TimeNew     - New time                       TU
-|    Small       - Tolerance for roundoff errors
-|    i, j        - index
-|
-|  Coupling      
-|    MAG         - Magnitude of a vector
-|    DOT         - DOT product of two vectors
-|    FINDC2C3    - Find C2 and C3 functions
-|
-|  References    :
-|    Vallado       2001, 459-464, Alg 55, Ex 7-5
-|
+*
+*                           procedure lambertuniv
+*
+*  this procedure solves the lambert problem for orbit determination and returns
+*    the velocity vectors at each of two given position vectors.  the solution
+*    uses universal variables for calculation and a bissection technique for
+*    updating psi.
+*
+*  algorithm     : setting the initial bounds:
+*                  using -8pi and 4pi2 will allow single rev solutions
+*                  using -4pi2 and 8pi2 will allow multi-rev solutions
+*                  the farther apart the initial guess, the more iterations
+*                    because of the iteration
+*                  inner loop is for special cases. must be sure to exit both!
+*
+*  author        : david vallado                  719-573-2600   22 jun 2002
+*
+*  inputs          description                    range / units
+*    r1          - ijk position vector 1          er
+*    r2          - ijk position vector 2          er
+*    dm          - direction of motion            'l','s'
+*    dttu        - time between r1 and r2         tu
+*
+*  outputs       :
+*    v1          - ijk velocity vector            er / tu
+*    v2          - ijk velocity vector            er / tu
+*    error       - error flag                     'ok', ...
+*
+*  locals        :
+*    vara        - variable of the iteration,
+*                  not the semi or axis!
+*    y           - area between position vectors
+*    upper       - upper bound for z
+*    lower       - lower bound for z
+*    cosdeltanu  - cosine of true anomaly change  rad
+*    f           - f expression
+*    g           - g expression
+*    gdot        - g dot expression
+*    xold        - old universal variable x
+*    xoldcubed   - xold cubed
+*    zold        - old value of z
+*    znew        - new value of z
+*    c2new       - c2(z) function
+*    c3new       - c3(z) function
+*    timenew     - new time                       tu
+*    small       - tolerance for roundoff errors
+*    i, j        - index
+*
+*  coupling      
+*    mag         - magnitude of a vector
+*    dot         - dot product of two vectors
+*    findc2c3    - find c2 and c3 functions
+*
+*  references    :
+*    vallado       2001, 459-464, alg 55, ex 7-5
+*
  -----------------------------------------------------------------------------*/
-void LambertUniv
-    (
-      Vector Ro, Vector R, char Dm, char OverRev, Real DtTU, 
-      Vector& Vo, Vector& V, char* Error)
-{
-  const Real TwoPi   = 2.0 * PI;
-  const Real Small   = 0.0000001;
-  const UINT NumIter = 40;
 
-  UINT Loops, i, YNegKtr;
-  Real VarA, Y, Upper, Lower, CosDeltaNu, F, G, GDot, XOld, XOldCubed, FDot,
-       PsiOld, PsiNew, C2New, C3New, dtNew;
+void lambertuniv
+     (
+       double ro[3], double r[3], char dm, char overrev, double dttu,
+       double vo[3], double v[3], char error[12]
+     )
+   {
+     const double twopi   = 2.0 * pi;
+     const double small   = 0.0000001;
+     const int numiter = 40;
 
-  /* --------------------  Initialize values   -------------------- */
-  strcpy(Error, "ok");
-  PsiNew = 0.0;
-  Vo.Clear();
-  V.Clear();
+     int loops, i, ynegktr;
+     double vara, y, upper, lower, cosdeltanu, f, g, gdot, xold, xoldcubed, fdot,
+          psiold, psinew, c2new, c3new, dtnew;
 
-  CosDeltaNu = Ro.Dot(R) / (Ro.Mag() * R.Mag());
-  if (Dm == 'L')
-    VarA = -sqrt(Ro.Mag() * R.Mag() * (1.0 + CosDeltaNu));
-  else
-    VarA =  sqrt(Ro.Mag() * R.Mag() * (1.0 + CosDeltaNu));
+     /* --------------------  initialize values   -------------------- */
+     strcpy(error, "ok");
+     psinew = 0.0;
 
-  /* ----------------  Form Initial guesses   --------------------- */
-  PsiOld = 0.0;
-  PsiNew = 0.0;
-  XOld   = 0.0;
-  C2New  = 0.5;
-  C3New  = 1.0 / 6.0;
+     cosdeltanu = dot(ro, r) / (mag(ro) * mag(r));
+     if (dm == 'l')
+        vara = -sqrt(mag(ro) * mag(r) * (1.0 + cosdeltanu));
+      else
+        vara =  sqrt(mag(ro) * mag(r) * (1.0 + cosdeltanu));
 
-  /* -------- Set up initial bounds for the bissection ------------ */
-  if (OverRev == 'N')
+     /* ----------------  form initial guesses   --------------------- */
+     psiold = 0.0;
+     psinew = 0.0;
+     xold   = 0.0;
+     c2new  = 0.5;
+     c3new  = 1.0 / 6.0;
+
+     /* -------- set up initial bounds for the bissection ------------ */
+     if (overrev == 'n')
+       {
+         upper = twopi * twopi;
+         lower = -4.0 * twopi;
+       }
+       else
+       {
+         upper = -0.001 + 4.0 * twopi * twopi; // at 4, not alw work, 2.0, makes
+         lower =  0.001+twopi*twopi;           // orbit bigger, how about 2 revs??xx
+       }
+
+     /* --------  determine if the orbit is possible at all ---------- */
+  if (fabs(vara) > small)
   {
-    Upper = TwoPi * TwoPi;
-    Lower = -4.0 * TwoPi;
-  }
-  else
-  {
-    Upper = -0.001 + 4.0 * TwoPi * TwoPi; // at 4, not alw work, 2.0, makes
-    Lower =  0.001+TwoPi*TwoPi;           // orbit bigger, how about 2 revs??xx
-  }
-
-  /* --------  Determine IF the orbit is possible at all ---------- */
-  if (fabs(VarA) > Small)
-  {
-    Loops   = 0;
-    YNegKtr = 1; // y neg ktr
+    loops   = 0;
+    ynegktr = 1; // y neg ktr
     while (1 == 1)
     {
-      if (fabs(C2New) > Small)
-        Y = Ro.Mag() + R.Mag() - (VarA * (1.0 - PsiOld * C3New) / sqrt(C2New));
+      if (fabs(c2new) > small)
+        y = mag(ro) + mag(r) - (vara * (1.0 - psiold * c3new) / sqrt(c2new));
       else
-        Y = Ro.Mag() + R.Mag();
-      /* ------- Check for negative values of y ------- */
-      if ((VarA > 0.0) && (Y < 0.0))
+        y = mag(ro) + mag(r);
+      /* ------- check for negative values of y ------- */
+      if ((vara > 0.0) && (y < 0.0))
       {
-        YNegKtr = 1;
+        ynegktr = 1;
         while (1 == 1)
         {
-          PsiNew = 0.8 * (1.0 / C3New) * 
-                   (1.0 - (Ro.Mag() + R.Mag()) * sqrt(C2New) / VarA);
+          psinew = 0.8 * (1.0 / c3new) *
+                   (1.0 - (mag(ro) + mag(r)) * sqrt(c2new) / vara);
 
-          /* ------ Find C2 and C3 functions ------ */
-          FindC2C3(PsiNew, C2New, C3New);
-          PsiOld = PsiNew;
-          Lower  = PsiOld;
-          if (fabs(C2New) > Small)
-            Y = Ro.Mag() + R.Mag() - 
-                (VarA * (1.0 - PsiOld * C3New) / sqrt(C2New));
+          /* ------ find c2 and c3 functions ------ */
+          findc2c3(psinew, c2new, c3new);
+          psiold = psinew;
+          lower  = psiold;
+          if (fabs(c2new) > small)
+            y = mag(ro) + mag(r) -
+                (vara * (1.0 - psiold * c3new) / sqrt(c2new));
           else
-            Y = Ro.Mag() + R.Mag();
-          if (Show == 'Y')
-            if (FileOut != NULL)
-              fprintf(FileOut, "%3d %10.5f %10.5f %10.5f %7.3f %9.5f %9.5f\n",
-                      Loops, PsiOld, Y, XOld, dtNew, VarA, Upper, Lower);
+            y = mag(ro) + mag(r);
+//          if (show == 'y')
+//            if (fileout != null)
+//              fprintf(fileout, "%3d %10.5f %10.5f %10.5f %7.3f %9.5f %9.5f\n",
+//                      loops, psiold, y, xold, dtnew, vara, upper, lower);
 
-          YNegKtr++;
-          if ((Y >= 0.0) || (YNegKtr >= 10))
+          ynegktr++;
+          if ((y >= 0.0) || (ynegktr >= 10))
             break;
         }
       }
 
-      if (YNegKtr < 10)
+      if (ynegktr < 10)
       {
-        if (fabs(C2New) > Small)
-          XOld = sqrt(Y / C2New);
+        if (fabs(c2new) > small)
+          xold = sqrt(y / c2new);
         else
-          XOld = 0.0;
-        XOldCubed = XOld * XOld * XOld;
-        dtNew     = XOldCubed * C3New + VarA * sqrt(Y);
+          xold = 0.0;
+        xoldcubed = xold * xold * xold;
+        dtnew     = xoldcubed * c3new + vara * sqrt(y);
 
-        /* ----  Readjust upper and lower bounds ---- */
-        if (dtNew < DtTU)
-          Lower = PsiOld;
-        if (dtNew > DtTU)
-          Upper = PsiOld;
-        PsiNew = (Upper + Lower) * 0.5;
+        /* ----  readjust upper and lower bounds ---- */
+        if (dtnew < dttu)
+          lower = psiold;
+        if (dtnew > dttu)
+          upper = psiold;
+        psinew = (upper + lower) * 0.5;
 
-        if (Show == 'Y')
-          if (FileOut != NULL)
-            fprintf(FileOut, "%3d %10.5f %10.5f %10.5f %7.3f %9.5f %9.5f\n",
-                    Loops, PsiOld, Y, XOld, dtNew, VarA, Upper, Lower);
+//        if (show == 'y')
+//          if (fileout != null)
+//            fprintf(fileout, "%3d %10.5f %10.5f %10.5f %7.3f %9.5f %9.5f\n",
+//                    loops, psiold, y, xold, dtnew, vara, upper, lower);
 
-        /* -------------- Find c2 and c3 functions ---------- */
-        FindC2C3(PsiNew, C2New, C3New);
-        PsiOld = PsiNew;
-        Loops++;
+        /* -------------- find c2 and c3 functions ---------- */
+        findc2c3(psinew, c2new, c3new);
+        psiold = psinew;
+        loops++;
 
-        /* ---- Make sure the first guess isn't too close --- */
-        if ((fabs(dtNew - DtTU) < Small) && (Loops == 1))
-          dtNew = DtTU - 1.0;
+        /* ---- make sure the first guess isn't too close --- */
+        if ((fabs(dtnew - dttu) < small) && (loops == 1))
+          dtnew = dttu - 1.0;
       }
-      
-      if ((fabs(dtNew - DtTU) < Small) || (Loops > NumIter) || (YNegKtr > 10))
+
+      if ((fabs(dtnew - dttu) < small) || (loops > numiter) || (ynegktr > 10))
         break;
     }
 
-    if ((Loops >= NumIter) || (YNegKtr >= 10))
+    if ((loops >= numiter) || (ynegktr >= 10))
     {
-      strcpy(Error, "GNotConv");
-      if (YNegKtr >= 10)
-        strcpy(Error, "Y negative");
+      strcpy(error, "gnotconv");
+      if (ynegktr >= 10)
+        strcpy(error, "y negative");
     }
     else
     {
-      /* ---- Use F and G series to find Velocity Vectors ----- */
-      F    = 1.0 - Y / Ro.Mag();
-      GDot = 1.0 - Y / R.Mag();
-      G    = 1.0 / (VarA * sqrt(Y)); // 1 over G
-      FDot = sqrt(Y) * (-R.Mag() - Ro.Mag() + Y) / (R.Mag() * Ro.Mag() * VarA);
-      for (UINT i = 0; i <= 3; i++)
+      /* ---- use f and g series to find velocity vectors ----- */
+      f    = 1.0 - y / mag(ro);
+      gdot = 1.0 - y / mag(r);
+      g    = 1.0 / (vara * sqrt(y)); // 1 over g
+      fdot = sqrt(y) * (-mag(r) - mag(ro) + y) / (mag(r) * mag(ro) * vara);
+      for (int i = 0; i <= 3; i++)
       {
-        Vo.Set((R.Get(i) - F * Ro.Get(i)) * G, i);
-        V.Set((GDot * R.Get(i) - Ro.Get(i)) * G, i);
+        vo[i] = ((r[i] - f * ro[i]) * g);
+        v[i] = ((gdot * r[i] - ro[i]) * g);
       }
     }
   }
   else
-    strcpy(Error, "impos 180ø");
+    strcpy(error, "impos 180ø");
 
 /*
-    ---- For Fig 6-14 dev with testgau.pas ---- 
-    IF Error = 'ok' THEN Write( FileOut,PsiNew:14:7,DtTU*13.44685:14:7 )
-     ELSE Write( FileOut,' 9999.0 ':14,DtTU*13.44685:14:7 );
+    ---- for fig 6-14 dev with testgau.pas ----
+    if error = 'ok' then write( fileout,psinew:14:7,dttu*13.44685:14:7 )
+     else write( fileout,' 9999.0 ':14,dttu*13.44685:14:7 );
 */
-}
+   }  // procedure lambertuniv
+
 
 /*------------------------------------------------------------------------------
-|
-|                           PROCEDURE TARGET
-|
-|  This PROCEDURE accomplishes the targeting problem using KEPLER/PKEPLER and
-|    Lambert.
-|
-|  Author        : David Vallado                  303-344-6037    1 Mar 2001
-|
-|  Inputs          Description                    Range / Units
-|    RInt        - Initial Position vector of Int ER
-|    VInt        - Initial Velocity vector of Int ER/TU
-|    RTgt        - Initial Position vector of Tgt ER
-|    VTgt        - Initial Velocity vector of Tgt ER/TU
-|    dm          - Direction of Motion for Gauss  'L','S'
-|    Kind        - Type of propagator             'K','P'
-|    DtTU        - Time of flight to the int      TU
-|
-|  Outputs       :
-|    V1t         - Initial Transfer Velocity vec  ER/TU
-|    V2t         - Final Transfer Velocity vec    ER/TU
-|    DV1         - Initial Change Velocity vec    ER/TU
-|    DV2         - Final Change Velocity vec      ER/TU
-|    Error       - Error flag from Gauss          'ok', ...
-|
-|  Locals        :
-|    TransNormal - CROSS product of trans orbit   ER
-|    IntNormal   - CROSS product of int orbit     ER
-|    R1Tgt       - Position vector after Dt, Tgt  ER
-|    V1Tgt       - Velocity vector after Dt, Tgt  ER/TU
-|    RIRT        - RInt[4] * R1Tgt[4]
-|    CosDeltaNu  - Cosine of DeltaNu              rad
-|    SinDeltaNu  - Sine of DeltaNu                rad
-|    DeltaNu     - ANGLE between position vectors rad
-|    i           - Index
-|
-|  Coupling      :
-|    KEPLER      - Find R and V at future time
-|    LAMBERTUNIV - Find velocity vectors at each END of transfer
-|    LNCOM2      - Linear combination of two vectors and constants
-|
-|  References    :
-|    Vallado       2001, 468-474, Alg 58
-|
+*
+*                           procedure target
+*
+*  this procedure accomplishes the targeting problem using kepler/pkepler and
+*    lambert.
+*
+*  author        : david vallado                  719-573-2600   22 jun 2002
+*
+*  inputs          description                    range / units
+*    rint        - initial position vector of int er
+*    vint        - initial velocity vector of int er/tu
+*    rtgt        - initial position vector of tgt er
+*    vtgt        - initial velocity vector of tgt er/tu
+*    dm          - direction of motion for gauss  'l','s'
+*    kind        - type of propagator             'k','p'
+*    dttu        - time of flight to the int      tu
+*
+*  outputs       :
+*    v1t         - initial transfer velocity vec  er/tu
+*    v2t         - final transfer velocity vec    er/tu
+*    dv1         - initial change velocity vec    er/tu
+*    dv2         - final change velocity vec      er/tu
+*    error       - error flag from gauss          'ok', ...
+*
+*  locals        :
+*    transnormal - cross product of trans orbit   er
+*    intnormal   - cross product of int orbit     er
+*    r1tgt       - position vector after dt, tgt  er
+*    v1tgt       - velocity vector after dt, tgt  er/tu
+*    rirt        - rint[4] * r1tgt[4]
+*    cosdeltanu  - cosine of deltanu              rad
+*    sindeltanu  - sine of deltanu                rad
+*    deltanu     - angle between position vectors rad
+*    i           - index
+*
+*  coupling      :
+*    kepler      - find r and v at future time
+*    lambertuniv - find velocity vectors at each end of transfer
+*    lncom2      - linear combination of two vectors and constants
+*
+*  references    :
+*    vallado       2001, 468-474, alg 58
+*
  -----------------------------------------------------------------------------*/
-void Target
-    (
-      Vector RInt, Vector VInt, Vector RTgt, Vector VTgt, 
-      char Dm, char Kind, Real DtTU,
-      Vector& V1t, Vector& V2t, Vector& DV1, Vector& DV2, char* Error
-    )
+
+void target
+     (
+       double rint[3], double vint[3], double rtgt[3], double vtgt[3],
+       char dm, char kind, double dttu,
+       double v1t[3], double v2t[3], double dv1[3], double dv2[3], char error[12]
+     )
+   {
+     double intnormal[3], transnormal[3], r1tgt[3], v1tgt[3];
+     double   temp, rirt, cosdeltanu, sindeltanu, deltanu;
+
+     /* ----------- propagate target forward in time ----------------- */
+     switch (kind)
+     {
+       case 'k':
+   //      kepler(rtgt, vtgt, dttu,  r1tgt, v1tgt, error);
+         break;
+       case 'p':
+   //      pkepler(rtgt, vtgt, dttu,  r1tgt, v1tgt, error);
+         break;
+       default:
+   //      kepler(rtgt, vtgt, dttu,  r1tgt, v1tgt, error);
+         break;
+     }
+
+     /* ----------- calculate transfer orbit between r's ------------- */
+     if (strcmp(error, "ok") == 0)
+     {
+       lambertuniv(rint, r1tgt, dm, 'n', dttu,  v1t, v2t, error);
+
+       if (strcmp(error, "ok") == 0)
+       {
+         addvec( 1.0, v1t, -1.0, vint, dv1);
+         addvec( 1.0, v1tgt, -1.0, v2t, dv2);
+       }
+       else
+       {
+       }
+     }
+   }  // procedure target
+
+
+/* utility functions for lambertbattin, etc */
+/* -------------------------------------------------------------------------- */
+
+static double k
+       (
+         double v
+       )
 {
-  Vector IntNormal(3), TransNormal(3), R1Tgt(3), V1Tgt(3);
-  Real   Temp, RIRT, CosDeltaNu, SinDeltaNu, DeltaNu;
-
-  /* ----------- Propagate TARGET forward in time ----------------- */
-  switch (Kind)
-  {
-    case 'K':
-    case 'k':
-      Kepler(RTgt, VTgt, DtTU,  R1Tgt, V1Tgt, Error);
-      break;
-    case 'P':
-    case 'p':
-//      PKepler(RTgt, VTgt, DtTU,  R1Tgt, V1Tgt, Error);
-      break;
-    default:
-      Kepler(RTgt, VTgt, DtTU,  R1Tgt, V1Tgt, Error);
-      break;
-  }
-
-  /* ----------- Calculate transfer orbit between r's ------------- */
-  if (strcmp(Error, "ok") == 0)
-  {
-    LambertUniv(RInt, R1Tgt, Dm, 'N', DtTU,  V1t, V2t, Error);
-
-    if (strcmp(Error, "ok") == 0)
-    {
-      DV1 = V1t - VInt;
-      DV2 = V1Tgt - V2t;
-    }
-    else
-    {
-      V1t.Clear();
-      V2t.Clear();
-      DV1.Clear();
-      DV2.Clear();
-    }
-  }
-}
-
-/* Utility functions for LambertBattin, etc */
-static Real k(Real v)
-{
-  Real d[21] = 
+  double d[21] =
        {
             1.0 /     3.0,     4.0 /    27.0,
             8.0 /    27.0,     2.0 /     9.0,
@@ -2333,10 +2311,10 @@ static Real k(Real v)
          2968.0 / 11655.0,  3190.0 / 12987.0,
          3658.0 / 14391.0
        };
-  Real del, delold, term, termold, temp, sum1;
-  SINT i;
+  double del, delold, term, termold, temp, sum1;
+  int i;
 
-  /* ---- Process Forwards ---- */
+  /* ---- process forwards ---- */
   sum1    = d[0];
   delold  = 1.0;
   termold = d[0];
@@ -2351,11 +2329,14 @@ static Real k(Real v)
     termold = term;
   }
   return sum1;
-}
+}  // double k
 
-static Real See(Real v)
+
+/* -------------------------------------------------------------------------- */
+
+static double see(double v)
 {
-  Real c[21] =
+  double c[21] =
        {
            0.2,
            9.0 /   35.0,   16.0 /   63.0,
@@ -2369,13 +2350,13 @@ static Real See(Real v)
          361.0 / 1443.0,  400.0 / 1599.0,
          441.0 / 1763.0,  484.0 / 1935.0
        };
-  Real term, termold, del, delold, sum1, temp, eta, SQRTOpv;
-  SINT i;
+  double term, termold, del, delold, sum1, temp, eta, sqrtopv;
+  int i;
 
-  SQRTOpv = sqrt(1.0 + v);
-  eta     = v / Power(1.0 + SQRTOpv, 2);
+  sqrtopv = sqrt(1.0 + v);
+//  eta     = v / power(1.0 + sqrtopv, 2);
 
-  /* ---- Process Forwards ---- */
+  /* ---- process forwards ---- */
   delold  = 1.0;
   termold = c[0];  // * eta
   sum1    = termold;
@@ -2390,5 +2371,5 @@ static Real See(Real v)
     termold = term;
   }
 
-  return ((1.0 / (8.0 * (1.0 + SQRTOpv))) * (3.0 + sum1 / (1.0 + eta * sum1)));
-}
+  return ((1.0 / (8.0 * (1.0 + sqrtopv))) * (3.0 + sum1 / (1.0 + eta * sum1)));
+}  // double see

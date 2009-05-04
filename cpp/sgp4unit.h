@@ -1,154 +1,126 @@
-#ifndef _SGP4UNIT_
-#define _SGP4UNIT_
-/*     ----------------------------------------------------------------      
-                                                                             
+#ifndef _sgp4unit_
+#define _sgp4unit_
+/*     ----------------------------------------------------------------
+*
+*                                 sgp4unit.h
+*
+*    this file contains the sgp4 procedures for analytical propagation
+*    of a satellite. the code was originally released in the 1980 and 1986
+*    spacetrack papers. a detailed discussion of the theory and history
+*    may be found in the 2006 aiaa paper by vallado, crawford, hujsak,
+*    and kelso.
+*
+*                            companion code for
+*               fundamentals of astrodynamics and applications
+*                                    2007
+*                              by david vallado
+*
+*       (w) 719-573-2600, email dvallado@agi.com
+*
+*    current :
+*               3 Nov 08  david vallado
+*                           put returns in for error codes
+*    changes :
+*              29 sep 08  david vallado
+*                           fix atime for faster operation in dspace
+*                           add operationmode for afspc (a) or improved (i)
+*                           performance mode
+*              20 apr 07  david vallado
+*                           misc fixes for constants
+*              11 aug 06  david vallado
+*                           chg lyddane choice back to strn3, constants, misc doc
+*              15 dec 05  david vallado
+*                           misc fixes
+*              26 jul 05  david vallado
+*                           fixes for paper
+*                           note that each fix is preceded by a
+*                           comment with "sgp4fix" and an explanation of
+*                           what was changed
+*              10 aug 04  david vallado
+*                           2nd printing baseline working
+*              14 may 01  david vallado
+*                           2nd edition baseline
+*                     80  norad
+*                           original baseline
+*       ----------------------------------------------------------------      */
 
-                               UNIT SGP4UNIT;
-
-                                                                             
-    This file contains the SGP4 procedures. The code was originally          
-    released in a 1980 paper. In 1997 and 1998, the updated and combined     
-    code (SGP4 and SDP4) was released by NASA on the Internet. This version  
-    follows the unrestricted Web version from                                
-                 seawifs.gsfc.nasa.gov/~seawifsp/src/bobdays/                
-                                                                             
-                            Companion code for                               
-               Fundamentals of Astrodyanmics and Applications                
-                                     2001                                    
-                              by David Vallado                               
-                                                                             
-       (H)               email valladodl@worldnet.att.net                    
-       (W) 303-344-6037, email davallado@west.raytheon.com                   
-                                                                             
-       *****************************************************************     
-                                                                             
-    Current :                                                                
-              14 May 01  David Vallado                                       
-                           Original Baseline                                 
-    Changes :                                                                
-                     97  NASA                                                
-                           Internet version                                  
-                     80  NORAD                                               
-                           Original baseline                                 
-                                                                             
-       ----------------------------------------------------------------      
-
-                                  INTERFACE
-
-       ----------------------------------------------------------------      */
 #include <math.h>
 #include <stdio.h>
+#define SGP4Version  "SGP4 Version 2008-11-03"
 
-#include "astmath.h"
-#include "constants.h"
+#define pi 3.14159265358979323846
 
-typedef struct NearEarthRecord
+// -------------------------- structure declarations ----------------------------
+typedef enum
 {
-  SINT Isimp, Method;
-  Real Aycof,   CON41,  Cc1,      Cc4,   Cc5,   D2, D3, D4,    Delmo, Eta,
-       ArgpDot, Omgcof, Sinmao,   T,     T2cof, T3cof,  T4cof, T5cof, X1mth2,
-       X7thm1,  MDot,   OmegaDot, Xlcof, Xmcof, OmegaCF;
-} NearEarthType;
+  wgs72old,
+  wgs72,
+  wgs84
+} gravconsttype;
 
-typedef struct DeepSpaceRecord
+typedef struct elsetrec
 {
-  SINT IRez;
-  Real D2201, D2211, D3210, D3222, D4410, D4422, D5220, D5232, D5421, D5433,
-       Dedt,  Del1,  Del2,  Del3,  Didt,  Dmdt,  Dnodt, Domdt, E3,    Ee2,
-       Peo,   Pgho,  Pho,   Pinco, Plo,   Se2,   Se3,   Sgh2,  Sgh3,  Sgh4,
-       Sh2,   Sh3,   Si2,   Si3,   Sl2,   Sl3,   Sl4,   GSTo,  Xfact, Xgh2,
-       Xgh3,  Xgh4,  Xh2,   Xh3,   Xi2,   Xi3,   Xl2,   Xl3,   Xl4,   Xlamo,
-       Zmol,  Zmos,  Atime, Xli,   Xni;
-} DeepSpaceType;
+  long int  satnum;
+  int       epochyr, epochtynumrev;
+  int       error;
+  char      operationmode;
+  char      init, method;
 
-typedef struct ElSetRecord
-{
-  LINT SatNum;
-  char Class;
-  Byte EpochYr;
-  NearEarthType NEValues;
-  DeepSpaceType DSValues;
-  Real a, Altp, Alta, EpochDays, JDSatEpoch, NDDot, NDot, BStar, RCSe,
-       Inclo, Omegao, Ecco, Argpo, Mo, No;
-  LINT EpochTyNumRev;
-} ElSetRec;
+  /* Near Earth */
+  int    isimp;
+  double aycof  , con41  , cc1    , cc4      , cc5    , d2      , d3   , d4    ,
+         delmo  , eta    , argpdot, omgcof   , sinmao , t       , t2cof, t3cof ,
+         t4cof  , t5cof  , x1mth2 , x7thm1   , mdot   , nodedot, xlcof , xmcof ,
+         nodecf;
 
-void DPPer
-    (
-      Real, Real, Real, Real, Real, Real,
-      Real, Real, Real, Real, Real, Real,
-      Real, Real, Real, Real, Real, Real,
-      Real, Real, Real, Real, Real, Real,
-      Real, Real, Real, Real, Real, Real,
-      Real, Real, 
-      SINT,
-      Real&, Real&, Real&, Real&, Real&
-    );
-void DSInit
-    (
-      Real, Real, Real, Real, Real, Real, Real, 
-      Real, Real, Real, Real, Real, Real, Real, 
-      Real, Real, Real, Real, Real, Real, Real, 
-      Real, Real, Real, Real, Real, Real, Real, 
-      Real, Real, Real, Real, Real, Real, Real, 
-      Real, Real, Real, Real, Real, Real,
-      SINT,
-      Real&, Real&, Real&, Real&, Real&, 
-      Real&, Real&, Real&, Real&, Real&, 
-      Real&, Real&, Real&, Real&, Real&, 
-      Real&, Real&, Real&, Real&, Real&, 
-      Real&, Real&, Real&, Real&
-    );
-void DSCom
-    (
-      Real,  Real,  Real,  Real,  Real,  Real, Real,
-      Real&, Real&, Real&, Real&, Real&, Real&,
-      Real&, Real&, Real&, Real&, Real&, Real&,
-      Real&, Real&, Real&, Real&, Real&, Real&,
-      Real&, Real&, Real&, Real&, Real&, Real&,
-      Real&, Real&, Real&, Real&, Real&, Real&,
-      Real&, Real&, Real&, Real&, Real&, Real&,
-      Real&, Real&, Real&, Real&, Real&, Real&,
-      Real&, Real&, Real&, Real&, Real&, Real&,
-      Real&, Real&, Real&, Real&, Real&, Real&,
-      Real&, Real&, Real&, Real&, Real&, Real&,
-      Real&, Real&, Real&, Real&, Real&, Real&,
-      Real&, Real&, Real&, Real&, Real&, Real&,
-      Real&, Real&, Real&, Real&, Real&, Real&,
-      Real&, Real&, Real&
-    );
-void DSpace
-    (
-      SINT, 
-      Real, Real, Real, Real, Real, Real, Real, Real, Real, Real, Real, Real,
-      Real, Real, Real, Real, Real, Real, Real, Real, Real, Real, Real, Real,
-      Real, Real, 
-      Real&, Real&, Real&, Real&, Real&, Real&, Real&, Real&, Real&, Real&
+  /* Deep Space */
+  int    irez;
+  double d2201  , d2211  , d3210  , d3222    , d4410  , d4422   , d5220 , d5232 ,
+         d5421  , d5433  , dedt   , del1     , del2   , del3    , didt  , dmdt  ,
+         dnodt  , domdt  , e3     , ee2      , peo    , pgho    , pho   , pinco ,
+         plo    , se2    , se3    , sgh2     , sgh3   , sgh4    , sh2   , sh3   ,
+         si2    , si3    , sl2    , sl3      , sl4    , gsto    , xfact , xgh2  ,
+         xgh3   , xgh4   , xh2    , xh3      , xi2    , xi3     , xl2   , xl3   ,
+         xl4    , xlamo  , zmol   , zmos     , atime  , xli     , xni;
 
-    );
-void InitL
-    (
-      LINT, Real, Real, Real, Real&, SINT&,
-      Real&, Real&, Real&, Real&, Real&, Real&, Real&, 
-      Real&, Real&, Real&, Real&, Real&, Real&, Real&
-    );
-void SGP4(ElSetRec, Vector&, Vector&, SINT&);
+  double a      , altp   , alta   , epochdays, jdsatepoch       , nddot , ndot  ,
+         bstar  , rcse   , inclo  , nodeo    , ecco             , argpo , mo    ,
+         no;
+} elsetrec;
 
-void SGP4Init
-    (
-      LINT, SINT, Real, Real&, Real&, Real&, Real&, Real&, Real&, Real&,
-      SINT&, NearEarthType&, DeepSpaceType&
-    );
 
-void TwoLine2RV
-    (
-      char*, char*, char, ElSetRec, Vector&, Vector&, FILE*, 
-      char*, char*, char*, char*
-    );
+// --------------------------- function declarations ----------------------------
+bool sgp4init
+     (
+       gravconsttype whichconst,  char opsmode,  const int satn,     const double epoch,
+       const double xbstar,  const double xecco, const double xargpo,
+       const double xinclo,  const double xmo,   const double xno,
+       const double xnodeo,  elsetrec& satrec
+     );
 
-void TwoLine2RVSGP4
-    (
-      char *, char, ElSetRec, Vector&, Vector&, FILE*, char*, char*, char*
-    );
+bool sgp4
+     (
+       gravconsttype whichconst, elsetrec& satrec,  double tsince,
+       double r[3],  double v[3]
+     );
+
+double  gstime
+        (
+          double jdut1
+        );
+
+void getgravconst
+     (
+      gravconsttype whichconst,
+      double& tumin,
+      double& mu,
+      double& radiusearthkm,
+      double& xke,
+      double& j2,
+      double& j3,
+      double& j4,
+      double& j3oj2
+     );
 
 #endif
+

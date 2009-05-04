@@ -1,59 +1,151 @@
-/*     ----------------------------------------------------------------      
+/*     ----------------------------------------------------------------
+*
+*                               sgp4unit.cpp
+*
+*    this file contains the sgp4 procedures for analytical propagation
+*    of a satellite. the code was originally released in the 1980 and 1986
+*    spacetrack papers. a detailed discussion of the theory and history
+*    may be found in the 2006 aiaa paper by vallado, crawford, hujsak,
+*    and kelso.
+*
+*                            companion code for
+*               fundamentals of astrodynamics and applications
+*                                    2007
+*                              by david vallado
+*
+*       (w) 719-573-2600, email dvallado@agi.com
+*
+*    current :
+*               3 Nov 08  david vallado
+*                           put returns in for error codes
+*    changes :
+*              29 sep 08  david vallado
+*                           fix atime for faster operation in dspace
+*                           add operationmode for afspc (a) or improved (i)
+*                           performance mode
+*              16 jun 08  david vallado
+*                           update small eccentricity check
+*              16 nov 07  david vallado
+*                           misc fixes for better compliance
+*              20 apr 07  david vallado
+*                           misc fixes for constants
+*              11 aug 06  david vallado
+*                           chg lyddane choice back to strn3, constants, misc doc
+*              15 dec 05  david vallado
+*                           misc fixes
+*              26 jul 05  david vallado
+*                           fixes for paper
+*                           note that each fix is preceded by a
+*                           comment with "sgp4fix" and an explanation of
+*                           what was changed
+*              10 aug 04  david vallado
+*                           2nd printing baseline working
+*              14 may 01  david vallado
+*                           2nd edition baseline
+*                     80  norad
+*                           original baseline
+*       ----------------------------------------------------------------      */
 
-
-                               UNIT SGP4UNIT;
-
-
-    This file contains the SGP4 procedures. The code was originally          
-    released in a 1980 paper. In 1997 and 1998, the updated and combined     
-    code (SGP4 and SDP4) was released by NASA on the Internet. This version  
-    follows the unrestricted Web version from                                
-                 seawifs.gsfc.nasa.gov/~seawifsp/src/bobdays/                
-
-                            Companion code for                               
-               Fundamentals of Astrodyanmics and Applications                
-                                     2001                                    
-                              by David Vallado                               
-
-       (H)               email valladodl@worldnet.att.net                    
-       (W) 303-344-6037, email davallado@west.raytheon.com                   
-
-       *****************************************************************     
-
-    Current :                                                                
-              14 May 01  David Vallado                                       
-                           Original Baseline                                 
-    Changes :                                                                
-                     97  NASA                                                
-                           Internet version                                  
-                     80  NORAD                                               
-                           Original baseline                                 
-
-       ----------------------------------------------------------------      
-
-                                IMPLEMENTATION
-
-       ----------------------------------------------------------------      */
-#include "asttime.h"
-#include "ast2body.h"
-#include "astutil.h"
 #include "sgp4unit.h"
 
-char  Help;
-FILE *SGP4File;
-char  common[25];
+const char help = 'n';
+FILE *dbgfile;
 
-/*-----------------------------------------------------------------------------
+
+/* ----------- local functions - only ever used internally by sgp4 ---------- */
+static void dpper
+     (
+       double e3,     double ee2,    double peo,     double pgho,   double pho,
+       double pinco,  double plo,    double se2,     double se3,    double sgh2,
+       double sgh3,   double sgh4,   double sh2,     double sh3,    double si2,
+       double si3,    double sl2,    double sl3,     double sl4,    double t,
+       double xgh2,   double xgh3,   double xgh4,    double xh2,    double xh3,
+       double xi2,    double xi3,    double xl2,     double xl3,    double xl4,
+       double zmol,   double zmos,   double inclo,
+       char init,
+       double& ep,    double& inclp, double& nodep,  double& argpp, double& mp,
+       char opsmode
+     );
+
+static void dscom
+     (
+       double epoch,  double ep,     double argpp,   double tc,     double inclp,
+       double nodep,  double np,
+       double& snodm, double& cnodm, double& sinim,  double& cosim, double& sinomm,
+       double& cosomm,double& day,   double& e3,     double& ee2,   double& em,
+       double& emsq,  double& gam,   double& peo,    double& pgho,  double& pho,
+       double& pinco, double& plo,   double& rtemsq, double& se2,   double& se3,
+       double& sgh2,  double& sgh3,  double& sgh4,   double& sh2,   double& sh3,
+       double& si2,   double& si3,   double& sl2,    double& sl3,   double& sl4,
+       double& s1,    double& s2,    double& s3,     double& s4,    double& s5,
+       double& s6,    double& s7,    double& ss1,    double& ss2,   double& ss3,
+       double& ss4,   double& ss5,   double& ss6,    double& ss7,   double& sz1,
+       double& sz2,   double& sz3,   double& sz11,   double& sz12,  double& sz13,
+       double& sz21,  double& sz22,  double& sz23,   double& sz31,  double& sz32,
+       double& sz33,  double& xgh2,  double& xgh3,   double& xgh4,  double& xh2,
+       double& xh3,   double& xi2,   double& xi3,    double& xl2,   double& xl3,
+       double& xl4,   double& nm,    double& z1,     double& z2,    double& z3,
+       double& z11,   double& z12,   double& z13,    double& z21,   double& z22,
+       double& z23,   double& z31,   double& z32,    double& z33,   double& zmol,
+       double& zmos
+     );
+
+static void dsinit
+     (
+       gravconsttype whichconst,
+       double cosim,  double emsq,   double argpo,   double s1,     double s2,
+       double s3,     double s4,     double s5,      double sinim,  double ss1,
+       double ss2,    double ss3,    double ss4,     double ss5,    double sz1,
+       double sz3,    double sz11,   double sz13,    double sz21,   double sz23,
+       double sz31,   double sz33,   double t,       double tc,     double gsto,
+       double mo,     double mdot,   double no,      double nodeo,  double nodedot,
+       double xpidot, double z1,     double z3,      double z11,    double z13,
+       double z21,    double z23,    double z31,     double z33,    double ecco,
+       double eccsq,  double& em,    double& argpm,  double& inclm, double& mm,
+       double& nm,    double& nodem,
+       int& irez,
+       double& atime, double& d2201, double& d2211,  double& d3210, double& d3222,
+       double& d4410, double& d4422, double& d5220,  double& d5232, double& d5421,
+       double& d5433, double& dedt,  double& didt,   double& dmdt,  double& dndt,
+       double& dnodt, double& domdt, double& del1,   double& del2,  double& del3,
+       double& xfact, double& xlamo, double& xli,    double& xni
+     );
+
+static void dspace
+     (
+       int irez,
+       double d2201,  double d2211,  double d3210,   double d3222,  double d4410,
+       double d4422,  double d5220,  double d5232,   double d5421,  double d5433,
+       double dedt,   double del1,   double del2,    double del3,   double didt,
+       double dmdt,   double dnodt,  double domdt,   double argpo,  double argpdot,
+       double t,      double tc,     double gsto,    double xfact,  double xlamo,
+       double no,
+       double& atime, double& em,    double& argpm,  double& inclm, double& xli,
+       double& mm,    double& xni,   double& nodem,  double& dndt,  double& nm
+     );
+
+static void initl
+     (
+       int satn,      gravconsttype whichconst,
+       double ecco,   double epoch,  double inclo,   double& no,
+       char& method,
+       double& ainv,  double& ao,    double& con41,  double& con42, double& cosio,
+       double& cosio2,double& eccsq, double& omeosq, double& posq,
+       double& rp,    double& rteosq,double& sinio , double& gsto, char opsmode
+     );
+
+/* -----------------------------------------------------------------------------
 *
-*                           PROCEDURE DPPER
+*                           procedure dpper
 *
-*  This PROCEDURE provides deep space long period periodic contributions
-*    to the mean elements.  By design, these periodics are zero at epoch.
-*    This used to be DSCOM, but it's really a recurring FUNCTION.
+*  this procedure provides deep space long period periodic contributions
+*    to the mean elements.  by design, these periodics are zero at epoch.
+*    this used to be dscom which included initialization, but it's really a
+*    recurring function.
 *
-*  Author        : David Vallado                  303-344-6037    1 Mar 2001
+*  author        : david vallado                  719-573-2600   28 jun 2005
 *
-*  Inputs        :
+*  inputs        :
 *    e3          -
 *    ee2         -
 *    peo         -
@@ -61,972 +153,807 @@ char  common[25];
 *    pho         -
 *    pinco       -
 *    plo         -
-*    se2         -
-*    se3         -
-*    Sgh2, Sgh3, Sgh4        -
-*    Sh2, Sh3
-*    Si2, Si3         -
-*    Sl2, Sl3, Sl4         -
-*    T           -
-*    xgh2        -
-*    xgh3        -
-*    xgh4        -
-*    xh2, xh3    -
-*    xi2, xi3    -
-*    xl2, xl3, xl4         -
+*    se2 , se3 , sgh2, sgh3, sgh4, sh2, sh3, si2, si3, sl2, sl3, sl4 -
+*    t           -
+*    xh2, xh3, xi2, xi3, xl2, xl3, xl4 -
 *    zmol        -
 *    zmos        -
-*    Ep          - Eccentricity                           0.0 - 1.0
-*    Inclp       - Inclination
-*    Omegap      - Longitude of ascending node
-*    Argpp       - Argument of perigee
-*    Mp          - Mean Anomaly
+*    ep          - eccentricity                           0.0 - 1.0
+*    inclo       - inclination - needed for lyddane modification
+*    nodep       - right ascension of ascending node
+*    argpp       - argument of perigee
+*    mp          - mean anomaly
 *
-*  Outputs       :
-*    Ep          - Eccentricity                           0.0 - 1.0
-*    Inclp       - Inclination
-*    Omegap      - Longitude of ascending node
-*    Argpp       - Argument of perigee
-*    Mp          - Mean Anomaly
+*  outputs       :
+*    ep          - eccentricity                           0.0 - 1.0
+*    inclp       - inclination
+*    nodep        - right ascension of ascending node
+*    argpp       - argument of perigee
+*    mp          - mean anomaly
 *
-*  Locals        :
+*  locals        :
 *    alfdp       -
 *    betdp       -
-*    cosip       -
-*    cosop       -
+*    cosip  , sinip  , cosop  , sinop  ,
 *    dalf        -
 *    dbet        -
 *    dls         -
-*    f2          -
-*    f3          -
+*    f2, f3      -
 *    pe          -
 *    pgh         -
 *    ph          -
 *    pinc        -
 *    pl          -
-*    sel         -
-*    ses         -
-*    sghl        -
-*    sghs        -
-*    shl         -
-*    shs         -
-*    sil         -
-*    sinip       -
-*    sinop       -
-*    sinzf       -
-*    sis         -
-*    sll         -
-*    sls         -
+*    sel   , ses   , sghl  , sghs  , shl   , shs   , sil   , sinzf , sis   ,
+*    sll   , sls
 *    xls         -
 *    xnoh        -
 *    zf          -
 *    zm          -
 *
-*  Coupling      :
-*    None.
+*  coupling      :
+*    none.
 *
-*  References    :
-*    NORAD Spacetrack Report #3
-*
+*  references    :
+*    hoots, roehrich, norad spacetrack report #3 1980
+*    hoots, norad spacetrack report #6 1986
+*    hoots, schumacher and glover 2004
+*    vallado, crawford, hujsak, kelso  2006
   ----------------------------------------------------------------------------*/
-void DPPer
-    (
-      Real e3,   Real ee2, Real peo,  Real pgho, Real pho,  Real pinco,
-      Real plo,  Real se2, Real se3,  Real sgh2, Real sgh3, Real sgh4,
-      Real sh2,  Real sh3, Real si2,  Real si3,  Real sl2,  Real sl3,
-      Real sl4,  Real T,   Real xgh2, Real xgh3, Real xgh4, Real xh2,
-      Real xh3,  Real xi2, Real xi3,  Real xl2,  Real xl3,  Real xl4,
-      Real zmol, Real zmos,
-      SINT init,
-      Real& Ep, Real& Inclp, Real& Omegap, Real& Argpp, Real& Mp
-    )
+
+static void dpper
+     (
+       double e3,     double ee2,    double peo,     double pgho,   double pho,
+       double pinco,  double plo,    double se2,     double se3,    double sgh2,
+       double sgh3,   double sgh4,   double sh2,     double sh3,    double si2,
+       double si3,    double sl2,    double sl3,     double sl4,    double t,
+       double xgh2,   double xgh3,   double xgh4,    double xh2,    double xh3,
+       double xi2,    double xi3,    double xl2,     double xl3,    double xl4,
+       double zmol,   double zmos,   double inclo,
+       char init,
+       double& ep,    double& inclp, double& nodep,  double& argpp, double& mp,
+       char opsmode
+     )
 {
-  /* --------------------- Local Variables ------------------------ */
-  const Real TwoPi = 2.0 * PI;
-  Real alfdp, betdp, cosip, cosop, dalf, dbet, dls,
-       f2,    f3,    pe,    pgh,   ph,   pinc, pl ,
-       sel,   ses,   sghl,  sghs,  shll, shs,  sil,
-       sinip, sinop, sinzf, sis,   sll,  sls,  xls,
-       xnoh,  zf,    zm,    zel,   zes,  znl,  zns;
+     /* --------------------- local variables ------------------------ */
+     const double twopi = 2.0 * pi;
+     double alfdp, betdp, cosip, cosop, dalf, dbet, dls,
+          f2,    f3,    pe,    pgh,   ph,   pinc, pl ,
+          sel,   ses,   sghl,  sghs,  shll, shs,  sil,
+          sinip, sinop, sinzf, sis,   sll,  sls,  xls,
+          xnoh,  zf,    zm,    zel,   zes,  znl,  zns;
 
-  /* ---------------------- Constants ----------------------------- */
-  zns   = 1.19459E-5;
-  zes   = 0.01675;
-  znl   = 1.5835218E-4;
-  zel   = 0.05490;
+     /* ---------------------- constants ----------------------------- */
+     zns   = 1.19459e-5;
+     zes   = 0.01675;
+     znl   = 1.5835218e-4;
+     zel   = 0.05490;
 
-  /* --------------- CALCULATE TIME VARYING PERIODICS ----------- */
-  zm    = zmos + zns * T;
-  zf    = zm + 2.0 * zes * sin(zm);
-  sinzf = sin(zf);
-  f2    =  0.5 * sinzf * sinzf - 0.25;
-  f3    = -0.5 * sinzf * cos(zf);
-  ses   = se2* f2 + se3 * f3;
-  sis   = si2 * f2 + si3 * f3;
-  sls   = sl2 * f2 + sl3 * f3 + sl4 * sinzf;
-  sghs  = sgh2 * f2 + sgh3 * f3 + sgh4 * sinzf;
-  zm    = zmol + znl * T;
-  zf    = zm + 2.0 * zel * sin(zm);
-  sinzf = sin(zf);
-  f2    =  0.5 * sinzf * sinzf - 0.25;
-  f3    = -0.5 * sinzf * cos(zf);
-  sel   = ee2 * f2 + e3 * f3;
-  sil   = xi2 * f2 + xi3 * f3;
-  sll   = xl2 * f2 + xl3 * f3 + xl4 * sinzf;
-  sghl  = xgh2 * f2 + xgh3 * f3 + xgh4 * sinzf;
-  shll  = xh2 * f2 + xh3 * f3;
-  pe    = ses + sel;
-  pinc  = sis + sil;
-  pl    = sls + sll;
-  pgh   = sghs + sghl;
-  ph    = shs + shll;
+     /* --------------- calculate time varying periodics ----------- */
+     zm    = zmos + zns * t;
+     // be sure that the initial call has time set to zero
+     if (init == 'y')
+         zm = zmos;
+     zf    = zm + 2.0 * zes * sin(zm);
+     sinzf = sin(zf);
+     f2    =  0.5 * sinzf * sinzf - 0.25;
+     f3    = -0.5 * sinzf * cos(zf);
+     ses   = se2* f2 + se3 * f3;
+     sis   = si2 * f2 + si3 * f3;
+     sls   = sl2 * f2 + sl3 * f3 + sl4 * sinzf;
+     sghs  = sgh2 * f2 + sgh3 * f3 + sgh4 * sinzf;
+     shs   = sh2 * f2 + sh3 * f3;
+     zm    = zmol + znl * t;
+     if (init == 'y')
+         zm = zmol;
+     zf    = zm + 2.0 * zel * sin(zm);
+     sinzf = sin(zf);
+     f2    =  0.5 * sinzf * sinzf - 0.25;
+     f3    = -0.5 * sinzf * cos(zf);
+     sel   = ee2 * f2 + e3 * f3;
+     sil   = xi2 * f2 + xi3 * f3;
+     sll   = xl2 * f2 + xl3 * f3 + xl4 * sinzf;
+     sghl  = xgh2 * f2 + xgh3 * f3 + xgh4 * sinzf;
+     shll  = xh2 * f2 + xh3 * f3;
+     pe    = ses + sel;
+     pinc  = sis + sil;
+     pl    = sls + sll;
+     pgh   = sghs + sghl;
+     ph    = shs + shll;
 
-  if (init == 0)
-  {
-    pe    = pe - peo;
-    pinc  = pinc - pinco;
-    pl    = pl - plo;
-    pgh   = pgh - pgho;
-    ph    = ph - pho;
-    Inclp = Inclp + pinc;
-    Ep    = Ep + pe;
-    sinip = sin(Inclp);
-    cosip = cos(Inclp);
+     if (init == 'n')
+       {
+       pe    = pe - peo;
+       pinc  = pinc - pinco;
+       pl    = pl - plo;
+       pgh   = pgh - pgho;
+       ph    = ph - pho;
+       inclp = inclp + pinc;
+       ep    = ep + pe;
+       sinip = sin(inclp);
+       cosip = cos(inclp);
 
-    /* ----------------- APPLY PERIODICS DIRECTLY ------------ */
-    if (Inclp >= 0.2)
-    {
-      ph     = ph / sinip;
-      pgh    = pgh - cosip * ph;
-      Argpp  = Argpp + pgh;
-      Omegap = Omegap + ph;
-      Mp     = Mp + pl;
-    }
-    else
-    {
-      /* ---- APPLY PERIODICS WITH LYDDANE MODIFICATION ---- */
-      sinop  = sin(Omegap);
-      cosop  = cos(Omegap);
-      alfdp  = sinip * sinop;
-      betdp  = sinip * cosop;
-      dalf   =  ph * cosop + pinc * cosip * sinop;
-      dbet   = -ph * sinop + pinc * cosip * cosop;
-      alfdp  = alfdp + dalf;
-      betdp  = betdp + dbet;
-      Omegap = Mod(Omegap, TwoPi);
-      xls    = Mp + Argpp + cosip * Omegap;
-      dls    = pl + pgh - pinc * Omegap * sinip;
-      xls    = xls * dls;
-      xnoh   = Omegap;
-      Omegap = Atan2(alfdp, betdp);
-      if (fabs(xnoh - Omegap) > PI)
-        if (Omegap < xnoh)
-          Omegap = Omegap + TwoPi;
-        else
-          Omegap = Omegap - TwoPi;
-      Mp    = Mp + pl;
-      Argpp = xls - Mp - cosip * Omegap;
-    }
-  }
+       /* ----------------- apply periodics directly ------------ */
+       //  sgp4fix for lyddane choice
+       //  strn3 used original inclination - this is technically feasible
+       //  gsfc used perturbed inclination - also technically feasible
+       //  probably best to readjust the 0.2 limit value and limit discontinuity
+       //  0.2 rad = 11.45916 deg
+       //  use next line for original strn3 approach and original inclination
+       //  if (inclo >= 0.2)
+       //  use next line for gsfc version and perturbed inclination
+       if (inclp >= 0.2)
+         {
+           ph     = ph / sinip;
+           pgh    = pgh - cosip * ph;
+           argpp  = argpp + pgh;
+           nodep  = nodep + ph;
+           mp     = mp + pl;
+         }
+         else
+         {
+           /* ---- apply periodics with lyddane modification ---- */
+           sinop  = sin(nodep);
+           cosop  = cos(nodep);
+           alfdp  = sinip * sinop;
+           betdp  = sinip * cosop;
+           dalf   =  ph * cosop + pinc * cosip * sinop;
+           dbet   = -ph * sinop + pinc * cosip * cosop;
+           alfdp  = alfdp + dalf;
+           betdp  = betdp + dbet;
+           nodep  = fmod(nodep, twopi);
+           //  sgp4fix for afspc written intrinsic functions
+           // nodep used without a trigonometric function ahead
+           if ((nodep < 0.0) && (opsmode == 'a'))
+               nodep = nodep + twopi;
+           xls    = mp + argpp + cosip * nodep;
+           dls    = pl + pgh - pinc * nodep * sinip;
+           xls    = xls + dls;
+           xnoh   = nodep;
+           nodep  = atan2(alfdp, betdp);
+           //  sgp4fix for afspc written intrinsic functions
+           // nodep used without a trigonometric function ahead
+           if ((nodep < 0.0) && (opsmode == 'a'))
+               nodep = nodep + twopi;
+           if (fabs(xnoh - nodep) > pi)
+             if (nodep < xnoh)
+                nodep = nodep + twopi;
+               else
+                nodep = nodep - twopi;
+           mp    = mp + pl;
+           argpp = xls - mp - cosip * nodep;
+         }
+       }   // if init == 'n'
 
-  if (Help == 'Y')
-    if (SGP4File != NULL)
-    {
-      fprintf(SGP4File, "%84s\n", 
-                        " ------------------After DPPER : ---------------- ");
-      fprintf(SGP4File, "    Inputs : \n");
-      fprintf(SGP4File, 
-              "%7s%13.7f%7s%13.7f%7s%13.7%7s%13.7f%7s%7d%13.7f%7s%13.7f\n",
-              "e3", e3, "ee2", ee2, "peo", peo, "pgho", pgho, 
-              "pho", pho, "pinco", pinco);
-      fprintf(SGP4File,
-              "%7s%13.7f%7s%13.7f%7s%13.7%7s%13.7f%7s%7d%13.7f%7s%13.7f\n",
-              "plo", plo, "se2", se2, "se3", se3, "sgh2", sgh2, 
-              "sgh3", sgh3, "sgh4", sgh4);
-      fprintf(SGP4File,
-              "%7s%13.7f%7s%13.7f%7s%13.7%7s%13.7f%7s%7d%13.7f%7s%13.7f\n",
-              "sh2", sh2, "sh3", sh3, "si2", si2, "si3", si3, 
-              "sl2", sl2, "sl3", sl3);
-      fprintf(SGP4File,
-              "%7s%13.7f%7s%13.7f%7s%13.7%7s%13.7f%7s%7d%13.7f%7s%13.7f\n",
-              "sl4", sl4, "T", T, "xgh2", xgh2, "xgh3", xgh3, 
-              "xgh4", xgh4, "xh2", xh2);
-      fprintf(SGP4File,
-              "%7s%13.7f%7s%13.7f%7s%13.7%7s%13.7f%7s%7d%13.7f%7s%13.7f\n",
-              "xh3", xh3, "xi2", xi2, "xi3", xi3, "xl2", xl2, 
-              "xl3", xl3, "xl4", xl4);
-      fprintf(SGP4File,
-              "%7s%13.7f%7s%13.7f%7s%13.7\n",
-              "zmol", zmol, "zmos", zmos, "Init", init);
-      fprintf(SGP4File,  "    In/Out : n");
-      fprintf(SGP4File,
-              "%7s%13.7f%7s%13.7f%7s%13.7%7s%13.7%7s%13.7ff\n",
-          "EP", Ep, "Inclp", Inclp, "Omegap", Omegap, "Argpp", Argpp, "Mp", Mp);
-    }
-}
+//#include "debug1.cpp"
+}  // end dpper
 
 /*-----------------------------------------------------------------------------
 *
-*                           PROCEDURE DSCOM
+*                           procedure dscom
 *
-*  This PROCEDURE provides deep space common items used by both the secular
-*    and periodics subroutines.  Input is provided as shown. This routine
-*    used to be called DPPER, but the functions inside weren't correct.
+*  this procedure provides deep space common items used by both the secular
+*    and periodics subroutines.  input is provided as shown. this routine
+*    used to be called dpper, but the functions inside weren't well organized.
 *
-*  Author        : David Vallado                  303-344-6037    1 Mar 2001
+*  author        : david vallado                  719-573-2600   28 jun 2005
 *
-*  Inputs        :
-*    Epoch       -
-*    Ep          - Eccentricity
-*    Argpp       - Argument of perigee
-*    Tc          -
-*    Inclp       - Inclination
-*    Omegap      - Longitude of Ascending Node
-*    Np          - Mean Motion
+*  inputs        :
+*    epoch       -
+*    ep          - eccentricity
+*    argpp       - argument of perigee
+*    tc          -
+*    inclp       - inclination
+*    nodep       - right ascension of ascending node
+*    np          - mean motion
 *
-*  Outputs       :
-*    Sinim       -
-*    Cosim       -
-*    Sinomm      -
-*    Cosomm      -
-*    Snodm       -
-*    Cnodm       -
-*    Day         -
-*    E3          -
-*    Ee2         -
-*    EM          - Eccentricity
-*    EMSq        - Eccentricity squared
-*    Gam         -
-*    Peo         -
-*    PGho        -
-*    Pho         -
-*    PInco       -
-*    Plo         -
-*    RTemSq      -
-*    Se2, Se3         -
-*    Sgh2, Sgh3, Sgh4        -
-*    Sh2, Sh3
-*    Si2, Si3         -
-*    Sl2, Sl3, Sl4         -
-*    S1, S2, S3, S4, S5, S6, S7          -
-*    SS1, SS2, SS3, SS4, SS5, SS6, SS7         -
-*    SZ1, SZ2, SZ3         -
-*    SZ11, SZ12, SZ13, SZ21, SZ22, SZ23, SZ31, SZ32, SZ33        -
-*    Xgh2, Xgh3, Xgh4        -
-*    Xh2, Xh3         -
-*    Xi2, Xi3         -
-*    Xl2, Xl3, Xl4         -
-*    Nm          - Mean Motion
-*    Z1, Z2, Z3          -
-*    Z11, Z12, Z13, Z21, Z22, Z23, Z31, Z32, Z33         -
-*    ZMol        -
-*    ZMos        -
+*  outputs       :
+*    sinim  , cosim  , sinomm , cosomm , snodm  , cnodm
+*    day         -
+*    e3          -
+*    ee2         -
+*    em          - eccentricity
+*    emsq        - eccentricity squared
+*    gam         -
+*    peo         -
+*    pgho        -
+*    pho         -
+*    pinco       -
+*    plo         -
+*    rtemsq      -
+*    se2, se3         -
+*    sgh2, sgh3, sgh4        -
+*    sh2, sh3, si2, si3, sl2, sl3, sl4         -
+*    s1, s2, s3, s4, s5, s6, s7          -
+*    ss1, ss2, ss3, ss4, ss5, ss6, ss7, sz1, sz2, sz3         -
+*    sz11, sz12, sz13, sz21, sz22, sz23, sz31, sz32, sz33        -
+*    xgh2, xgh3, xgh4, xh2, xh3, xi2, xi3, xl2, xl3, xl4         -
+*    nm          - mean motion
+*    z1, z2, z3, z11, z12, z13, z21, z22, z23, z31, z32, z33         -
+*    zmol        -
+*    zmos        -
 *
-*  Locals        :
+*  locals        :
 *    a1, a2, a3, a4, a5, a6, a7, a8, a9, a10         -
 *    betasq      -
 *    cc          -
-*    ctem        -
-*    stem        -
+*    ctem, stem        -
 *    x1, x2, x3, x4, x5, x6, x7, x8          -
 *    xnodce      -
 *    xnoi        -
-*    zcosg       -
-*    zcosgl      -
-*    zcosh       -
-*    zcoshl      -
-*    zcosi       -
-*    zcosil      -
-*    zsing       -
-*    zsingl      -
-*    zsinh       -
-*    zsinhl      -
-*    zsini       -
-*    zsinil      -
+*    zcosg  , zsing  , zcosgl , zsingl , zcosh  , zsinh  , zcoshl , zsinhl ,
+*    zcosi  , zsini  , zcosil , zsinil ,
 *    zx          -
 *    zy          -
 *
-*  Coupling      :
-*    None.
+*  coupling      :
+*    none.
 *
-*  References    :
-*    NORAD Spacetrack Report #3
-*
+*  references    :
+*    hoots, roehrich, norad spacetrack report #3 1980
+*    hoots, norad spacetrack report #6 1986
+*    hoots, schumacher and glover 2004
+*    vallado, crawford, hujsak, kelso  2006
   ----------------------------------------------------------------------------*/
-void DSCom
-    (
-      Real Epoch,   Real Ep,     Real Argpp, Real Tc, 
-      Real Inclp,   Real Omegap, Real Np,
-      Real& SNODM,  Real& CNODM, Real& SINIM,  Real& COSIM, Real& SINOMM, 
-      Real& COSOMM, Real& Day,   Real& E3,     Real& Ee2,   Real& EM, 
-      Real& EMSQ,   Real& GAM,   Real& Peo,    Real& Pgho,  Real& Pho, 
-      Real& PInco,  Real& Plo,   Real& RTemSQ, Real& Se2,   Real& Se3, 
-      Real& Sgh2,   Real& Sgh3,  Real& Sgh4,   Real& Sh2,   Real& Sh3, 
-      Real& Si2,    Real& Si3,   Real& Sl2,    Real& Sl3,   Real& Sl4,
-      Real& S1,     Real& S2,    Real& S3,     Real& S4,    Real& S5, 
-      Real& S6,     Real& S7,    Real& SS1,    Real& SS2,   Real& SS3, 
-      Real& SS4,    Real& SS5,   Real& SS6,    Real& SS7,   Real& SZ1, 
-      Real& SZ2,    Real& SZ3,   Real& SZ11,   Real& SZ12,  Real& SZ13, 
-      Real& SZ21,   Real& SZ22,  Real& SZ23,   Real& SZ31,  Real& SZ32, 
-      Real& SZ33,   Real& Xgh2,  Real& Xgh3,   Real& Xgh4,  Real& Xh2, 
-      Real& Xh3,    Real& Xi2,   Real& Xi3,    Real& Xl2,   Real& Xl3, 
-      Real& Xl4,    Real& Nm,    Real& Z1,     Real& Z2,    Real& Z3, 
-      Real& Z11,    Real& Z12,   Real& Z13,    Real& Z21,   Real& Z22, 
-      Real& Z23,    Real& Z31,   Real& Z32,    Real& Z33,   Real& Zmol, 
-      Real& Zmos
-    )
+
+static void dscom
+     (
+       double epoch,  double ep,     double argpp,   double tc,     double inclp,
+       double nodep,  double np,
+       double& snodm, double& cnodm, double& sinim,  double& cosim, double& sinomm,
+       double& cosomm,double& day,   double& e3,     double& ee2,   double& em,
+       double& emsq,  double& gam,   double& peo,    double& pgho,  double& pho,
+       double& pinco, double& plo,   double& rtemsq, double& se2,   double& se3,
+       double& sgh2,  double& sgh3,  double& sgh4,   double& sh2,   double& sh3,
+       double& si2,   double& si3,   double& sl2,    double& sl3,   double& sl4,
+       double& s1,    double& s2,    double& s3,     double& s4,    double& s5,
+       double& s6,    double& s7,    double& ss1,    double& ss2,   double& ss3,
+       double& ss4,   double& ss5,   double& ss6,    double& ss7,   double& sz1,
+       double& sz2,   double& sz3,   double& sz11,   double& sz12,  double& sz13,
+       double& sz21,  double& sz22,  double& sz23,   double& sz31,  double& sz32,
+       double& sz33,  double& xgh2,  double& xgh3,   double& xgh4,  double& xh2,
+       double& xh3,   double& xi2,   double& xi3,    double& xl2,   double& xl3,
+       double& xl4,   double& nm,    double& z1,     double& z2,    double& z3,
+       double& z11,   double& z12,   double& z13,    double& z21,   double& z22,
+       double& z23,   double& z31,   double& z32,    double& z33,   double& zmol,
+       double& zmos
+     )
 {
-  /* -------------------------- Constants ------------------------- */
-  const Real ZES     =  0.01675;
-  const Real ZEL     =  0.05490;
-  const Real C1SS    =  2.9864797E-6;
-  const Real C1L     =  4.7968065E-7;
-  const Real ZSINIS  =  0.39785416;
-  const Real ZCOSIS  =  0.91744867;
-  const Real ZCOSGS  =  0.1945905;
-  const Real ZSINGS  = -0.98088458;
-  const Real TwoPi   =  2.0 * PI;
+     /* -------------------------- constants ------------------------- */
+     const double zes     =  0.01675;
+     const double zel     =  0.05490;
+     const double c1ss    =  2.9864797e-6;
+     const double c1l     =  4.7968065e-7;
+     const double zsinis  =  0.39785416;
+     const double zcosis  =  0.91744867;
+     const double zcosgs  =  0.1945905;
+     const double zsings  = -0.98088458;
+     const double twopi   =  2.0 * pi;
 
-  /* --------------------- Local Variables ------------------------ */
-  SINT LsFlg;
-  Real A1    , A2    , A3    , A4    , A5    , A6    , A7    ,
-       A8    , A9    , A10   , BETASQ, CC    , CTEM  , STEM  ,
-       X1    , X2    , X3    , X4    , X5    , X6    , X7    ,
-       X8    , XNODCE, XNOI  , ZCOSG , ZCOSGL, ZCOSH , ZCOSHL,
-       ZCOSI , ZCOSIL, ZSING , ZSINGL, ZSINH , ZSINHL, ZSINI ,
-       ZSINIL, ZX    , ZY;
+     /* --------------------- local variables ------------------------ */
+     int lsflg;
+     double a1    , a2    , a3    , a4    , a5    , a6    , a7    ,
+        a8    , a9    , a10   , betasq, cc    , ctem  , stem  ,
+        x1    , x2    , x3    , x4    , x5    , x6    , x7    ,
+        x8    , xnodce, xnoi  , zcosg , zcosgl, zcosh , zcoshl,
+        zcosi , zcosil, zsing , zsingl, zsinh , zsinhl, zsini ,
+        zsinil, zx    , zy;
 
-  Nm     = Np;
-  EM     = Ep;
-  SNODM  = sin(Omegap);
-  CNODM  = cos(Omegap);
-  SINOMM = sin(Argpp);
-  COSOMM = cos(Argpp);
-  SINIM  = sin(Inclp);
-  COSIM  = cos(Inclp);
-  EMSQ   = EM * EM;
-  BETASQ = 1.0 - EMSQ;
-  RTemSQ = sqrt(BETASQ);
+     nm     = np;
+     em     = ep;
+     snodm  = sin(nodep);
+     cnodm  = cos(nodep);
+     sinomm = sin(argpp);
+     cosomm = cos(argpp);
+     sinim  = sin(inclp);
+     cosim  = cos(inclp);
+     emsq   = em * em;
+     betasq = 1.0 - emsq;
+     rtemsq = sqrt(betasq);
 
-  /* ----------------- INITIALIZE LUNAR SOLAR TERMS --------------- */
-  Peo    = 0.0;
-  PInco  = 0.0;
-  Plo    = 0.0;
-  Pgho   = 0.0;
-  Pho    = 0.0;
-  Day    = Epoch + 18261.5 + Tc / 1440.0;
-  XNODCE = Mod(4.5236020 - 9.2422029E-4 * Day, TwoPi);
-  STEM   = sin(XNODCE);
-  CTEM   = cos(XNODCE);
-  ZCOSIL = 0.91375164 - 0.03568096 * CTEM;
-  ZSINIL = sqrt(1.0 - ZCOSIL * ZCOSIL);
-  ZSINHL = 0.089683511 * STEM / ZSINIL;
-  ZCOSHL = sqrt(1.0 - ZSINHL * ZSINHL);
-  GAM    = 5.8351514 + 0.0019443680 * Day;
-  ZX     = 0.39785416 * STEM / ZSINIL;
-  ZY     = ZCOSHL * CTEM + 0.91744867 * ZSINHL * STEM;
-  ZX     = Atan2(ZX, ZY);
-  ZX     = GAM + ZX - XNODCE;
-  ZCOSGL = cos(ZX);
-  ZSINGL = sin(ZX);
+     /* ----------------- initialize lunar solar terms --------------- */
+     peo    = 0.0;
+     pinco  = 0.0;
+     plo    = 0.0;
+     pgho   = 0.0;
+     pho    = 0.0;
+     day    = epoch + 18261.5 + tc / 1440.0;
+     xnodce = fmod(4.5236020 - 9.2422029e-4 * day, twopi);
+     stem   = sin(xnodce);
+     ctem   = cos(xnodce);
+     zcosil = 0.91375164 - 0.03568096 * ctem;
+     zsinil = sqrt(1.0 - zcosil * zcosil);
+     zsinhl = 0.089683511 * stem / zsinil;
+     zcoshl = sqrt(1.0 - zsinhl * zsinhl);
+     gam    = 5.8351514 + 0.0019443680 * day;
+     zx     = 0.39785416 * stem / zsinil;
+     zy     = zcoshl * ctem + 0.91744867 * zsinhl * stem;
+     zx     = atan2(zx, zy);
+     zx     = gam + zx - xnodce;
+     zcosgl = cos(zx);
+     zsingl = sin(zx);
 
-  /* ------------------------- DO SOLAR TERMS --------------------- */
-  ZCOSG = ZCOSGS;
-  ZSING = ZSINGS;
-  ZCOSI = ZCOSIS;
-  ZSINI = ZSINIS;
-  ZCOSH = CNODM;
-  ZSINH = SNODM;
-  CC    = C1SS;
-  XNOI  = 1.0 / Nm;
+     /* ------------------------- do solar terms --------------------- */
+     zcosg = zcosgs;
+     zsing = zsings;
+     zcosi = zcosis;
+     zsini = zsinis;
+     zcosh = cnodm;
+     zsinh = snodm;
+     cc    = c1ss;
+     xnoi  = 1.0 / nm;
 
-  for (LsFlg = 1; LsFlg <= 2; LsFlg++)
-  {
-    A1  =   ZCOSG * ZCOSH + ZSING * ZCOSI * ZSINH;
-    A3  =  -ZSING * ZCOSH + ZCOSG * ZCOSI * ZSINH;
-    A7  =  -ZCOSG * ZSINH + ZSING * ZCOSI * ZCOSH;
-    A8  =   ZSING * ZSINI;
-    A9  =   ZSING * ZSINH + ZCOSG * ZCOSI * ZCOSH;
-    A10 =   ZCOSG * ZSINI;
-    A2  =   COSIM * A7 + SINIM * A8;
-    A4  =   COSIM * A9 + SINIM * A10;
-    A5  =  -SINIM * A7 + COSIM * A8;
-    A6  =  -SINIM * A9 + COSIM * A10;
+     for (lsflg = 1; lsflg <= 2; lsflg++)
+       {
+         a1  =   zcosg * zcosh + zsing * zcosi * zsinh;
+         a3  =  -zsing * zcosh + zcosg * zcosi * zsinh;
+         a7  =  -zcosg * zsinh + zsing * zcosi * zcosh;
+         a8  =   zsing * zsini;
+         a9  =   zsing * zsinh + zcosg * zcosi * zcosh;
+         a10 =   zcosg * zsini;
+         a2  =   cosim * a7 + sinim * a8;
+         a4  =   cosim * a9 + sinim * a10;
+         a5  =  -sinim * a7 + cosim * a8;
+         a6  =  -sinim * a9 + cosim * a10;
 
-    X1  =  A1 * COSOMM + A2 * SINOMM;
-    X2  =  A3 * COSOMM + A4 * SINOMM;
-    X3  = -A1 * SINOMM + A2 * COSOMM;
-    X4  = -A3 * SINOMM + A4 * COSOMM;
-    X5  =  A5 * SINOMM;
-    X6  =  A6 * SINOMM;
-    X7  =  A5 * COSOMM;
-    X8  =  A6 * COSOMM;
+         x1  =  a1 * cosomm + a2 * sinomm;
+         x2  =  a3 * cosomm + a4 * sinomm;
+         x3  = -a1 * sinomm + a2 * cosomm;
+         x4  = -a3 * sinomm + a4 * cosomm;
+         x5  =  a5 * sinomm;
+         x6  =  a6 * sinomm;
+         x7  =  a5 * cosomm;
+         x8  =  a6 * cosomm;
 
-    Z31 = 12.0 * X1 * X1 - 3.0 * X3 * X3;
-    Z32 = 24.0 * X1 * X2 - 6.0 * X3 * X4;
-    Z33 = 12.0 * X2 * X2 - 3.0 * X4 * X4;
-    Z1  =  3.0 *  (A1 * A1 + A2 * A2) + Z31 * EMSQ;
-    Z2  =  6.0 *  (A1 * A3 + A2 * A4) + Z32 * EMSQ;
-    Z3  =  3.0 *  (A3 * A3 + A4 * A4) + Z33 * EMSQ;
-    Z11 = -6.0 * A1 * A5 + EMSQ *  (-24.0 * X1 * X7-6.0 * X3 * X5);
-    Z12 = -6.0 *  (A1 * A6 + A3 * A5) + EMSQ * 
-           (-24.0 * (X2 * X7 + X1 * X8) - 6.0 * (X3 * X6 + X4 * X5));
-    Z13 = -6.0 * A3 * A6 + EMSQ * (24.0 * X2 * X8 - 6.0 * X4 * X6);
-    Z21 =  6.0 * A2 * A5 + EMSQ * (24.0 * X1 * X5 - 6.0 * X3 * X7);
-    Z22 =  6.0 *  (A4 * A5 + A2 * A6) + EMSQ * 
-           (24.0 * (X2 * X5 + X1 * X6) - 6.0 * (X4 * X7 + X3 * X8));
-    Z23 =  6.0 * A4 * A6 + EMSQ * (24.0 * X2 * X6 - 6.0 * X4 * X8);
-    Z1  = Z1 + Z1 + BETASQ * Z31;
-    Z2  = Z2 + Z2 + BETASQ * Z32;
-    Z3  = Z3 + Z3 + BETASQ * Z33;
-    S3  = CC * XNOI;
-    S2  = -0.5 * S3 / RTemSQ;
-    S4  = S3 * RTemSQ;
-    S1  = -15.0 * EM * S4;
-    S5  = X1 * X3 + X2 * X4;
-    S6  = X2 * X3 + X1 * X4;
-    S7  = X2 * X4 - X1 * X3;
+         z31 = 12.0 * x1 * x1 - 3.0 * x3 * x3;
+         z32 = 24.0 * x1 * x2 - 6.0 * x3 * x4;
+         z33 = 12.0 * x2 * x2 - 3.0 * x4 * x4;
+         z1  =  3.0 *  (a1 * a1 + a2 * a2) + z31 * emsq;
+         z2  =  6.0 *  (a1 * a3 + a2 * a4) + z32 * emsq;
+         z3  =  3.0 *  (a3 * a3 + a4 * a4) + z33 * emsq;
+         z11 = -6.0 * a1 * a5 + emsq *  (-24.0 * x1 * x7-6.0 * x3 * x5);
+         z12 = -6.0 *  (a1 * a6 + a3 * a5) + emsq *
+                (-24.0 * (x2 * x7 + x1 * x8) - 6.0 * (x3 * x6 + x4 * x5));
+         z13 = -6.0 * a3 * a6 + emsq * (-24.0 * x2 * x8 - 6.0 * x4 * x6);
+         z21 =  6.0 * a2 * a5 + emsq * (24.0 * x1 * x5 - 6.0 * x3 * x7);
+         z22 =  6.0 *  (a4 * a5 + a2 * a6) + emsq *
+                (24.0 * (x2 * x5 + x1 * x6) - 6.0 * (x4 * x7 + x3 * x8));
+         z23 =  6.0 * a4 * a6 + emsq * (24.0 * x2 * x6 - 6.0 * x4 * x8);
+         z1  = z1 + z1 + betasq * z31;
+         z2  = z2 + z2 + betasq * z32;
+         z3  = z3 + z3 + betasq * z33;
+         s3  = cc * xnoi;
+         s2  = -0.5 * s3 / rtemsq;
+         s4  = s3 * rtemsq;
+         s1  = -15.0 * em * s4;
+         s5  = x1 * x3 + x2 * x4;
+         s6  = x2 * x3 + x1 * x4;
+         s7  = x2 * x4 - x1 * x3;
 
-    /* ----------------------- DO LUNAR TERMS ------------------- */
-    if (LsFlg == 1)
-    {
-      SS1   = S1;
-      SS2   = S2;
-      SS3   = S3;
-      SS4   = S4;
-      SS5   = S5;
-      SS6   = S6;
-      SS7   = S7;
-      SZ1   = Z1;
-      SZ2   = Z2;
-      SZ3   = Z3;
-      SZ11  = Z11;
-      SZ12  = Z12;
-      SZ13  = Z13;
-      SZ21  = Z21;
-      SZ22  = Z22;
-      SZ23  = Z23;
-      SZ31  = Z31;
-      SZ32  = Z32;
-      SZ33  = Z33;
-      ZCOSG = ZCOSGL;
-      ZSING = ZSINGL;
-      ZCOSI = ZCOSIL;
-      ZSINI = ZSINIL;
-      ZCOSH = ZCOSHL * CNODM + ZSINHL * SNODM;
-      ZSINH = SNODM * ZCOSHL - CNODM * ZSINHL;
-      CC    = C1L;
-   }
-  }
+         /* ----------------------- do lunar terms ------------------- */
+         if (lsflg == 1)
+           {
+             ss1   = s1;
+             ss2   = s2;
+             ss3   = s3;
+             ss4   = s4;
+             ss5   = s5;
+             ss6   = s6;
+             ss7   = s7;
+             sz1   = z1;
+             sz2   = z2;
+             sz3   = z3;
+             sz11  = z11;
+             sz12  = z12;
+             sz13  = z13;
+             sz21  = z21;
+             sz22  = z22;
+             sz23  = z23;
+             sz31  = z31;
+             sz32  = z32;
+             sz33  = z33;
+             zcosg = zcosgl;
+             zsing = zsingl;
+             zcosi = zcosil;
+             zsini = zsinil;
+             zcosh = zcoshl * cnodm + zsinhl * snodm;
+             zsinh = snodm * zcoshl - cnodm * zsinhl;
+             cc    = c1l;
+          }
+       }
 
-  Zmol = Mod(4.7199672 + 0.22997150  * Day - GAM, TwoPi);
-  Zmos = Mod(6.2565837 + 0.017201977 * Day, TwoPi);
+     zmol = fmod(4.7199672 + 0.22997150  * day - gam, twopi);
+     zmos = fmod(6.2565837 + 0.017201977 * day, twopi);
 
-  /* ------------------------ DO SOLAR TERMS ---------------------- */
-  Se2  =  2.0 * SS1 * SS6;
-  Se3  =  2.0 * SS1 * SS7;
-  Si2  =  2.0 * SS2 * SZ12;
-  Si3  =  2.0 * SS2 * (SZ13 - SZ11);
-  Sl2  = -2.0 * SS3 * SZ2;
-  Sl3  = -2.0 * SS3 * (SZ3 - SZ1);
-  Sl4  = -2.0 * SS3 * (-21.0 - 9.0 * EMSQ) * ZES;
-  Sgh2 =  2.0 * SS4 * SZ32;
-  Sgh3 =  2.0 * SS4 * (SZ33 - SZ31);
-  Sgh4 =-18.0 * SS4 * ZES;
-  Sh2  = -2.0 * SS2 * SZ22;
-  Sh3  = -2.0 * SS2 * (SZ23 - SZ21);
+     /* ------------------------ do solar terms ---------------------- */
+     se2  =   2.0 * ss1 * ss6;
+     se3  =   2.0 * ss1 * ss7;
+     si2  =   2.0 * ss2 * sz12;
+     si3  =   2.0 * ss2 * (sz13 - sz11);
+     sl2  =  -2.0 * ss3 * sz2;
+     sl3  =  -2.0 * ss3 * (sz3 - sz1);
+     sl4  =  -2.0 * ss3 * (-21.0 - 9.0 * emsq) * zes;
+     sgh2 =   2.0 * ss4 * sz32;
+     sgh3 =   2.0 * ss4 * (sz33 - sz31);
+     sgh4 = -18.0 * ss4 * zes;
+     sh2  =  -2.0 * ss2 * sz22;
+     sh3  =  -2.0 * ss2 * (sz23 - sz21);
 
-  /* ------------------------ DO LUNAR TERMS ---------------------- */
-  Ee2  =  2.0 * S1 * S6;
-  E3   =  2.0 * S1 * S7;
-  Xi2  =  2.0 * S2 * Z12;
-  Xi3  =  2.0 * S2 * (Z13 - Z11);
-  Xl2  = -2.0 * S3 * Z2;
-  Xl3  = -2.0 * S3 * (Z3 - Z1);
-  Xl4  = -2.0 * S3 * (21.0 - 9.0 * EMSQ) * ZEL;
-  Xgh2 =  2.0 * S4 * Z32;
-  Xgh3 =  2.0 * S4 * (Z33 - Z31);
-  Xgh4 =-18.0 * S4 * ZEL;
-  Xh2  = -2.0 * S2 * Z22;
-  Xh3  = -2.0 * S2 * (Z23 - Z21);
+     /* ------------------------ do lunar terms ---------------------- */
+     ee2  =   2.0 * s1 * s6;
+     e3   =   2.0 * s1 * s7;
+     xi2  =   2.0 * s2 * z12;
+     xi3  =   2.0 * s2 * (z13 - z11);
+     xl2  =  -2.0 * s3 * z2;
+     xl3  =  -2.0 * s3 * (z3 - z1);
+     xl4  =  -2.0 * s3 * (-21.0 - 9.0 * emsq) * zel;
+     xgh2 =   2.0 * s4 * z32;
+     xgh3 =   2.0 * s4 * (z33 - z31);
+     xgh4 = -18.0 * s4 * zel;
+     xh2  =  -2.0 * s2 * z22;
+     xh3  =  -2.0 * s2 * (z23 - z21);
 
-  if (Help == 'Y')
-    if (SGP4File != NULL)
-    {
-      fprintf(SGP4File, "%84s\n", 
-          " ------------------ After DSCOM :-----------------");
-      fprintf(SGP4File, "    Inputs :\n");
-      fprintf(SGP4File, 
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "EPOCH", Epoch, "Ep", Ep, "Argpp", Argpp, "Tc", Tc, 
-          "Inclp", Inclp, "Omegap", Omegap);
-      fprintf(SGP4File, "%7s%13.7f\n", "Np", Np);
-      fprintf(SGP4File, "    Outputs :\n");
-      fprintf(SGP4File, 
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "SNODM", SNODM, "CNODM", CNODM, "SINIM", SINIM, "COSIM", COSIM, 
-          "SINOMM", SINOMM, "COSOMM", COSOMM);
-      fprintf(SGP4File, 
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "DAY", Day, "E3", E3, "Ee2", Ee2, "EM", EM, 
-          "EMSQ", EMSQ, "GAM", GAM);
-      fprintf(SGP4File, 
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "Peo", Peo, "Pgho", Pgho, "Pho", Pho, "PInco", PInco, 
-          "Plo", Plo);
-      fprintf(SGP4File, 
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "RTemSQ", RTemSQ, "Se2", Se2, "Se3", Se3, "Sgh2", Sgh2, 
-          "Sgh3", Sgh3, "Sgh4", Sgh4);
-      fprintf(SGP4File, 
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "Sh2", Sh2, "Sh3", Sh3, "Si2", Si2, "Si3", Si3, 
-          "Sl2", Sl2, "Sl3", Sl3);
-      fprintf(SGP4File, 
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "Sl4", Sl4, "S1", S1, "S2", S2, "S3", S3, 
-          "S4", S4, "S5", S5);
-      fprintf(SGP4File, 
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "S6", S6, "S7", S7, "SS1", SS1, "SS2", SS2, 
-          "SS3", SS3, "SS4", SS4);
-      fprintf(SGP4File, 
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "SS5", SS5, "SS6", SS6, "SS7", SS7, "SZ1", SZ1, 
-          "SZ2", SZ2, "SZ3", SZ3);
-      fprintf(SGP4File, 
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "SZ11", SZ11, "SZ12", SZ12, "SZ13", SZ13, "SZ21", SZ21, 
-          "SZ22", SZ22, "SZ23", SZ23);
-      fprintf(SGP4File,
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "SZ31", SZ31, "SZ32", SZ32, "SZ33", SZ33, "Xgh2", Xgh2, 
-          "Xgh3", Xgh3, "Xgh4", Xgh4);
-      fprintf(SGP4File,
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "Xh2", Xh2, "Xh3", Xh3, "Xi2", Xi2, "Xi3", Xi3, 
-          "Xl2", Xl2, "Xl3", Xl3);
-      fprintf(SGP4File,
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "Xl4", Xl4, "Nm", Nm, "Z1", Z1, "Z2", Z2, 
-          "Z3", Z3, "Z11", Z11);
-      fprintf(SGP4File,
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "Z12", Z12, "Z13", Z13, "Z21", Z21, "Z22", Z22, 
-          "Z23", Z23, "Z31", Z31);
-      fprintf(SGP4File,
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "Z32", Z32, "Z33", Z33, "Zmol", Zmol, "Zmos", Zmos); 
-    }
-}
+//#include "debug2.cpp"
+}  // end dscom
 
 /*-----------------------------------------------------------------------------
 *
-*                           PROCEDURE DSINIT
+*                           procedure dsinit
 *
-*  This PROCEDURE provides Deep Space contributions to Mean Motion Dot due
+*  this procedure provides deep space contributions to mean motion dot due
 *    to geopotential resonance with half day and one day orbits.
 *
-*  Author        : David Vallado                  303-344-6037    1 Mar 2001
+*  author        : david vallado                  719-573-2600   28 jun 2005
 *
-*  Inputs        :
-*    Cosim       -
-*    Emsq        - Eccentricity squared
-*    Argpo       - Argument of Perigee
-*    S1, S2, S3, S4, S5          -
-*    Sinim       -
-*    Ss1, Ss2, Ss3, Ss4, Ss5         -
-*    Sz1, Sz3
-*    Sz11, Sz13, Sz21, Sz23, Sz31, Sz33        -
-*    T           - Time
-*    Tc          -
-*    GSTo        -
-*    Mo          - Mean Anomaly
-*    MDot        - Mean Anomaly dot (rate)
-*    No          - Mean Motion
-*    Omegao      - Longitude of ascending node
-*    OmegaDot    - Longitude of ascending node dot (rate)
-*    XPIDOT      -
-*    Z1, Z3      -
-*    Z11, Z13, Z21, Z23, Z31, Z33         -
-*    EM          - Eccentricity
-*    Argpm       - Argument of perigee
-*    Inclm       - Inclination
-*    Mm          - Mean Anomaly
-*    Nm          - Mean Motion
-*    Omegam      - Longitude of ascending node
+*  inputs        :
+*    cosim, sinim-
+*    emsq        - eccentricity squared
+*    argpo       - argument of perigee
+*    s1, s2, s3, s4, s5      -
+*    ss1, ss2, ss3, ss4, ss5 -
+*    sz1, sz3, sz11, sz13, sz21, sz23, sz31, sz33 -
+*    t           - time
+*    tc          -
+*    gsto        - greenwich sidereal time                   rad
+*    mo          - mean anomaly
+*    mdot        - mean anomaly dot (rate)
+*    no          - mean motion
+*    nodeo       - right ascension of ascending node
+*    nodedot     - right ascension of ascending node dot (rate)
+*    xpidot      -
+*    z1, z3, z11, z13, z21, z23, z31, z33 -
+*    eccm        - eccentricity
+*    argpm       - argument of perigee
+*    inclm       - inclination
+*    mm          - mean anomaly
+*    xn          - mean motion
+*    nodem       - right ascension of ascending node
 *
-*  Outputs       :
-*    EM          - Eccentricity
-*    Argpm       - Argument of perigee
-*    Inclm       - Inclination
-*    Mm          - Mean Anomaly
-*    Nm          - Mean motion
-*    Omegam      - Longitude of ascending node
-*    IRez        - Flag foir resonances               1-One day      - 2-Half day
-*    Atime       -
-*    D2201, D2211, D3210, D3222, D4410, D4422, D5220, D5232, D5421, D5433       -
-*    Dedt        -
-*    Didt        -
-*    DMDT        -
-*    DNDT        -
-*    DNODT       -
-*    DOMDT       -
-*    Del1, Del2, Del3        -
-*    Ses         -
-*    Sghl        -
-*    Sghs        -
-*    Sgs         -
-*    Shl         -
-*    Shs         -
-*    Sis         -
-*    Sls         -
-*    THETA       -
-*    Xfact       -
-*    Xlamo       -
-*    Xli         -
-*    Xni
+*  outputs       :
+*    em          - eccentricity
+*    argpm       - argument of perigee
+*    inclm       - inclination
+*    mm          - mean anomaly
+*    nm          - mean motion
+*    nodem       - right ascension of ascending node
+*    irez        - flag for resonance           0-none, 1-one day, 2-half day
+*    atime       -
+*    d2201, d2211, d3210, d3222, d4410, d4422, d5220, d5232, d5421, d5433    -
+*    dedt        -
+*    didt        -
+*    dmdt        -
+*    dndt        -
+*    dnodt       -
+*    domdt       -
+*    del1, del2, del3        -
+*    ses  , sghl , sghs , sgs  , shl  , shs  , sis  , sls
+*    theta       -
+*    xfact       -
+*    xlamo       -
+*    xli         -
+*    xni
 *
-*  Locals        :
+*  locals        :
 *    ainv2       -
 *    aonv        -
 *    cosisq      -
 *    eoc         -
-*    f220, f221, f311, f321, f322, f330, f441, f442, f522, f523, f542, f543        -
-*    g200, g201, g211, g300, g310, g322, g410, g422, g520, g521, g532, g533        -
+*    f220, f221, f311, f321, f322, f330, f441, f442, f522, f523, f542, f543  -
+*    g200, g201, g211, g300, g310, g322, g410, g422, g520, g521, g532, g533  -
 *    sini2       -
 *    temp        -
 *    temp1       -
-*    Theta       -
+*    theta       -
 *    xno2        -
 *
-*  Coupling      :
-*    None.
+*  coupling      :
+*    getgravconst
 *
-*  References    :
-*    NORAD Spacetrack Report #3
-*
+*  references    :
+*    hoots, roehrich, norad spacetrack report #3 1980
+*    hoots, norad spacetrack report #6 1986
+*    hoots, schumacher and glover 2004
+*    vallado, crawford, hujsak, kelso  2006
   ----------------------------------------------------------------------------*/
-void DSInit
-    (
-      Real COSIM,  Real EMSQ, Real Argpo, Real S1,   Real S2,     Real S3, 
-      Real S4,     Real S5,   Real SINIM, Real SS1,  Real SS2,    Real SS3,
-      Real SS4,    Real SS5,  Real SZ1,   Real SZ3,  Real SZ11,   Real SZ13, 
-      Real SZ21,   Real SZ23, Real SZ31,  Real SZ33, Real T,      Real TC, 
-      Real GSTo,   Real Mo,   Real MDot,  Real No,   Real Omegao, Real OmegaDot,
-      Real XPIDOT, Real Z1,   Real Z3,    Real Z11,  Real Z13,    Real Z21, 
-      Real Z23,    Real Z31,  Real Z33,   Real Ecco, Real Eccsq,
-      Real& EM,    Real& Argpm, Real& Inclm, Real& Mm, Real& Nm, Real& Omegam,
-      SINT IRez,
-      Real& Atime, Real& D2201, Real& D2211, Real& D3210, Real& D3222, 
-      Real& D4410, Real& D4422, Real& D5220, Real& D5232, Real& D5421, 
-      Real& D5433, Real& Dedt,  Real& Didt,  Real& Dmdt,  Real& Dndt,
-      Real& Dnodt, Real& Domdt, Real& Del1,  Real& Del2,  Real& Del3,
-      Real& Xfact, Real& Xlamo, Real& Xli,   Real& Xni
-    )
+
+static void dsinit
+     (
+       gravconsttype whichconst,
+       double cosim,  double emsq,   double argpo,   double s1,     double s2,
+       double s3,     double s4,     double s5,      double sinim,  double ss1,
+       double ss2,    double ss3,    double ss4,     double ss5,    double sz1,
+       double sz3,    double sz11,   double sz13,    double sz21,   double sz23,
+       double sz31,   double sz33,   double t,       double tc,     double gsto,
+       double mo,     double mdot,   double no,      double nodeo,  double nodedot,
+       double xpidot, double z1,     double z3,      double z11,    double z13,
+       double z21,    double z23,    double z31,     double z33,    double ecco,
+       double eccsq,  double& em,    double& argpm,  double& inclm, double& mm,
+       double& nm,    double& nodem,
+       int& irez,
+       double& atime, double& d2201, double& d2211,  double& d3210, double& d3222,
+       double& d4410, double& d4422, double& d5220,  double& d5232, double& d5421,
+       double& d5433, double& dedt,  double& didt,   double& dmdt,  double& dndt,
+       double& dnodt, double& domdt, double& del1,   double& del2,  double& del3,
+       double& xfact, double& xlamo, double& xli,    double& xni
+     )
 {
-  /* --------------------- Local Variables ------------------------ */
-  const Real TwoPi = 2.0 * PI;
+     /* --------------------- local variables ------------------------ */
+     const double twopi = 2.0 * pi;
 
-  Real Ainv2 , AONV  , COSISQ, EOC   , F220  , F221  , F311  ,
-       F321  , F322  , F330  , F441  , F442  , F522  , F523  ,
-       F542  , F543  , G200  , G201  , G211  , G300  , G310  ,
-       G322  , G410  , G422  , G520  , G521  , G532  , G533  ,
-       SES   , SGS   , Sghl  , SGHS  , SHS   , Shll  , SIS   ,
-       SINI2 , SLS   , Temp  , Temp1 , Theta , Xno2  , Q22   , 
-       Q31   , Q33   , Root22, Root44, Root54, RPTim , Root32, 
-       Root52, X2o3  , XKe   , ZNL   , emo   , ZNS;
+     double ainv2 , aonv=0.0, cosisq, eoc, f220 , f221  , f311  ,
+          f321  , f322  , f330  , f441  , f442  , f522  , f523  ,
+          f542  , f543  , g200  , g201  , g211  , g300  , g310  ,
+          g322  , g410  , g422  , g520  , g521  , g532  , g533  ,
+          ses   , sgs   , sghl  , sghs  , shs   , shll  , sis   ,
+          sini2 , sls   , temp  , temp1 , theta , xno2  , q22   ,
+          q31   , q33   , root22, root44, root54, rptim , root32,
+          root52, x2o3  , xke   , znl   , emo   , zns   , emsqo,
+          tumin, mu, radiusearthkm, j2, j3, j4, j3oj2;
 
-  Q22    = 1.7891679E-6;
-  Q31    = 2.1460748E-6;
-  Q33    = 2.2123015E-7;
-  Root22 = 1.7891679E-6;
-  Root44 = 7.3636953E-9;
-  Root54 = 2.1765803E-9;
-  RPTim  = 4.37526908801129966E-3;
-  Root32 = 3.7393792E-7;
-  Root52 = 1.1428639E-7;
-  X2o3   = 2.0 / 3.0;
-  XKe    = 7.43669161331734132E-2;
-  ZNL    = 1.5835218E-4;
-  ZNS    = 1.19459E-5;
+     q22    = 1.7891679e-6;
+     q31    = 2.1460748e-6;
+     q33    = 2.2123015e-7;
+     root22 = 1.7891679e-6;
+     root44 = 7.3636953e-9;
+     root54 = 2.1765803e-9;
+     rptim  = 4.37526908801129966e-3; // this equates to 7.29211514668855e-5 rad/sec
+     root32 = 3.7393792e-7;
+     root52 = 1.1428639e-7;
+     x2o3   = 2.0 / 3.0;
+     znl    = 1.5835218e-4;
+     zns    = 1.19459e-5;
 
-  /* -------------------- Deep Space Initialization ------------ */
-  IRez = 0;
-  if ((Nm < 0.0052359877) && (Nm > 0.0034906585))
-    IRez = 1;
-  if ((Nm >= 8.26E-3) && (Nm <= 9.24E-3) && (EM >= 0.5))
-    IRez = 2;
+     // sgp4fix identify constants and allow alternate values
+     getgravconst( whichconst, tumin, mu, radiusearthkm, xke, j2, j3, j4, j3oj2 );
 
-  /* ------------------------ DO SOLAR TERMS ------------------- */
-  SES  =  SS1 * ZNS * SS5;
-  SIS  =  SS2 * ZNS * (SZ11 + SZ13);
-  SLS  = -ZNS * SS3 * (SZ1 + SZ3 - 14.0 - 6.0 * EMSQ);
-  SGHS =  SS4 * ZNS * (SZ31 + SZ33 - 6.0);
-  SHS  = -ZNS * SS2 * (SZ21 + SZ23);
-  if (Inclm < 5.2359877E-2)
-    SHS = 0.0;
-  if (SINIM != 0.0)
-    SHS = SHS / SINIM;
-  SGS  = SGHS - COSIM * SHS;
+     /* -------------------- deep space initialization ------------ */
+     irez = 0;
+     if ((nm < 0.0052359877) && (nm > 0.0034906585))
+         irez = 1;
+     if ((nm >= 8.26e-3) && (nm <= 9.24e-3) && (em >= 0.5))
+         irez = 2;
 
-  /* ------------------------- DO LUNAR TERMS ------------------ */
-  Dedt = SES + S1 * ZNL * S5;
-  Didt = SIS + S2 * ZNL * (Z11 + Z13);
-  Dmdt = SLS - ZNL * S3 * (Z1 + Z3 - 14.0 - 6.0 * EMSQ);
-  Sghl = S4 * ZNL * (Z31 + Z33 - 6.0);
-  Shll = -ZNL * S2 * (Z21 + Z23);
-  if (Inclm < 5.2359877E-2)
-    Shll = 0.0;
-  Domdt = SGS + Sghl;
-  Dnodt = SHS;
-  if (SINIM != 0.0)
-  {
-    Domdt = Domdt - COSIM / SINIM * Shll;
-    Dnodt = Dnodt + Shll / SINIM;
-  }
+     /* ------------------------ do solar terms ------------------- */
+     ses  =  ss1 * zns * ss5;
+     sis  =  ss2 * zns * (sz11 + sz13);
+     sls  = -zns * ss3 * (sz1 + sz3 - 14.0 - 6.0 * emsq);
+     sghs =  ss4 * zns * (sz31 + sz33 - 6.0);
+     shs  = -zns * ss2 * (sz21 + sz23);
+     // sgp4fix for 180 deg incl
+     if ((inclm < 5.2359877e-2) || (inclm > pi - 5.2359877e-2))
+       shs = 0.0;
+     if (sinim != 0.0)
+       shs = shs / sinim;
+     sgs  = sghs - cosim * shs;
 
-  /* ----------- CALCULATE DEEP SPACE RESONANCE EFFECTS -------- */
-  Dndt   = 0.0;
-  Theta  = Mod(GSTo + TC * RPTim, TwoPi);
-  EM     = EM + Dedt * T;
-  // shouldn't emsq be changed now?????
-  Inclm  = Inclm + Didt * T;
-  Argpm  = Argpm + Domdt * T;
-  Omegam = Omegam + Dnodt * T;
-  Mm     = Mm + Dmdt * T;
-  if (Inclm < 0.0)
-  {
-    Inclm  = -Inclm;
-    Argpm  = Argpm - PI;
-    Omegam = Omegam + PI;
-  }
+     /* ------------------------- do lunar terms ------------------ */
+     dedt = ses + s1 * znl * s5;
+     didt = sis + s2 * znl * (z11 + z13);
+     dmdt = sls - znl * s3 * (z1 + z3 - 14.0 - 6.0 * emsq);
+     sghl = s4 * znl * (z31 + z33 - 6.0);
+     shll = -znl * s2 * (z21 + z23);
+     // sgp4fix for 180 deg incl
+     if ((inclm < 5.2359877e-2) || (inclm > pi - 5.2359877e-2))
+         shll = 0.0;
+     domdt = sgs + sghl;
+     dnodt = shs;
+     if (sinim != 0.0)
+       {
+         domdt = domdt - cosim / sinim * shll;
+         dnodt = dnodt + shll / sinim;
+       }
 
-  /* -------------- Initialize the resonance terms ------------- */
-  if (IRez != 0)
-    AONV = Power(Nm / XKe, X2o3);
+     /* ----------- calculate deep space resonance effects -------- */
+     dndt   = 0.0;
+     theta  = fmod(gsto + tc * rptim, twopi);
+     em     = em + dedt * t;
+     inclm  = inclm + didt * t;
+     argpm  = argpm + domdt * t;
+     nodem  = nodem + dnodt * t;
+     mm     = mm + dmdt * t;
+     //   sgp4fix for negative inclinations
+     //   the following if statement should be commented out
+     //if (inclm < 0.0)
+     //  {
+     //    inclm  = -inclm;
+     //    argpm  = argpm - pi;
+     //    nodem = nodem + pi;
+     //  }
 
-  /* ---------- GEOPOTENTIAL RESONANCE FOR 12 HOUR ORBITS ------ */
-  if (IRez == 2)
-  {
-    COSISQ = COSIM * COSIM;
-    emo    = EM;
-    EM     = Ecco;
-    EMSQ   = Eccsq;
-    EOC    = EM * EMSQ;
-    G201   = -0.306 - (EM - 0.64) * 0.440;
+     /* -------------- initialize the resonance terms ------------- */
+     if (irez != 0)
+       {
+         aonv = pow(nm / xke, x2o3);
 
-    if (EM <= 0.65)
-    {
-      G211 =    3.616  -  13.2470 * EM +  16.2900 * EMSQ;
-      G310 =  -19.302  + 117.3900 * EM - 228.4190 * EMSQ +  156.5910 * EOC;
-      G322 =  -18.9068 + 109.7927 * EM - 214.6334 * EMSQ +  146.5816 * EOC;
-      G410 =  -41.122  + 242.6940 * EM - 471.0940 * EMSQ +  313.9530 * EOC;
-      G422 = -146.407  + 841.8800 * EM - 1629.014 * EMSQ + 1083.4350 * EOC;
-      G520 = -532.114  + 3017.977 * EM - 5740.032 * EMSQ + 3708.2760 * EOC;
-    }
-    else
-    {
-      G211 =   -72.099 +   331.819 * EM -   508.738 * EMSQ +   266.724 * EOC;
-      G310 =  -346.844 +  1582.851 * EM -  2415.925 * EMSQ +  1246.113 * EOC;
-      G322 =  -342.585 +  1554.908 * EM -  2366.899 * EMSQ +  1215.972 * EOC;
-      G410 = -1052.797 +  4758.686 * EM -  7193.992 * EMSQ +  3651.957 * EOC;
-      G422 = -3581.690 + 16178.110 * EM - 24462.770 * EMSQ + 12422.520 * EOC;
-      if (EM > 0.715)
-        G520 =-5149.66 + 29936.92 * EM - 54087.36 * EMSQ + 31324.56 * EOC;
-      else
-        G520 = 1464.74 -  4664.75 * EM +  3763.64 * EMSQ;
-    }
-    if (EM < 0.7)
-    {
-      G533 = -919.22770 + 4988.6100 * EM - 9064.7700 * EMSQ + 5542.21  * EOC;
-      G521 = -822.71072 + 4568.6173 * EM - 8491.4146 * EMSQ + 5337.524 * EOC;
-      G532 = -853.66600 + 4690.2500 * EM - 8624.7700 * EMSQ + 5341.4  * EOC;
-    }
-    else
-    {
-      G533 =-37995.780 + 161616.52 * EM - 229838.20 * EMSQ + 109377.94 * EOC;
-      G521 =-51752.104 + 218913.95 * EM - 309468.16 * EMSQ + 146349.42 * EOC;
-      G532 =-40023.880 + 170470.89 * EM - 242699.48 * EMSQ + 115605.82 * EOC;
-    }
+         /* ---------- geopotential resonance for 12 hour orbits ------ */
+         if (irez == 2)
+           {
+             cosisq = cosim * cosim;
+             emo    = em;
+             em     = ecco;
+             emsqo  = emsq;
+             emsq   = eccsq;
+             eoc    = em * emsq;
+             g201   = -0.306 - (em - 0.64) * 0.440;
 
-    SINI2 =  SINIM * SINIM;
-    F220 =  0.75 * (1.0 + 2.0 * COSIM+COSISQ);
-    F221 =  1.5 * SINI2;
-    F321 =  1.875 * SINIM  *  (1.0 - 2.0 * COSIM - 3.0 * COSISQ);
-    F322 = -1.875 * SINIM  *  (1.0 + 2.0 * COSIM - 3.0 * COSISQ);
-    F441 = 35.0 * SINI2 * F220;
-    F442 = 39.3750 * SINI2 * SINI2;
-    F522 =  9.84375 * SINIM * (SINI2 * (1.0 - 2.0 * COSIM- 5.0 * COSISQ) + 
-            0.33333333 * (-2.0 + 4.0 * COSIM + 6.0 * COSISQ) );
-    F523 = SINIM * (4.92187512 * SINI2 * (-2.0 - 4.0 * COSIM +
-           10.0 * COSISQ) + 6.56250012 * (1.0+2.0 * COSIM - 3.0 * COSISQ));
-    F542 = 29.53125 * SINIM * (2.0 - 8.0 * COSIM+COSISQ *
-           (-12.0 + 8.0 * COSIM + 10.0 * COSISQ));
-    F543 = 29.53125 * SINIM * (-2.0 - 8.0 * COSIM+COSISQ *
-           (12.0 + 8.0 * COSIM - 10.0 * COSISQ));
-    Xno2  =  Nm * Nm;
-    Ainv2 =  AONV * AONV;
-    Temp1 =  3.0 * Xno2 * Ainv2;
-    Temp  =  Temp1 * Root22;
-    D2201 =  Temp * F220 * G201;
-    D2211 =  Temp * F221 * G211;
-    Temp1 =  Temp1 * AONV;
-    Temp  =  Temp1 * Root32;
-    D3210 =  Temp * F321 * G310;
-    D3222 =  Temp * F322 * G322;
-    Temp1 =  Temp1 * AONV;
-    Temp  =  2.0 * Temp1 * Root44;
-    D4410 =  Temp * F441 * G410;
-    D4422 =  Temp * F442 * G422;
-    Temp1 =  Temp1 * AONV;
-    Temp  =  Temp1 * Root52;
-    D5220 =  Temp * F522 * G520;
-    D5232 =  Temp * F523 * G532;
-    Temp  =  2.0 * Temp1 * Root54;
-    D5421 =  Temp * F542 * G521;
-    D5433 =  Temp * F543 * G533;
-    Xlamo =  Mod(Mo + Omegao + Omegao-Theta - Theta, TwoPi);
-    Xfact =  MDot + Dmdt + 2.0 * (OmegaDot + Dnodt - RPTim) - No;
-    EM    = emo;
-  }
+             if (em <= 0.65)
+               {
+                 g211 =    3.616  -  13.2470 * em +  16.2900 * emsq;
+                 g310 =  -19.302  + 117.3900 * em - 228.4190 * emsq +  156.5910 * eoc;
+                 g322 =  -18.9068 + 109.7927 * em - 214.6334 * emsq +  146.5816 * eoc;
+                 g410 =  -41.122  + 242.6940 * em - 471.0940 * emsq +  313.9530 * eoc;
+                 g422 = -146.407  + 841.8800 * em - 1629.014 * emsq + 1083.4350 * eoc;
+                 g520 = -532.114  + 3017.977 * em - 5740.032 * emsq + 3708.2760 * eoc;
+               }
+               else
+               {
+                 g211 =   -72.099 +   331.819 * em -   508.738 * emsq +   266.724 * eoc;
+                 g310 =  -346.844 +  1582.851 * em -  2415.925 * emsq +  1246.113 * eoc;
+                 g322 =  -342.585 +  1554.908 * em -  2366.899 * emsq +  1215.972 * eoc;
+                 g410 = -1052.797 +  4758.686 * em -  7193.992 * emsq +  3651.957 * eoc;
+                 g422 = -3581.690 + 16178.110 * em - 24462.770 * emsq + 12422.520 * eoc;
+                 if (em > 0.715)
+                     g520 =-5149.66 + 29936.92 * em - 54087.36 * emsq + 31324.56 * eoc;
+                   else
+                     g520 = 1464.74 -  4664.75 * em +  3763.64 * emsq;
+               }
+             if (em < 0.7)
+               {
+                 g533 = -919.22770 + 4988.6100 * em - 9064.7700 * emsq + 5542.21  * eoc;
+                 g521 = -822.71072 + 4568.6173 * em - 8491.4146 * emsq + 5337.524 * eoc;
+                 g532 = -853.66600 + 4690.2500 * em - 8624.7700 * emsq + 5341.4  * eoc;
+               }
+               else
+               {
+                 g533 =-37995.780 + 161616.52 * em - 229838.20 * emsq + 109377.94 * eoc;
+                 g521 =-51752.104 + 218913.95 * em - 309468.16 * emsq + 146349.42 * eoc;
+                 g532 =-40023.880 + 170470.89 * em - 242699.48 * emsq + 115605.82 * eoc;
+               }
 
-  /* ---------------- SYNCHRONOUS RESONANCE TERMS -------------- */
-  if (IRez == 1)
-  {
-    G200  = 1.0 + EMSQ * (-2.5 + 0.8125 * EMSQ);
-    G310  = 1.0 + 2.0 * EMSQ;
-    G300  = 1.0 + EMSQ * (-6.0 + 6.60937 * EMSQ);
-    F220  = 0.75 * (1.0 + COSIM) * (1.0 + COSIM);
-    F311  = 0.9375 * SINIM * SINIM * (1.0 + 3.0 * COSIM) - 0.75 * (1.0 + COSIM);
-    F330  = 1.0 + COSIM;
-    F330  = 1.875 * F330 * F330 * F330;
-    Del1  = 3.0 * Nm * Nm * AONV * AONV;
-    Del2  = 2.0 * Del1 * F220 * G200 * Q22;
-    Del3  = 3.0 * Del1 * F330 * G300 * Q33 * AONV;
-    Del1  = Del1 * F311 * G310 * Q31 * AONV;
-    Xlamo = Mod(Mo + Omegao + Argpo - Theta, TwoPi);
-    Xfact = MDot + XPIDOT - RPTim + Dmdt + Domdt + Dnodt - No;
-  }
+             sini2=  sinim * sinim;
+             f220 =  0.75 * (1.0 + 2.0 * cosim+cosisq);
+             f221 =  1.5 * sini2;
+             f321 =  1.875 * sinim  *  (1.0 - 2.0 * cosim - 3.0 * cosisq);
+             f322 = -1.875 * sinim  *  (1.0 + 2.0 * cosim - 3.0 * cosisq);
+             f441 = 35.0 * sini2 * f220;
+             f442 = 39.3750 * sini2 * sini2;
+             f522 =  9.84375 * sinim * (sini2 * (1.0 - 2.0 * cosim- 5.0 * cosisq) +
+                     0.33333333 * (-2.0 + 4.0 * cosim + 6.0 * cosisq) );
+             f523 = sinim * (4.92187512 * sini2 * (-2.0 - 4.0 * cosim +
+                    10.0 * cosisq) + 6.56250012 * (1.0+2.0 * cosim - 3.0 * cosisq));
+             f542 = 29.53125 * sinim * (2.0 - 8.0 * cosim+cosisq *
+                    (-12.0 + 8.0 * cosim + 10.0 * cosisq));
+             f543 = 29.53125 * sinim * (-2.0 - 8.0 * cosim+cosisq *
+                    (12.0 + 8.0 * cosim - 10.0 * cosisq));
+             xno2  =  nm * nm;
+             ainv2 =  aonv * aonv;
+             temp1 =  3.0 * xno2 * ainv2;
+             temp  =  temp1 * root22;
+             d2201 =  temp * f220 * g201;
+             d2211 =  temp * f221 * g211;
+             temp1 =  temp1 * aonv;
+             temp  =  temp1 * root32;
+             d3210 =  temp * f321 * g310;
+             d3222 =  temp * f322 * g322;
+             temp1 =  temp1 * aonv;
+             temp  =  2.0 * temp1 * root44;
+             d4410 =  temp * f441 * g410;
+             d4422 =  temp * f442 * g422;
+             temp1 =  temp1 * aonv;
+             temp  =  temp1 * root52;
+             d5220 =  temp * f522 * g520;
+             d5232 =  temp * f523 * g532;
+             temp  =  2.0 * temp1 * root54;
+             d5421 =  temp * f542 * g521;
+             d5433 =  temp * f543 * g533;
+             xlamo =  fmod(mo + nodeo + nodeo-theta - theta, twopi);
+             xfact =  mdot + dmdt + 2.0 * (nodedot + dnodt - rptim) - no;
+             em    = emo;
+             emsq  = emsqo;
+           }
 
-  /* ------------ FOR SGP4, INITIALIZE THE INTEGRATOR ---------- */
-  if (IRez != 0)
-  {
-    Xli   = Xlamo;
-    Xni   = No;
-    Atime = 0.0;
-    Nm    = No + Dndt;
-  }
+         /* ---------------- synchronous resonance terms -------------- */
+         if (irez == 1)
+           {
+             g200  = 1.0 + emsq * (-2.5 + 0.8125 * emsq);
+             g310  = 1.0 + 2.0 * emsq;
+             g300  = 1.0 + emsq * (-6.0 + 6.60937 * emsq);
+             f220  = 0.75 * (1.0 + cosim) * (1.0 + cosim);
+             f311  = 0.9375 * sinim * sinim * (1.0 + 3.0 * cosim) - 0.75 * (1.0 + cosim);
+             f330  = 1.0 + cosim;
+             f330  = 1.875 * f330 * f330 * f330;
+             del1  = 3.0 * nm * nm * aonv * aonv;
+             del2  = 2.0 * del1 * f220 * g200 * q22;
+             del3  = 3.0 * del1 * f330 * g300 * q33 * aonv;
+             del1  = del1 * f311 * g310 * q31 * aonv;
+             xlamo = fmod(mo + nodeo + argpo - theta, twopi);
+             xfact = mdot + xpidot - rptim + dmdt + domdt + dnodt - no;
+           }
 
-  if (Help == 'Y')
-    if (SGP4File != NULL)
-    {
-      fprintf(SGP4File, "%84s\n",
-          " ------------------After DSINIT : ---------------");
-      fprintf(SGP4File, "    Inputs :\n");
-      fprintf(SGP4File, 
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s&13.7f%7s%13.7f\n",
-          "Cosim", COSIM, "Emsq", EMSQ, "Argpo", Argpo, 
-          "S1", S1, "S2", S2, "S3", S3);
-      fprintf(SGP4File,
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s&13.7f%7s%13.7f\n",
-          "S4", S4, "S5", S5, "Sinim", SINIM, 
-          "Ss1", SS1, "Ss2", SS2, "Ss3", SS3);
-      fprintf(SGP4File,
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s&13.7f%7s%13.7f\n",
-          "Ss4",  SS4, "Ss5", SS5, "Sz1", SZ1, "Sz3", SZ3, "Sz11", SZ11, 
-          "Sz13", SZ13);
-      fprintf(SGP4File,
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s&13.7f%7s%13.7f\n",
-          "GSTo",     GSTo, "Mo", Mo, "MDot", MDot, "No", No, "Omegao", Omegao,
-          "OmegaDot", OmegaDot);
-      fprintf(SGP4File, 
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s&13.7f%7s%13.7f\n",
-          "XPIDOT", XPIDOT, "Z1", Z1, "Z3", Z3, "Z11", Z11, "Z13", Z13, 
-          "Z21", Z21);
-      fprintf(SGP4File, "%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "Z23", Z23, "Z31", Z31, "Z33", Z33);
-      fprintf(SGP4File, "    In / Out :\n");
-      fprintf(SGP4File, 
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s&13.7f%7s%13.7f\n",
-          "EM", EM, "Argpm", Argpm, "Inclm", Inclm, "Mm", Mm, "Nm", Nm, 
-          "Omegam", Omegam);
-      fprintf(SGP4File, "    Outputs :\n");
-      fprintf(SGP4File, 
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s&13.7f%7s%13.7f\n",
-          "IREZ", IRez, "Atime", Atime, "D2201", D2201, "D2211", D2211, 
-          "D3210", D3210, "D3222", D3222);
-      fprintf(SGP4File, 
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s&13.7f%7s%13.7f\n",
-          "D4410", D4410, "D4422", D4422, "D5220", D5220, "D5232", D5232, 
-          "D5421", D5421, "D5433", D5433);
-      fprintf(SGP4File, 
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s&13.7f%7s%13.7f\n",
-          "Dedt", Dedt, "Didt", Didt, "DMDT", Dmdt, "DNDT", Dndt, 
-          "DNODT", Dnodt, "DOMDT", Domdt);
-      fprintf(SGP4File, 
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s&13.7f%7s%13.7f\n",
-          "Del1", Del1, "Del2", Del2, "Del3", Del3, "Xfact", Xfact, 
-          "Xlamo", Xlamo, "Xli", Xli);
-      fprintf(SGP4File, "%7s%13.7f\n", "Xni", Xni);
-    }
-}
+         /* ------------ for sgp4, initialize the integrator ---------- */
+         xli   = xlamo;
+         xni   = no;
+         atime = 0.0;
+         nm    = no + dndt;
+       }
+
+//#include "debug3.cpp"
+}  // end dsinit
 
 /*-----------------------------------------------------------------------------
 *
-*                           PROCEDURE DSPACE
+*                           procedure dspace
 *
-*  This PROCEDURE provides deep space contributions to mean elements for
-*    perturbing third body.  These effects ave been averaged over one
-*    revolution of the sun and moon.  For Earth resonance effects, the
-*    effects have been averaged over No revolutions of the satellite. (Mean motion)
+*  this procedure provides deep space contributions to mean elements for
+*    perturbing third body.  these effects have been averaged over one
+*    revolution of the sun and moon.  for earth resonance effects, the
+*    effects have been averaged over no revolutions of the satellite.
+*    (mean motion)
 *
-*  Author        : David Vallado                  303-344-6037    1 Mar 2001
+*  author        : david vallado                  719-573-2600   28 jun 2005
 *
-*  Inputs        :
-*    D2201, D2211, D3210, D3222, D4410, D4422, D5220, D5232, D5421, D5433       -
-*    Dedt        -
-*    Del1        -
-*    Del2        -
-*    Del3        -
-*    Didt        -
-*    Dmdt        -
-*    Dnodt       -
-*    Domdt       -
-*    IRez        -
-*    Argpo       - Argument of perigee
-*    ArgpDot     - Argument of perigee dot (rate)
-*    T           - Time
-*    TC          -
-*    GSTo        - GST
-*    Xfact       -
-*    Xlamo       -
-*    No          - Mean Motion
-*    Atime       -
-*    EM          - Eccentricity
-*    Ft          -
-*    Argpm       - Argument of perigee
-*    Inclm       - Inclination
-*    Xli         -
-*    Mm          - Mean Anomaly
-*    Xni         - Mean Motion
-*    Omegam      - Longitude of ascending node
-*
-*  Outputs       :
-*    Atime       -
-*    EM          - Eccentricity
-*    Argpm       - Argument of perigee
-*    Inclm       - Inclination
+*  inputs        :
+*    d2201, d2211, d3210, d3222, d4410, d4422, d5220, d5232, d5421, d5433 -
+*    dedt        -
+*    del1, del2, del3  -
+*    didt        -
+*    dmdt        -
+*    dnodt       -
+*    domdt       -
+*    irez        - flag for resonance           0-none, 1-one day, 2-half day
+*    argpo       - argument of perigee
+*    argpdot     - argument of perigee dot (rate)
+*    t           - time
+*    tc          -
+*    gsto        - gst
+*    xfact       -
+*    xlamo       -
+*    no          - mean motion
+*    atime       -
+*    em          - eccentricity
+*    ft          -
+*    argpm       - argument of perigee
+*    inclm       - inclination
 *    xli         -
-*    Mm          - Mean Anomaly
-*    xni         -
-*    Omegam      - Longitude of ascending node
-*    Dndt        -
-*    Nm          - Mean Motion
+*    mm          - mean anomaly
+*    xni         - mean motion
+*    nodem       - right ascension of ascending node
 *
-*  Locals        :
+*  outputs       :
+*    atime       -
+*    em          - eccentricity
+*    argpm       - argument of perigee
+*    inclm       - inclination
+*    xli         -
+*    mm          - mean anomaly
+*    xni         -
+*    nodem       - right ascension of ascending node
+*    dndt        -
+*    nm          - mean motion
+*
+*  locals        :
 *    delt        -
-*    Ft          -
+*    ft          -
 *    theta       -
 *    x2li        -
 *    x2omi       -
@@ -1036,1168 +963,1150 @@ void DSInit
 *    xndt        -
 *    xomi        -
 *
-*  Coupling      :
-*    SREZ        -
+*  coupling      :
+*    none        -
 *
-*  References    :
-*    NORAD Spacetrack Report #3
-*
+*  references    :
+*    hoots, roehrich, norad spacetrack report #3 1980
+*    hoots, norad spacetrack report #6 1986
+*    hoots, schumacher and glover 2004
+*    vallado, crawford, hujsak, kelso  2006
   ----------------------------------------------------------------------------*/
-void DSpace
-    (
-      SINT IRez,
-      Real D2201, Real D2211, Real D3210, Real D3222, Real D4410, Real D4422, 
-      Real D5220, Real D5232, Real D5421, Real D5433, Real Dedt,  Real Del1,
-      Real Del2,  Real Del3,  Real Didt,  Real Dmdt,  Real Dnodt, Real Domdt,
-      Real Argpo, Real ArgpDot, Real T,   Real TC,    Real GSTo,  Real Xfact,
-      Real Xlamo, Real No,
-      Real& Atime, Real& EM,    Real& Argpm, Real& Inclm, Real& Xli, Real& Mm,
-      Real& XNi,  Real& Omegam, Real& Dndt,  Real& Nm
-    )
+
+static void dspace
+     (
+       int irez,
+       double d2201,  double d2211,  double d3210,   double d3222,  double d4410,
+       double d4422,  double d5220,  double d5232,   double d5421,  double d5433,
+       double dedt,   double del1,   double del2,    double del3,   double didt,
+       double dmdt,   double dnodt,  double domdt,   double argpo,  double argpdot,
+       double t,      double tc,     double gsto,    double xfact,  double xlamo,
+       double no,
+       double& atime, double& em,    double& argpm,  double& inclm, double& xli,
+       double& mm,    double& xni,   double& nodem,  double& dndt,  double& nm
+     )
 {
-  const Real TwoPi = 2.0 * PI;
+     const double twopi = 2.0 * pi;
+     int iretn , iret;
+     double delt, ft, theta, x2li, x2omi, xl, xldot , xnddt, xndt, xomi, g22, g32,
+          g44, g52, g54, fasx2, fasx4, fasx6, rptim , step2, stepn , stepp;
 
-  SINT IRetn , IRet;
-  Real Delt, Ft, Theta, X2li, X2omi, Xl, Xldot , Xnddt, Xndt, Xomi, G22, G32, 
-       G44, G52, G54, FASX2, FASX4, FASX6, RPtim , Step2, Stepn , Stepp;
+     fasx2 = 0.13130908;
+     fasx4 = 2.8843198;
+     fasx6 = 0.37448087;
+     g22   = 5.7686396;
+     g32   = 0.95240898;
+     g44   = 1.8014998;
+     g52   = 1.0508330;
+     g54   = 4.4108898;
+     rptim = 4.37526908801129966e-3; // this equates to 7.29211514668855e-5 rad/sec
+     stepp =    720.0;
+     stepn =   -720.0;
+     step2 = 259200.0;
 
-  FASX2 = 0.13130908;
-  FASX4 = 2.8843198;
-  FASX6 = 0.37448087;
-  G22   = 5.7686396;
-  G32   = 0.95240898;
-  G44   = 1.8014998;
-  G52   = 1.0508330;
-  G54   = 4.4108898;
-  RPtim = 4.37526908801129966E-3;
-  Stepp =    720.0;
-  Stepn =   -720.0;
-  Step2 = 259200.0;
+     /* ----------- calculate deep space resonance effects ----------- */
+     dndt   = 0.0;
+     theta  = fmod(gsto + tc * rptim, twopi);
+     em     = em + dedt * t;
 
-  /* ----------- CALCULATE DEEP SPACE RESONANCE EFFECTS ----------- */
-  Dndt   = 0.0;
-  Theta  = Mod(GSTo + TC * RPtim, TwoPi);
-  EM     = EM + Dedt * T;
-// shouldn't emsq be changed now?????
-  Inclm  = Inclm + Didt * T;
-  Argpm  = Argpm + Domdt * T;
-  Omegam = Omegam + Dnodt * T;
-  Mm     = Mm + Dmdt * T;
-  if (Inclm < 0.0)
-  {
-    Inclm  = -Inclm;
-    Argpm  = Argpm - PI;
-    Omegam = Omegam + PI;
-  }
+     inclm  = inclm + didt * t;
+     argpm  = argpm + domdt * t;
+     nodem  = nodem + dnodt * t;
+     mm     = mm + dmdt * t;
 
-  /* - UPDATE RESONANCES : NUMERICAL (EULER-MACLAURIN) INTEGRATION - */
-  /* ------------------------- EPOCH RESTART ----------------------  */
-  if (IRez != 0)
-  {
-    if ((Atime = 0.0) || ((T >= 0.0) && (Atime < 0.0)) ||
-        ((T < 0.0) && (Atime >= 0.0)))
-    {
-      if (T >= 0.0)
-        Delt = Stepp;
-      else
-        Delt = Stepn;
-    }
-    IRetn = 381; // added for do loop
-    IRet  =   0; // added for loop
-    while (IRetn == 381)
-    {
-      if ((fabs(T) < fabs(Atime)) || (IRet == 351))
-      {
-        if (T >= 0.0)
-          Delt = Stepn;
-        else
-          Delt = Stepp;
-        IRet  = 351;
-        IRetn = 381;
-      }
-      else
-      {
-        if (T > 0.0)  // Error IF prev IF has Atime:=0.0 and t:=0.0 (ge)
-          Delt = Stepp;
-        else
-          Delt = Stepn;
-        if (fabs(T - Atime) >= Stepp)
-        {
-          IRet  = 0;
-          IRetn = 381;
-        }
-        else
-        {
-          Ft    = T - Atime;
-          IRetn = 0;
-        }
-      }
+     //   sgp4fix for negative inclinations
+     //   the following if statement should be commented out
+     //  if (inclm < 0.0)
+     // {
+     //    inclm = -inclm;
+     //    argpm = argpm - pi;
+     //    nodem = nodem + pi;
+     //  }
 
-      /* ------------------- DOT TERMS CALCULATED ------------- */
-      /* ----------- NEAR - SYNCHRONOUS RESONANCE TERMS ------- */
-      if (IRez != 2)
-      {
-        Xndt  = Del1 * sin(Xli - FASX2) + Del2 * sin(2.0 * (Xli - FASX4)) +
-                Del3 * sin(3.0 * (Xli - FASX6));
-        Xldot = XNi + Xfact;
-        Xnddt = Del1 * cos(Xli - FASX2) + 
-                2.0 * Del2 * cos(2.0 * (Xli - FASX4)) +
-                3.0 * Del3 * cos(3.0 * (Xli - FASX6));
-        Xnddt = Xnddt * Xldot;
-      }
-      else
-      {
-        /* --------- NEAR - HALF-DAY RESONANCE TERMS -------- */
-        Xomi  = Argpo + ArgpDot * Atime;
-        X2omi = Xomi + Xomi;
-        X2li  = Xli + Xli;
-        Xndt  = D2201 * sin(X2omi + Xli - G22) + D2211 * sin(Xli - G22) +
-              D3210 * sin(Xomi + Xli - G32)  + D3222 * sin(-Xomi + Xli - G32)+
-              D4410 * sin(X2omi + X2li - G44)+ D4422 * sin(X2li - G44) +
-              D5220 * sin(Xomi + Xli - G52)  + D5232 * sin(-Xomi + Xli - G52)+
-              D5421 * sin(Xomi + X2li - G54) + D5433 * sin(-Xomi + X2li - G54);
-        Xldot = XNi + Xfact;
-        Xnddt = D2201 * cos(X2omi + Xli - G22) + D2211 * cos(Xli - G22) +
-              D3210 * cos(Xomi + Xli - G32) + D3222 * cos(-Xomi + Xli - G32) +
-              D5220 * cos(Xomi + Xli - G52) + D5232 * cos(-Xomi + Xli - G52) +
-              2.0 * (D4410 * cos(X2omi + X2li - G44) +
-              D4422 * cos(X2li - G44) + D5421 * cos(Xomi + X2li - G54) +
-              D5433 * cos(-Xomi + X2li - G54));
-        Xnddt = Xnddt * Xldot;
-      }
+     /* - update resonances : numerical (euler-maclaurin) integration - */
+     /* ------------------------- epoch restart ----------------------  */
+     //   sgp4fix for propagator problems
+     //   the following integration works for negative time steps and periods
+     //   the specific changes are unknown because the original code was so convoluted
 
-      /* ----------------------- INTEGRATOR ------------------- */
-      if (IRetn == 381)
-      {
-        Xli   = Xli + Xldot * Delt + Xndt * Step2;
-        XNi   = XNi + Xndt * Delt + Xnddt * Step2;
-        Atime = Atime + Delt;
-      }
-    }
-  
-    Nm = XNi + Xndt * Ft + Xnddt * Ft * Ft * 0.5;
-    Xl = Xli + Xldot * Ft + Xndt * Ft * Ft * 0.5;
-    if (IRez != 1)
-    {
-      Mm   = Xl - 2.0 * Omegam + 2.0 * Theta;
-      Dndt = Nm - No;
-    }
-    else
-    {
-      Mm   = Xl - Omegam - Argpm+ Theta;
-      Dndt = Nm - No;
-    }
+     // sgp4fix take out atime = 0.0 and fix for faster operation
+     ft    = 0.0;
+     if (irez != 0)
+       {
+         // sgp4fix streamline check
+         if ((atime == 0.0) || (t * atime <= 0.0) || (fabs(t) < fabs(atime)) )
+           {
+             atime  = 0.0;
+             xni    = no;
+             xli    = xlamo;
+           }
+           // sgp4fix move check outside loop
+           if (t > 0.0)
+               delt = stepp;
+             else
+               delt = stepn;
 
-    Nm = No + Dndt;
-  }
+         iretn = 381; // added for do loop
+         iret  =   0; // added for loop
+         while (iretn == 381)
+           {
+             /* ------------------- dot terms calculated ------------- */
+             /* ----------- near - synchronous resonance terms ------- */
+             if (irez != 2)
+               {
+                 xndt  = del1 * sin(xli - fasx2) + del2 * sin(2.0 * (xli - fasx4)) +
+                         del3 * sin(3.0 * (xli - fasx6));
+                 xldot = xni + xfact;
+                 xnddt = del1 * cos(xli - fasx2) +
+                         2.0 * del2 * cos(2.0 * (xli - fasx4)) +
+                         3.0 * del3 * cos(3.0 * (xli - fasx6));
+                 xnddt = xnddt * xldot;
+               }
+               else
+               {
+                 /* --------- near - half-day resonance terms -------- */
+                 xomi  = argpo + argpdot * atime;
+                 x2omi = xomi + xomi;
+                 x2li  = xli + xli;
+                 xndt  = d2201 * sin(x2omi + xli - g22) + d2211 * sin(xli - g22) +
+                       d3210 * sin(xomi + xli - g32)  + d3222 * sin(-xomi + xli - g32)+
+                       d4410 * sin(x2omi + x2li - g44)+ d4422 * sin(x2li - g44) +
+                       d5220 * sin(xomi + xli - g52)  + d5232 * sin(-xomi + xli - g52)+
+                       d5421 * sin(xomi + x2li - g54) + d5433 * sin(-xomi + x2li - g54);
+                 xldot = xni + xfact;
+                 xnddt = d2201 * cos(x2omi + xli - g22) + d2211 * cos(xli - g22) +
+                       d3210 * cos(xomi + xli - g32) + d3222 * cos(-xomi + xli - g32) +
+                       d5220 * cos(xomi + xli - g52) + d5232 * cos(-xomi + xli - g52) +
+                       2.0 * (d4410 * cos(x2omi + x2li - g44) +
+                       d4422 * cos(x2li - g44) + d5421 * cos(xomi + x2li - g54) +
+                       d5433 * cos(-xomi + x2li - g54));
+                 xnddt = xnddt * xldot;
+               }
 
-  if (Help == 'Y')
-    if (SGP4File != NULL)
-    {
-      fprintf(SGP4File, "%84s\n", 
-                        " ------------------After DSPACE :--------------- ");
-      fprintf(SGP4File, "    Inputs : \n");
-      fprintf(SGP4File, 
-              "%7s%13d%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-              "IRez", IRez, "D2201", D2201, "D2211", D2211,
-              "D3210", D3210, "D3222", D3222, "D4410", D4410);
-      fprintf(SGP4File, 
-              "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-              "D4422", D4422, "D5220", D5220, "D5232", D5232,
-              "D5421", D5421, "D5433", D5433, "Dedt", Dedt);
-      fprintf(SGP4File, 
-              "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-              "Del1", Del1, "Del2", Del2, "Del3", Del3,
-              "Didt", Didt, "Dmdt", Dmdt, "Dnodt", Dnodt);
-      fprintf(SGP4File, 
-              "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-              "Domdt", Domdt, "Argpo", Argpo, "ArgpDot", ArgpDot,
-              "T", T, "TC", TC, "GSTo", GSTo);
-      fprintf(SGP4File, "%7s%13.7f%7s%13.7f%7s%13.7f\n",
-                        "Xfact", Xfact, "Xlamo", Xlamo, "No", No);
-      fprintf(SGP4File, "    In / Out : \n");
-      fprintf(SGP4File, 
-              "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-              "Atime", Atime, "EM", EM, "Argpm", Argpm,
-              "Inclm", Inclm, "Xli", Xli, "Mm", Mm);
-      fprintf(SGP4File, "%7s%13.7f%7s%13.7f\n", "Xni", XNi, "Omegam", Omegam);
-      fprintf(SGP4File, "    Outputs : \n");
-      fprintf(SGP4File, "%7s%13.7f%7s%13.7f\n", "Dndt", Dndt, "Nm", Nm);
-    }
-}
+             /* ----------------------- integrator ------------------- */
+             // sgp4fix move end checks to end of routine
+             if (fabs(t - atime) >= stepp)
+               {
+                 iret  = 0;
+                 iretn = 381;
+               }
+               else // exit here
+               {
+                 ft    = t - atime;
+                 iretn = 0;
+               }
+
+             if (iretn == 381)
+               {
+                 xli   = xli + xldot * delt + xndt * step2;
+                 xni   = xni + xndt * delt + xnddt * step2;
+                 atime = atime + delt;
+               }
+           }  // while iretn = 381
+
+         nm = xni + xndt * ft + xnddt * ft * ft * 0.5;
+         xl = xli + xldot * ft + xndt * ft * ft * 0.5;
+         if (irez != 1)
+           {
+             mm   = xl - 2.0 * nodem + 2.0 * theta;
+             dndt = nm - no;
+           }
+           else
+           {
+             mm   = xl - nodem - argpm + theta;
+             dndt = nm - no;
+           }
+         nm = no + dndt;
+       }
+
+//#include "debug4.cpp"
+}  // end dsspace
 
 /*-----------------------------------------------------------------------------
 *
-*                           PROCEDURE INITL
+*                           procedure initl
 *
-*  This PROCEDURE initializes the SPG4 propagator.
+*  this procedure initializes the spg4 propagator. all the initialization is
+*    consolidated here instead of having multiple loops inside other routines.
 *
-*  Author        : David Vallado                  303-344-6037    1 Mar 2001
+*  author        : david vallado                  719-573-2600   28 jun 2005
 *
-*  Inputs        :
-*    Ecco        - Eccentricity                           0.0 - 1.0
-*    Epoch       - EPoch time in days from Jan 0, 1950. 0 hr
-*    Inclo       - Inclination of satellite
-*    No          - Mean motion of satellite
-*    Satn        - Satellite number
+*  inputs        :
+*    ecco        - eccentricity                           0.0 - 1.0
+*    epoch       - epoch time in days from jan 0, 1950. 0 hr
+*    inclo       - inclination of satellite
+*    no          - mean motion of satellite
+*    satn        - satellite number
 *
-*  Outputs       :
-*    Ainv        - 1.0 / a
-*    Ao          - Semi major axis
-*    Con41       -
-*    Con42       - 1.0 - 5.0 COS(i)
-*    Cosio       - Cosine of inclination
-*    Cosio2      - Cosio squared
-*    Einv        - 1.0 / e
-*    Eccsq       - Eccentricity squared
-*    Method      -
-*    Omeosq      - 1.0 - Ecco * Ecco
-*    Posq        - Semi-parameter squared
-*    rp          - Radius of perigee
-*    RTeosq      - Square root of (1.0 - Ecco*Ecco)
-*    Sinio       - Sine of inclination
-*    GSTo        - GST at time of observation               rad
-*    No          - Mean motion of satellite
+*  outputs       :
+*    ainv        - 1.0 / a
+*    ao          - semi major axis
+*    con41       -
+*    con42       - 1.0 - 5.0 cos(i)
+*    cosio       - cosine of inclination
+*    cosio2      - cosio squared
+*    eccsq       - eccentricity squared
+*    method      - flag for deep space                    'd', 'n'
+*    omeosq      - 1.0 - ecco * ecco
+*    posq        - semi-parameter squared
+*    rp          - radius of perigee
+*    rteosq      - square root of (1.0 - ecco*ecco)
+*    sinio       - sine of inclination
+*    gsto        - gst at time of observation               rad
+*    no          - mean motion of satellite
 *
-*  Locals        :
+*  locals        :
 *    ak          -
 *    d1          -
 *    del         -
 *    adel        -
 *    po          -
 *
-*  Coupling      :
-*    None.
+*  coupling      :
+*    getgravconst
+*    gstime      - find greenwich sidereal time from the julian date
 *
-*  References    :
-*    NORAD Spacetrack Report #3
-*
+*  references    :
+*    hoots, roehrich, norad spacetrack report #3 1980
+*    hoots, norad spacetrack report #6 1986
+*    hoots, schumacher and glover 2004
+*    vallado, crawford, hujsak, kelso  2006
   ----------------------------------------------------------------------------*/
-void InitL
-    (
-      LINT Satn, Real Ecco, Real Epoch, Real Inclo, Real& No, SINT& Method,
-      Real& AINV, Real& AO, Real& CON41, Real& CON42, Real& COSIO, Real& COSIO2,
-      Real& EINV, Real& EccSQ, Real& OMEOSQ, Real& POSQ, Real& rp, Real& RTEOSQ,
-      Real& SINIO , Real& GSTo
-    )
+
+static void initl
+     (
+       int satn,      gravconsttype whichconst,
+       double ecco,   double epoch,  double inclo,   double& no,
+       char& method,
+       double& ainv,  double& ao,    double& con41,  double& con42, double& cosio,
+       double& cosio2,double& eccsq, double& omeosq, double& posq,
+       double& rp,    double& rteosq,double& sinio , double& gsto,
+       char opsmode
+     )
 {
-  /* --------------------- Local Variables ------------------------ */
-  const Real TwoPi = 2.0 * PI;
+     /* --------------------- local variables ------------------------ */
+     double ak, d1, del, adel, po, x2o3, j2, xke,
+            tumin, mu, radiusearthkm, j3, j4, j3oj2;
 
-  Real AK, D1, DEL, ADEL, PO, X2O3, J2, XKE;
+     // sgp4fix use old way of finding gst
+     double ds70;
+     double ts70, tfrac, c1, thgr70, fk5r, c1p2p, thgr, thgro;
+     const double twopi = 2.0 * pi;
 
-  /* -------------------- WGS-72 EARTH CONSTANTS ----------------- */
-  XKE  = 7.43669161331734132E-2;
-  J2   = 1.082616E-3;
-  X2O3 = 2.0 / 3.0;
+     /* ----------------------- earth constants ---------------------- */
+     // sgp4fix identify constants and allow alternate values
+     getgravconst( whichconst, tumin, mu, radiusearthkm, xke, j2, j3, j4, j3oj2 );
+     x2o3   = 2.0 / 3.0;
 
-  /* ------------- CALCULATE AUXILLARY EPOCH QUANTITIES ---------- */
-  EccSQ  = Ecco * Ecco;
-  OMEOSQ = 1.0 - EccSQ;
-  RTEOSQ = sqrt(OMEOSQ);
-  COSIO  = cos(Inclo);
-  COSIO2 = COSIO * COSIO;
+     /* ------------- calculate auxillary epoch quantities ---------- */
+     eccsq  = ecco * ecco;
+     omeosq = 1.0 - eccsq;
+     rteosq = sqrt(omeosq);
+     cosio  = cos(inclo);
+     cosio2 = cosio * cosio;
 
-  /* ------------------ UN-KOZAI THE MEAN MOTION ----------------- */
-  /* make sure .elm file has correct line endings!                 */
-  AK    = Power(XKE / No, X2O3);
-  D1    = 0.75 * J2 * (3.0 * COSIO2 - 1.0) / (RTEOSQ * OMEOSQ);
-  DEL   = D1 / (AK * AK);
-  ADEL  = AK * (1.0 - DEL * DEL - DEL *
-          (1.0 / 3.0 + 134.0 * DEL * DEL / 81.0));
-  DEL   = D1/(ADEL * ADEL);
-  No    = No / (1.0 + DEL);
+     /* ------------------ un-kozai the mean motion ----------------- */
+     ak    = pow(xke / no, x2o3);
+     d1    = 0.75 * j2 * (3.0 * cosio2 - 1.0) / (rteosq * omeosq);
+     del   = d1 / (ak * ak);
+     adel  = ak * (1.0 - del * del - del *
+             (1.0 / 3.0 + 134.0 * del * del / 81.0));
+     del   = d1/(adel * adel);
+     no    = no / (1.0 + del);
 
-  AO    = Power(XKE / No, X2O3);
-  SINIO = sin(Inclo);
-  PO    = AO * OMEOSQ;
-  CON42 = 1.0 - 5.0 * COSIO2;
-  CON41 = -CON42-COSIO2-COSIO2;
-  AINV  = 1.0 / AO;
-  EINV  = 1.0 / Ecco;
-  POSQ  = PO * PO;
-  rp    = AO * (1.0 - Ecco);
-  Method = 0;
-  if (rp < 1.0)
-    printf(" *** SATN%d EPOCH ELTS SUB-ORBITAL ***\n", Satn);
+     ao    = pow(xke / no, x2o3);
+     sinio = sin(inclo);
+     po    = ao * omeosq;
+     con42 = 1.0 - 5.0 * cosio2;
+     con41 = -con42-cosio2-cosio2;
+     ainv  = 1.0 / ao;
+     posq  = po * po;
+     rp    = ao * (1.0 - ecco);
+     method = 'n';
 
-  GSTo = GSTime(Epoch + 2433281.5);
+     // sgp4fix modern approach to finding sidereal time
+     if (opsmode == 'a')
+        {
+         // sgp4fix use old way of finding gst
+         // count integer number of days from 0 jan 1970
+         ts70  = epoch - 7305.0;
+         ds70 = floor(ts70 + 1.0e-8);
+         tfrac = ts70 - ds70;
+         // find greenwich location at epoch
+         c1    = 1.72027916940703639e-2;
+         thgr70= 1.7321343856509374;
+         fk5r  = 5.07551419432269442e-15;
+         c1p2p = c1 + twopi;
+         gsto  = fmod( thgr70 + c1*ds70 + c1p2p*tfrac + ts70*ts70*fk5r, twopi);
+         if ( gsto < 0.0 )
+             gsto = gsto + twopi;
+       }
+       else
+        gsto = gstime(epoch + 2433281.5);
 
-  if (Help == 'Y')
-    if (SGP4File != NULL)
-    {
-      fprintf(SGP4File, "%8fs\n", 
-                        " ------------------After INITL  :---------------");
-      fprintf(SGP4File, "    Inputs : \n");
-      fprintf(SGP4File, "%7s%13d%7s%13s%7s%13.7f%7s%13.7f%7s%13.7f\n",
-        "Satn", Satn, "Yr", " ", "Ecco", Ecco, "Epoch", Epoch, "Inclo", Inclo);
-      fprintf(SGP4File, "    In/Out : \n");
-      fprintf(SGP4File, "%7s%13.7f\n", "No", No);
-      fprintf(SGP4File, "    Outputs : \n");
-      fprintf(SGP4File, 
-              "%7s%13d%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-               "Method", Method, "Ainv", AINV, "Ao", AO, "Con41", CON41, 
-               "Con42", CON42, "Cosio", COSIO);
-      fprintf(SGP4File, "%7s%13.7f\n", "Cosio2", COSIO2);
-      fprintf(SGP4File, "%7s%13d%7s%13.7f%7s%13.7f%7s%13.7f%7s%13d%7s%13.7f\n",
-                         "Einv", EINV, "Eccsq", EccSQ, "Omeosq", OMEOSQ, 
-                         "posq", POSQ, "rp", rp, "Rteosq", RTEOSQ);
-      fprintf(SGP4File, "%7s%13d%7s%13.7f\n", "Sinio", SINIO, "GSTo", GSTo);
-    }
-}
+
+//#include "debug5.cpp"
+}  // end initl
 
 /*-----------------------------------------------------------------------------
 *
-*                             PROCEDURE SGP4
+*                             procedure sgp4init
 *
-*  This PROCEDURE is the SGP4 SPADOC compatible prediction model from
-*    Spacetrack report #3.  This is an updated version of SGP4 and SDP4, which
-*    were originally published separately in Spacetrack Report #3. The version
-*    follows the NASA release on the INternet. There are some fixes that are
-*    added to the Em tolerances.
+*  this procedure initializes variables for sgp4.
 *
-*  Author        : David Vallado                  303-344-6037    1 Mar 2001
+*  author        : david vallado                  719-573-2600   28 jun 2005
 *
-*  Inputs        :
-*    BSTAR       -
-*    Ecco        - Initial eccentricity
-*    Argpo       - Initial argument of perigee
-*    Inclo       - Initial inclination
-*    NEValues.T  - Time in minutes from the epoch of the satellite (set outside)
-*    Mo          - Initial Mean Anomaly
-*    No          - Initial Mean Motion
-*    Omegao      - Initial Long of Ascending node
-*    NeValues    - Near Earth common values for subsequent calls
-*    DsValues    - Deep Space common values for calls
+*  inputs        :
+*    opsmode     - mode of operation afspc or improved 'a', 'i'
+*    whichconst  - which set of constants to use  72, 84
+*    satn        - satellite number
+*    bstar       - sgp4 type drag coefficient              kg/m2er
+*    ecco        - eccentricity
+*    epoch       - epoch time in days from jan 0, 1950. 0 hr
+*    argpo       - argument of perigee (output if ds)
+*    inclo       - inclination
+*    mo          - mean anomaly (output if ds)
+*    no          - mean motion
+*    nodeo       - right ascension of ascending node
 *
-*  Outputs       :
-*    X           - X component of position                          ER
-*    Y           - Y component of position
-*    Z           - Z component of position
-*    XDoT        - X component of velocity                          ER/min
-*    YDoT        - Y component of velocity
-*    ZDoT        - Z component of velocity
+*  outputs       :
+*    satrec      - common values for subsequent calls
+*    return code - non-zero on error.
+*                   1 - mean elements, ecc >= 1.0 or ecc < -0.001 or a < 0.95 er
+*                   2 - mean motion less than 0.0
+*                   3 - pert elements, ecc < 0.0  or  ecc > 1.0
+*                   4 - semi-latus rectum < 0.0
+*                   5 - epoch elements are sub-orbital
+*                   6 - satellite has decayed
 *
-*  Locals        :
-*    AM          -
-*    Axnl, Aynl        -
-*    Betal       -
-*    COSIM       -
-*    COSOMM      -
-*    Cnod        -
-*    Cos2u       -
-*    Coseo1      -
-*    Cosi        -
-*    Cosip       -
-*    Cosisq      -
-*    Cossu       -
-*    Cosu        -
-*    Delm        -
-*    Delomg      -
-*    Dndt        -
-*    EM          -
-*    EMSQ        -
-*    Ecose       -
-*    El2         -
-*    Eo1         -
-*    Ep          -
-*    Esine       -
-*    Argpm       -
-*    Argpp       -
-*    ArgpDF      -
-*    Pl          -
-*    R           -
-*    RTEMSQ      -
-*    Rdot        -
-*    Rdotl       -
-*    Rl          -
-*    Rvdot       -
-*    Rvdotl      -
-*    SINIM       -
-*    SINOMM      -
-*    Sin2u       -
-*    Sineo1      -
-*    Sini        -
-*    Sinip       -
-*    Sinu        -
-*    Snod        -
-*    Su          -
-*    T2, T3, T4          -
-*    Tc          -
-*    Tem5        -
-*    Temp, Temp1, Temp2, Tempa, Tempe, Templ
-*    U           -
-*    Ux, Uy, Uz          -
-*    Vx, Vy, Vz          -
-*    Inclm       - Inclination
-*    Mm          - Mean Anomaly
-*    Nm          - Mean Motion
-*    Omegam      - Longi of Ascending node
-*    Xinc        -
-*    Xincp       -
-*    Xl          -
-*    Xlm         -
-*    Mp          -
-*    Xmdf        -
-*    Xmx         -
-*    Xmy         -
-*    OmegaDF     -
-*    Xnode       -
-*    Omegap      -
-*    Np          -
+*  locals        :
+*    cnodm  , snodm  , cosim  , sinim  , cosomm , sinomm
+*    cc1sq  , cc2    , cc3
+*    coef   , coef1
+*    cosio4      -
+*    day         -
+*    dndt        -
+*    em          - eccentricity
+*    emsq        - eccentricity squared
+*    eeta        -
+*    etasq       -
+*    gam         -
+*    argpm       - argument of perigee
+*    nodem       -
+*    inclm       - inclination
+*    mm          - mean anomaly
+*    nm          - mean motion
+*    perige      - perigee
+*    pinvsq      -
+*    psisq       -
+*    qzms24      -
+*    rtemsq      -
+*    s1, s2, s3, s4, s5, s6, s7          -
+*    sfour       -
+*    ss1, ss2, ss3, ss4, ss5, ss6, ss7         -
+*    sz1, sz2, sz3
+*    sz11, sz12, sz13, sz21, sz22, sz23, sz31, sz32, sz33        -
+*    tc          -
+*    temp        -
+*    temp1, temp2, temp3       -
+*    tsi         -
+*    xpidot      -
+*    xhdot1      -
+*    z1, z2, z3          -
+*    z11, z12, z13, z21, z22, z23, z31, z32, z33         -
 *
-*  Coupling      :
-*    DPPER
-*    DPSPACE
+*  coupling      :
+*    getgravconst-
+*    initl       -
+*    dscom       -
+*    dpper       -
+*    dsinit      -
+*    sgp4        -
 *
-*  References    :
-*    NORAD Spacetrack Report #3
-*
+*  references    :
+*    hoots, roehrich, norad spacetrack report #3 1980
+*    hoots, norad spacetrack report #6 1986
+*    hoots, schumacher and glover 2004
+*    vallado, crawford, hujsak, kelso  2006
   ----------------------------------------------------------------------------*/
-void SGP4(ElSetRec SatRec, Vector& R, Vector& V, SINT& Error)
+
+bool sgp4init
+     (
+       gravconsttype whichconst, char opsmode,   const int satn,     const double epoch,
+       const double xbstar,  const double xecco, const double xargpo,
+       const double xinclo,  const double xmo,   const double xno,
+       const double xnodeo,  elsetrec& satrec
+     )
 {
-  Real AM   , Axnl  , Aynl , Betal ,  Cosim , Cnod  ,
-       Cos2u, Coseo1, Cosi , Cosip ,  Cosisq, Cossu , Cosu,
-       Delm , Delomg, EM   , EMSQ  ,  Ecose , El2   , EO1 ,
-       Ep   , Esine , Argpm, Argpp ,  ArgpDF, Pl,     MRt ,
-       MVt  , Rdotl, Rl    , Rvdot, Rvdotl,  Sinim ,
-       Sin2u, Sineo1, Sini , Sinip ,  Sinsu , Sinu  ,
-       Snod , Su    , T2   , T3    ,  T4    , Tem5  , Temp,
-       Temp1, Temp2 , Tempa, Tempe ,  Templ , U     , Ux  ,
-       Uy   , Uz    , Vx   , Vy    ,  Vz    , Inclm , Mm  ,
-       Nm   , Omegam, Xinc , Xincp ,  Xl    , Xlm   , Mp  ,
-       Xmdf , Xmx   , Xmy  , OmegaDF, Xnode , Omegap, Tc  , Dndt,
-       TwoPi, X2O3,   J2,    J3,      XKE,    J3OJ2;
+     /* --------------------- local variables ------------------------ */
+     double ao, ainv,   con42, cosio, sinio, cosio2, eccsq,
+          omeosq, posq,   rp,     rteosq,
+          cnodm , snodm , cosim , sinim , cosomm, sinomm, cc1sq ,
+          cc2   , cc3   , coef  , coef1 , cosio4, day   , dndt  ,
+          em    , emsq  , eeta  , etasq , gam   , argpm , nodem ,
+          inclm , mm    , nm    , perige, pinvsq, psisq , qzms24,
+          rtemsq, s1    , s2    , s3    , s4    , s5    , s6    ,
+          s7    , sfour , ss1   , ss2   , ss3   , ss4   , ss5   ,
+          ss6   , ss7   , sz1   , sz2   , sz3   , sz11  , sz12  ,
+          sz13  , sz21  , sz22  , sz23  , sz31  , sz32  , sz33  ,
+          tc    , temp  , temp1 , temp2 , temp3 , tsi   , xpidot,
+          xhdot1, z1    , z2    , z3    , z11   , z12   , z13   ,
+          z21   , z22   , z23   , z31   , z32   , z33,
+          qzms2t, ss, j2, j3oj2, j4, x2o3, r[3], v[3],
+          tumin, mu, radiusearthkm, xke, j3;
 
-  /* -------------------- WGS-72 EARTH CONSTANTS ----------------- */
-  /* ------------------ SET MATHEMATICAL CONSTANTS --------------- */
-  TwoPi = 2.0 * PI;
-  X2O3  = 2.0 / 3.0;
-  XKE   = 7.43669161331734132E-2;
-  J2    = 1.082616E-3;
-  J3    = -2.53881E-6;
-  J3OJ2 = J3 / J2;
+     /* ------------------------ initialization --------------------- */
+     // sgp4fix divisor for divide by zero check on inclination
+     // the old check used 1.0 + cos(pi-1.0e-9), but then compared it to
+     // 1.5 e-12, so the threshold was changed to 1.5e-12 for consistency
+     const double temp4    =   1.5e-12;
 
-  /* --------------------- CLEAR SGP4 ERROR FLAG ----------------- */
-  Error = 0;
+     /* ----------- set all near earth variables to zero ------------ */
+     satrec.isimp   = 0;   satrec.method = 'n'; satrec.aycof    = 0.0;
+     satrec.con41   = 0.0; satrec.cc1    = 0.0; satrec.cc4      = 0.0;
+     satrec.cc5     = 0.0; satrec.d2     = 0.0; satrec.d3       = 0.0;
+     satrec.d4      = 0.0; satrec.delmo  = 0.0; satrec.eta      = 0.0;
+     satrec.argpdot = 0.0; satrec.omgcof = 0.0; satrec.sinmao   = 0.0;
+     satrec.t       = 0.0; satrec.t2cof  = 0.0; satrec.t3cof    = 0.0;
+     satrec.t4cof   = 0.0; satrec.t5cof  = 0.0; satrec.x1mth2   = 0.0;
+     satrec.x7thm1  = 0.0; satrec.mdot   = 0.0; satrec.nodedot  = 0.0;
+     satrec.xlcof   = 0.0; satrec.xmcof  = 0.0; satrec.nodecf   = 0.0;
 
-  /* ------- UPDATE FOR SECULAR GRAVITY AND ATMOSPHERIC DRAG ----- */
-  Xmdf    = SatRec.Mo + SatRec.NEValues.MDot * SatRec.NEValues.T;
-  ArgpDF  = SatRec.Argpo + SatRec.NEValues.ArgpDot * SatRec.NEValues.T;
-  OmegaDF = SatRec.Omegao + SatRec.NEValues.OmegaDot * SatRec.NEValues.T;
-  Argpm   = ArgpDF;
-  Mm      = Xmdf;
-  T2      = SatRec.NEValues.T * SatRec.NEValues.T;
-  Omegam  = OmegaDF + SatRec.NEValues.OmegaCF * T2;
-  Tempa   = 1.0 - SatRec.NEValues.Cc1 * SatRec.NEValues.T;
-  Tempe   = SatRec.BStar * SatRec.NEValues.Cc4 * SatRec.NEValues.T;
-  Templ   = SatRec.NEValues.T2cof * T2;
-  
-  if (SatRec.NEValues.Isimp != 1)
-  {
-    Delomg = SatRec.NEValues.Omgcof * SatRec.NEValues.T;
-    Delm   = SatRec.NEValues.Xmcof * 
-             (Power((1.0 + SatRec.NEValues.Eta * cos(Xmdf)), 3) - 
-             SatRec.NEValues.Delmo);
-    Temp   = Delomg + Delm;
-    Mm     = Xmdf + Temp;
-    Argpm  = ArgpDF - Temp;
-    T3     = T2 * SatRec.NEValues.T;
-    T4     = T3 * SatRec.NEValues.T;
-    Tempa  = Tempa - SatRec.NEValues.D2 * T2 - SatRec.NEValues.D3 * T3 - 
-                     SatRec.NEValues.D4 * T4;
-    Tempe  = Tempe + SatRec.BStar * SatRec.NEValues.Cc5 * (sin(Mm) - 
-                     SatRec.NEValues.Sinmao);
-    Templ  = Templ + SatRec.NEValues.T3cof * T3 + T4 * (SatRec.NEValues.T4cof + 
-                     SatRec.NEValues.T * SatRec.NEValues.T5cof);
-  }
+     /* ----------- set all deep space variables to zero ------------ */
+     satrec.irez  = 0;   satrec.d2201 = 0.0; satrec.d2211 = 0.0;
+     satrec.d3210 = 0.0; satrec.d3222 = 0.0; satrec.d4410 = 0.0;
+     satrec.d4422 = 0.0; satrec.d5220 = 0.0; satrec.d5232 = 0.0;
+     satrec.d5421 = 0.0; satrec.d5433 = 0.0; satrec.dedt  = 0.0;
+     satrec.del1  = 0.0; satrec.del2  = 0.0; satrec.del3  = 0.0;
+     satrec.didt  = 0.0; satrec.dmdt  = 0.0; satrec.dnodt = 0.0;
+     satrec.domdt = 0.0; satrec.e3    = 0.0; satrec.ee2   = 0.0;
+     satrec.peo   = 0.0; satrec.pgho  = 0.0; satrec.pho   = 0.0;
+     satrec.pinco = 0.0; satrec.plo   = 0.0; satrec.se2   = 0.0;
+     satrec.se3   = 0.0; satrec.sgh2  = 0.0; satrec.sgh3  = 0.0;
+     satrec.sgh4  = 0.0; satrec.sh2   = 0.0; satrec.sh3   = 0.0;
+     satrec.si2   = 0.0; satrec.si3   = 0.0; satrec.sl2   = 0.0;
+     satrec.sl3   = 0.0; satrec.sl4   = 0.0; satrec.gsto  = 0.0;
+     satrec.xfact = 0.0; satrec.xgh2  = 0.0; satrec.xgh3  = 0.0;
+     satrec.xgh4  = 0.0; satrec.xh2   = 0.0; satrec.xh3   = 0.0;
+     satrec.xi2   = 0.0; satrec.xi3   = 0.0; satrec.xl2   = 0.0;
+     satrec.xl3   = 0.0; satrec.xl4   = 0.0; satrec.xlamo = 0.0;
+     satrec.zmol  = 0.0; satrec.zmos  = 0.0; satrec.atime = 0.0;
+     satrec.xli   = 0.0; satrec.xni   = 0.0;
 
-  Nm    = SatRec.No;
-  EM    = SatRec.Ecco;
-  Inclm = SatRec.Inclo;
-  if (SatRec.NEValues.Method == 2)
-  {
-    Tc = SatRec.NEValues.T;
-    DSpace
-        (
-          SatRec.DSValues.IRez,
-          SatRec.DSValues.D2201, SatRec.DSValues.D2211, SatRec.DSValues.D3210,
-          SatRec.DSValues.D3222, SatRec.DSValues.D4410, SatRec.DSValues.D4422,
-          SatRec.DSValues.D5220, SatRec.DSValues.D5232, SatRec.DSValues.D5421,
-          SatRec.DSValues.D5433, SatRec.DSValues.Dedt,  SatRec.DSValues.Del1,
-          SatRec.DSValues.Del2,  SatRec.DSValues.Del3,  SatRec.DSValues.Didt,
-          SatRec.DSValues.Dmdt,  SatRec.DSValues.Dnodt, SatRec.DSValues.Domdt,
-          SatRec.Argpo,
-          SatRec.NEValues.ArgpDot, SatRec.NEValues.T,
-          Tc,
-          SatRec.DSValues.GSTo, SatRec.DSValues.Xfact, SatRec.DSValues.Xlamo,
-          SatRec.No,
-          SatRec.DSValues.Atime,
-          EM,
-          Argpm,
-          Inclm,
-          SatRec.DSValues.Xli,
-          Mm,
-          SatRec.DSValues.Xni,
-          Omegam,
-          Dndt,
-          Nm
-        );
-  }
- 
-  if (Nm <= 0.0)
-  {
-    printf("Error Nm %f\n", Nm);
-    Error = 2;
-  }
-  AM = Power((XKE / Nm),X2O3) * Tempa * Tempa;
-  Nm = XKE / Power(AM, 1.5);
-  EM = EM - Tempe;
-  if ((EM >= 1.0) || (EM < -0.001))
-  {
-    printf("Error Em %f\n", EM);
-    Error = 1;
-  }
-  if (EM < 0.0)
-    EM  = 1.0E-6;
-  Mm     = Mm + SatRec.No * Templ;
-  Xlm    = Mm + Argpm + Omegam;
-  EMSQ   = EM * EM;
-  Temp   = 1.0 - EMSQ;
-  // RTEMSQ = sqrt(Temp);
-  Omegam = Mod(Omegam, TwoPi);
-  Argpm  = Mod(Argpm, TwoPi);
-  Xlm    = Mod(Xlm, TwoPi);
-  Mm     = Mod(Xlm - Argpm - Omegam, TwoPi);
-  if (Mm < 0.0)
-    Mm = Mm + TwoPi;
+     // sgp4fix - note the following variables are also passed directly via satrec.
+     // it is possible to streamline the sgp4init call by deleting the "x"
+     // variables, but the user would need to set the satrec.* values first. we
+     // include the additional assignments in case twoline2rv is not used.
+     satrec.bstar   = xbstar;
+     satrec.ecco    = xecco;
+     satrec.argpo   = xargpo;
+     satrec.inclo   = xinclo;
+     satrec.mo	    = xmo;
+     satrec.no	    = xno;
+     satrec.nodeo   = xnodeo;
 
-  /* ----------------- COMPUTE EXTRA MEAN QUANTITIES ------------- */
-  Sinim = sin(Inclm);
-  Cosim = cos(Inclm);
-  // Sinim = sin(Argpm);
-  // Cosim = cos(Argpm);
+     // sgp4fix add opsmode
+     satrec.operationmode = opsmode;
 
-  /* -------------------- ADD LUNAR-SOLAR PERIODICS -------------- */
-  // Np    = Nm;
-  Ep     = EM;
-  Xincp  = Inclm;
-  Argpp  = Argpm;
-  Omegap = Omegam;
-  Mp     = Sinim;
-  Cosip  = Cosim;
-  if (SatRec.NEValues.Method == 2)
-  {
-    DPPer
-        (
-          SatRec.DSValues.E3,   SatRec.DSValues.Ee2,  SatRec.DSValues.Peo, 
-          SatRec.DSValues.Pgho, SatRec.DSValues.Pho,  SatRec.DSValues.Pinco,
-          SatRec.DSValues.Plo,  SatRec.DSValues.Se2,  SatRec.DSValues.Se3, 
-          SatRec.DSValues.Sgh2, SatRec.DSValues.Sgh3, SatRec.DSValues.Sgh4,
-          SatRec.DSValues.Sh2,  SatRec.DSValues.Sh3,  SatRec.DSValues.Si2, 
-          SatRec.DSValues.Si3,  SatRec.DSValues.Sl2,  SatRec.DSValues.Sl3,
-          SatRec.DSValues.Sl4,  SatRec.NEValues.T,    SatRec.DSValues.Xgh2, 
-          SatRec.DSValues.Xgh3, SatRec.DSValues.Xgh4, SatRec.DSValues.Xh2,
-          SatRec.DSValues.Xh3,  SatRec.DSValues.Xi2,  SatRec.DSValues.Xi3, 
-          SatRec.DSValues.Xl2,  SatRec.DSValues.Xl3,  SatRec.DSValues.Xl4,
-          SatRec.DSValues.Zmol, SatRec.DSValues.Zmos, 
-          0, Ep, Xincp, Omegap, Argpp, Mp
-        );
-    if (Xincp < 0.0)
-    {
-      Xincp  = -Xincp;
-      Omegap = Omegap + PI;
-      Argpp  = Argpp - PI;
-    }
-    if ((Ep < 0.0 ) || ( Ep > 1.0))
-    {
-      printf("Error Ep %f\n", Ep);
-      Error = 3;
-    }
-  }
+     /* ------------------------ earth constants ----------------------- */
+     // sgp4fix identify constants and allow alternate values
+     getgravconst( whichconst, tumin, mu, radiusearthkm, xke, j2, j3, j4, j3oj2 );
+     ss     = 78.0 / radiusearthkm + 1.0;
+     qzms2t = pow(((120.0 - 78.0) / radiusearthkm), 4);
+     x2o3   =  2.0 / 3.0;
 
-  /* -------------------- LONG PERIOD PERIODICS ------------------ */
-  if (SatRec.NEValues.Method == 2)
-  {
-    Sinip =  sin(Xincp);
-    Cosip =  cos(Xincp);
-    SatRec.NEValues.Aycof = -0.5*J3OJ2*Sinip;
-    SatRec.NEValues.Xlcof = -0.25 * J3OJ2 * Sinip * (3.0 + 5.0 * Cosip) / 
-                            (1.0+Cosip);
-  }
-  Axnl = Ep * cos(Argpp);
-  Temp = 1.0 / (AM * (1.0 - Ep * Ep));
-  Aynl = Ep* sin(Argpp) + Temp * SatRec.NEValues.Aycof;
-  Xl   = Mp + Argpp + Omegap + Temp * SatRec.NEValues.Xlcof * Axnl;
+     satrec.init = 'y';
+     satrec.t	 = 0.0;
 
-  /* --------------------- SOLVE KEPLER'S EQUATION --------------- */
-  U    = Mod(Xl - Omegap, TwoPi);
-  EO1  = U;
-  Tem5 = 9999.9;
-  while (fabs(Tem5) >= 1.0E-12)
-  {
-    Sineo1 = sin(EO1);
-    Coseo1 = cos(EO1);
-    Tem5   = 1.0 - Coseo1 * Axnl - Sineo1 * Aynl;
-    Tem5   = (U - Aynl * Coseo1 + Axnl * Sineo1 - EO1) / Tem5;
-    EO1    = EO1 + Tem5;
-  }
+     initl
+         (
+           satn, whichconst, satrec.ecco, epoch, satrec.inclo, satrec.no, satrec.method,
+           ainv, ao, satrec.con41, con42, cosio, cosio2, eccsq, omeosq,
+           posq, rp, rteosq, sinio, satrec.gsto, satrec.operationmode
+         );
+     satrec.error = 0;
 
-  /* ------------- SHORT PERIOD PRELIMINARY QUANTITIES ----------- */
-  Ecose = Axnl*Coseo1+Aynl*Sineo1;
-  Esine = Axnl*Sineo1-Aynl*Coseo1;
-  El2   = Axnl*Axnl+Aynl*Aynl;
-  Pl    = AM*(1.0-El2);
-  if (Pl < 0.0)
-  {
-    printf("Error Pl %f\n", Pl);
-    Error = 4;
-  }
-  else
-  {
-    Rl     = AM * (1.0 - Ecose);
-    Rdotl  = sqrt(AM) * Esine/Rl;
-    Rvdotl = sqrt(Pl) / Rl;
-    Betal  = sqrt(1.0 - El2);
-    Temp   = Esine / (1.0 + Betal);
-    Sinu   = AM / Rl * (Sineo1 - Aynl - Axnl * Temp);
-    Cosu   = AM / Rl * (Coseo1 - Axnl + Aynl * Temp);
-    Su     = Atan2(Sinu, Cosu);
-    Sin2u  = (Cosu + Cosu) * Sinu;
-    Cos2u  = 1.0 - 2.0 * Sinu * Sinu;
-    Temp   = 1.0 / Pl;
-    Temp1  = 0.5 * J2 * Temp;
-    Temp2  = Temp1 * Temp;
+     // sgp4fix remove this check as it is unnecessary
+     // the mrt check in sgp4 handles decaying satellite cases even if the starting
+     // condition is below the surface of te earth
+//     if (rp < 1.0)
+//       {
+//         printf("# *** satn%d epoch elts sub-orbital ***\n", satn);
+//         satrec.error = 5;
+//       }
 
-    /* -------------- UPDATE FOR SHORT PERIOD PERIODICS ------------ */
-    if (SatRec.NEValues.Method == 2)
-    {
-      Cosisq                 = Cosip * Cosip;
-      SatRec.NEValues.CON41  = 3.0*Cosisq - 1.0;
-      SatRec.NEValues.X1mth2 = 1.0 - Cosisq;
-      SatRec.NEValues.X7thm1 = 7.0*Cosisq - 1.0;
-    }
-    MRt   = Rl * (1.0 - 1.5 * Temp2 * Betal * SatRec.NEValues.CON41) + 
-            0.5 * Temp1 * SatRec.NEValues.X1mth2 * Cos2u;
-    Su    = Su - 0.25 * Temp2 * SatRec.NEValues.X7thm1 * Sin2u;
-    Xnode = Omegap + 1.5 * Temp2 * Cosip * Sin2u;
-    Xinc  = Xincp + 1.5 * Temp2 * Cosip * Sinip * Cos2u;
-    MVt   = Rdotl - Nm * Temp1 * SatRec.NEValues.X1mth2 * Sin2u / XKE;
-    Rvdot = Rvdotl + Nm * Temp1 * (SatRec.NEValues.X1mth2 * Cos2u + 
-            1.5 * SatRec.NEValues.CON41) / XKE;
+     if ((omeosq >= 0.0 ) || ( satrec.no >= 0.0))
+       {
+         satrec.isimp = 0;
+         if (rp < (220.0 / radiusearthkm + 1.0))
+             satrec.isimp = 1;
+         sfour  = ss;
+         qzms24 = qzms2t;
+         perige = (rp - 1.0) * radiusearthkm;
 
-    /* --------------------- ORIENTATION VECTORS ------------------- */
-    Sinsu =  sin(Su);
-    Cossu =  cos(Su);
-    Snod  =  sin(Xnode);
-    Cnod  =  cos(Xnode);
-    Sini  =  sin(Xinc);
-    Cosi  =  cos(Xinc);
-    Xmx   = -Snod * Cosi;
-    Xmy   =  Cnod * Cosi;
-    Ux    =  Xmx * Sinsu + Cnod * Cossu;
-    Uy    =  Xmy * Sinsu + Snod * Cossu;
-    Uz    =  Sini * Sinsu;
-    Vx    =  Xmx * Cossu - Cnod * Sinsu;
-    Vy    =  Xmy * Cossu - Snod * Sinsu;
-    Vz    =  Sini * Cossu;
+         /* - for perigees below 156 km, s and qoms2t are altered - */
+         if (perige < 156.0)
+           {
+             sfour = perige - 78.0;
+             if (perige < 98.0)
+                 sfour = 20.0;
+             qzms24 = pow(((120.0 - sfour) / radiusearthkm), 4.0);
+             sfour  = sfour / radiusearthkm + 1.0;
+           }
+         pinvsq = 1.0 / posq;
 
-    /* ------------------- POSITION AND VELOCITY ------------------- */
-    R.Set(MRt * Ux, 1);
-    R.Set(MRt * Uy, 2);
-    R.Set(MRt * Uz, 3);
-    V.Set(MVt * Ux * Rvdot * Vx, 1);
-    V.Set(MVt * Uy * Rvdot * Vy, 2);
-    V.Set(MVt * Uz * Rvdot * Vz, 3);
-  }
+         tsi  = 1.0 / (ao - sfour);
+         satrec.eta  = ao * satrec.ecco * tsi;
+         etasq = satrec.eta * satrec.eta;
+         eeta  = satrec.ecco * satrec.eta;
+         psisq = fabs(1.0 - etasq);
+         coef  = qzms24 * pow(tsi, 4.0);
+         coef1 = coef / pow(psisq, 3.5);
+         cc2   = coef1 * satrec.no * (ao * (1.0 + 1.5 * etasq + eeta *
+                        (4.0 + etasq)) + 0.375 * j2 * tsi / psisq * satrec.con41 *
+                        (8.0 + 3.0 * etasq * (8.0 + etasq)));
+         satrec.cc1   = satrec.bstar * cc2;
+         cc3   = 0.0;
+         if (satrec.ecco > 1.0e-4)
+             cc3 = -2.0 * coef * tsi * j3oj2 * satrec.no * sinio / satrec.ecco;
+         satrec.x1mth2 = 1.0 - cosio2;
+         satrec.cc4    = 2.0* satrec.no * coef1 * ao * omeosq *
+                           (satrec.eta * (2.0 + 0.5 * etasq) + satrec.ecco *
+                           (0.5 + 2.0 * etasq) - j2 * tsi / (ao * psisq) *
+                           (-3.0 * satrec.con41 * (1.0 - 2.0 * eeta + etasq *
+                           (1.5 - 0.5 * eeta)) + 0.75 * satrec.x1mth2 *
+                           (2.0 * etasq - eeta * (1.0 + etasq)) * cos(2.0 * satrec.argpo)));
+         satrec.cc5 = 2.0 * coef1 * ao * omeosq * (1.0 + 2.75 *
+                        (etasq + eeta) + eeta * etasq);
+         cosio4 = cosio2 * cosio2;
+         temp1  = 1.5 * j2 * pinvsq * satrec.no;
+         temp2  = 0.5 * temp1 * j2 * pinvsq;
+         temp3  = -0.46875 * j4 * pinvsq * pinvsq * satrec.no;
+         satrec.mdot     = satrec.no + 0.5 * temp1 * rteosq * satrec.con41 + 0.0625 *
+                            temp2 * rteosq * (13.0 - 78.0 * cosio2 + 137.0 * cosio4);
+         satrec.argpdot  = -0.5 * temp1 * con42 + 0.0625 * temp2 *
+                             (7.0 - 114.0 * cosio2 + 395.0 * cosio4) +
+                             temp3 * (3.0 - 36.0 * cosio2 + 49.0 * cosio4);
+         xhdot1            = -temp1 * cosio;
+         satrec.nodedot = xhdot1 + (0.5 * temp2 * (4.0 - 19.0 * cosio2) +
+                              2.0 * temp3 * (3.0 - 7.0 * cosio2)) * cosio;
+         xpidot            =  satrec.argpdot+ satrec.nodedot;
+         satrec.omgcof   = satrec.bstar * cc3 * cos(satrec.argpo);
+         satrec.xmcof    = 0.0;
+         if (satrec.ecco > 1.0e-4)
+             satrec.xmcof = -x2o3 * coef * satrec.bstar / eeta;
+         satrec.nodecf = 3.5 * omeosq * xhdot1 * satrec.cc1;
+         satrec.t2cof   = 1.5 * satrec.cc1;
+         // sgp4fix for divide by zero with xinco = 180 deg
+         if (fabs(cosio+1.0) > 1.5e-12)
+             satrec.xlcof = -0.25 * j3oj2 * sinio * (3.0 + 5.0 * cosio) / (1.0 + cosio);
+           else
+             satrec.xlcof = -0.25 * j3oj2 * sinio * (3.0 + 5.0 * cosio) / temp4;
+         satrec.aycof   = -0.5 * j3oj2 * sinio;
+         satrec.delmo   = pow((1.0 + satrec.eta * cos(satrec.mo)), 3);
+         satrec.sinmao  = sin(satrec.mo);
+         satrec.x7thm1  = 7.0 * cosio2 - 1.0;
 
-  if (Error > 0)
-    printf("*** Error: t:= %f *** code = %3d\n", SatRec.NEValues.T, Error);
+         /* --------------- deep space initialization ------------- */
+         if ((2*pi / satrec.no) >= 225.0)
+           {
+             satrec.method = 'd';
+             satrec.isimp  = 1;
+             tc    =  0.0;
+             inclm = satrec.inclo;
 
-  if (Help == 'Y')
-    if (SGP4File != NULL)
-    {
-      fprintf(SGP4File, "%84s\n", 
-                        "------------------After SGP4   :---------------");
-      fprintf(SGP4File, "    Inputs : \n");
-      fprintf(SGP4File, "%7s%13d%7s%13d%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "Isimp", SatRec.NEValues.Isimp, "Method", SatRec.NEValues.Method, 
-          "Aycof", SatRec.NEValues.Aycof, "BSTAR",  SatRec.BStar,
-          "CON41", SatRec.NEValues.CON41, "Cc1",    SatRec.NEValues.Cc1);
-      fprintf(SGP4File, 
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "Cc4", SatRec.NEValues.Cc4, "Cc5",   SatRec.NEValues.Cc5,
-          "D2",  SatRec.NEValues.D2,  "D3",    SatRec.NEValues.D3,
-          "D4",  SatRec.NEValues.D4,  "Delmo", SatRec.NEValues.Delmo);
-      fprintf(SGP4File, 
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "Ecco",   SatRec.Ecco,            "Eta",     SatRec.NEValues.Eta,
-          "Argpo",  SatRec.Argpo,           "ArgpDot", SatRec.NEValues.ArgpDot,
-          "Omgcof", SatRec.NEValues.Omgcof, "Sinmao",  SatRec.NEValues.Sinmao);
-      fprintf(SGP4File, 
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "T",     SatRec.NEValues.T,     "T2cof",  SatRec.NEValues.T2cof,
-          "T3cof", SatRec.NEValues.T3cof, "T4cof",  SatRec.NEValues.T4cof,
-          "T5cof", SatRec.NEValues.T5cof, "X1mth2", SatRec.NEValues.X1mth2);
-      fprintf(SGP4File, 
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "X7thm1", SatRec.NEValues.X7thm1, "Inclo",  SatRec.Inclo,
-          "Mo",     SatRec.Mo,              "MDot",   SatRec.NEValues.MDot,
-          "XNO",    SatRec.No,              "Omegao", SatRec.Omegao);
-      fprintf(SGP4File, "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "OmegaDot", SatRec.NEValues.OmegaDot, "Xlcof", SatRec.NEValues.Xlcof,
-          "Xmcof",    SatRec.NEValues.Xmcof,    
-          "OmegaCF",  SatRec.NEValues.OmegaCF);
-      fprintf(SGP4File, "    Outputs : \n");
-      fprintf(SGP4File, 
-          "%7s%13d%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "Error", Error, "X", R.Get(1), "Y", R.Get(2), "Z", R.Get(3),
-          "XDOT", V.Get(1), "YDOT", V.Get(2), "ZDOT", V.Get(3));
-      fprintf(SGP4File, "    Extra Inputs for DS : \n");
-      fprintf(SGP4File, "%7s%13d%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "IRez",  SatRec.DSValues.IRez,  "D2201", SatRec.DSValues.D2201,
-          "D2211", SatRec.DSValues.D2211, "D3210", SatRec.DSValues.D3210,
-          "D3222", SatRec.DSValues.D3222);
-      fprintf(SGP4File, 
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "D4410", SatRec.DSValues.D4410, "D4422", SatRec.DSValues.D4422,
-          "D5220", SatRec.DSValues.D5220, "D5232", SatRec.DSValues.D5232,
-          "D5421", SatRec.DSValues.D5421, "D5433", SatRec.DSValues.D5433);
-      fprintf(SGP4File, 
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "Dedt", SatRec.DSValues.Dedt, "Del1", SatRec.DSValues.Del1,
-          "Del2", SatRec.DSValues.Del2, "Del3", SatRec.DSValues.Del3,
-          "Didt", SatRec.DSValues.Didt, "Dmdt", SatRec.DSValues.Dmdt);
-      fprintf(SGP4File, 
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "Dnodt", SatRec.DSValues.Dnodt, "Domdt", SatRec.DSValues.Domdt,
-          "E3",    SatRec.DSValues.E3,    "Ee2",   SatRec.DSValues.Ee2,
-          "Peo",   SatRec.DSValues.Peo,   "Pgho",  SatRec.DSValues.Pgho);
-      fprintf(SGP4File, 
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "Pho", SatRec.DSValues.Pho, "Pinco", SatRec.DSValues.Pinco,
-          "Plo", SatRec.DSValues.Plo, "Se2",   SatRec.DSValues.Se2,
-          "Se3", SatRec.DSValues.Se3, "Sgh2",  SatRec.DSValues.Sgh2);
-      fprintf(SGP4File, 
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "Sgh3", SatRec.DSValues.Sgh3, "Sgh4", SatRec.DSValues.Sgh4,
-          "Sh2",  SatRec.DSValues.Sh2,  "Sh3",  SatRec.DSValues.Sh3,
-          "Si2",  SatRec.DSValues.Si2,  "Si3",  SatRec.DSValues.Si3);
-      fprintf(SGP4File, 
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "Sl2",   SatRec.DSValues.Sl2,   "Sl3",  SatRec.DSValues.Sl3,
-          "Sl4",   SatRec.DSValues.Sl4,   "GSTo", SatRec.DSValues.GSTo,
-          "Xfact", SatRec.DSValues.Xfact, "Xgh2", SatRec.DSValues.Xgh2);
-      fprintf(SGP4File, 
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "Xgh3", SatRec.DSValues.Xgh3, "Xgh4", SatRec.DSValues.Xgh4,
-          "Xh2",  SatRec.DSValues.Xh2,  "Xh3",  SatRec.DSValues.Xh3,
-          "Xi2",  SatRec.DSValues.Xi2, "Xi3",   SatRec.DSValues.Xi3);
-      fprintf(SGP4File, 
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "Xl2",  SatRec.DSValues.Xl2,  "Xl3",   SatRec.DSValues.Xl3,
-          "Xl4",  SatRec.DSValues.Xl4,  "Xlamo", SatRec.DSValues.Xlamo,
-          "Zmol", SatRec.DSValues.Zmol, "Zmos",  SatRec.DSValues.Zmos);
-      fprintf(SGP4File, "%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "Atime", SatRec.DSValues.Atime, "Xli", SatRec.DSValues.Xli,
-          "Xni",   SatRec.DSValues.Xni);
-    }
-}
+             dscom
+                 (
+                   epoch, satrec.ecco, satrec.argpo, tc, satrec.inclo, satrec.nodeo,
+                   satrec.no, snodm, cnodm,  sinim, cosim,sinomm,     cosomm,
+                   day, satrec.e3, satrec.ee2, em,         emsq, gam,
+                   satrec.peo,  satrec.pgho,   satrec.pho, satrec.pinco,
+                   satrec.plo,  rtemsq,        satrec.se2, satrec.se3,
+                   satrec.sgh2, satrec.sgh3,   satrec.sgh4,
+                   satrec.sh2,  satrec.sh3,    satrec.si2, satrec.si3,
+                   satrec.sl2,  satrec.sl3,    satrec.sl4, s1, s2, s3, s4, s5,
+                   s6,   s7,   ss1,  ss2,  ss3,  ss4,  ss5,  ss6,  ss7, sz1, sz2, sz3,
+                   sz11, sz12, sz13, sz21, sz22, sz23, sz31, sz32, sz33,
+                   satrec.xgh2, satrec.xgh3,   satrec.xgh4, satrec.xh2,
+                   satrec.xh3,  satrec.xi2,    satrec.xi3,  satrec.xl2,
+                   satrec.xl3,  satrec.xl4,    nm, z1, z2, z3, z11,
+                   z12, z13, z21, z22, z23, z31, z32, z33,
+                   satrec.zmol, satrec.zmos
+                 );
+             dpper
+                 (
+                   satrec.e3, satrec.ee2, satrec.peo, satrec.pgho,
+                   satrec.pho, satrec.pinco, satrec.plo, satrec.se2,
+                   satrec.se3, satrec.sgh2, satrec.sgh3, satrec.sgh4,
+                   satrec.sh2, satrec.sh3, satrec.si2,  satrec.si3,
+                   satrec.sl2, satrec.sl3, satrec.sl4,  satrec.t,
+                   satrec.xgh2,satrec.xgh3,satrec.xgh4, satrec.xh2,
+                   satrec.xh3, satrec.xi2, satrec.xi3,  satrec.xl2,
+                   satrec.xl3, satrec.xl4, satrec.zmol, satrec.zmos, inclm, satrec.init,
+                   satrec.ecco, satrec.inclo, satrec.nodeo, satrec.argpo, satrec.mo,
+                   satrec.operationmode
+                 );
+
+             argpm  = 0.0;
+             nodem  = 0.0;
+             mm     = 0.0;
+
+             dsinit
+                 (
+                   whichconst,
+                   cosim, emsq, satrec.argpo, s1, s2, s3, s4, s5, sinim, ss1, ss2, ss3, ss4,
+                   ss5, sz1, sz3, sz11, sz13, sz21, sz23, sz31, sz33, satrec.t, tc,
+                   satrec.gsto, satrec.mo, satrec.mdot, satrec.no, satrec.nodeo,
+                   satrec.nodedot, xpidot, z1, z3, z11, z13, z21, z23, z31, z33,
+                   satrec.ecco, eccsq, em, argpm, inclm, mm, nm, nodem,
+                   satrec.irez,  satrec.atime,
+                   satrec.d2201, satrec.d2211, satrec.d3210, satrec.d3222 ,
+                   satrec.d4410, satrec.d4422, satrec.d5220, satrec.d5232,
+                   satrec.d5421, satrec.d5433, satrec.dedt,  satrec.didt,
+                   satrec.dmdt,  dndt,         satrec.dnodt, satrec.domdt ,
+                   satrec.del1,  satrec.del2,  satrec.del3,  satrec.xfact,
+                   satrec.xlamo, satrec.xli,   satrec.xni
+                 );
+           }
+
+       /* ----------- set variables if not deep space ----------- */
+       if (satrec.isimp != 1)
+         {
+           cc1sq          = satrec.cc1 * satrec.cc1;
+           satrec.d2    = 4.0 * ao * tsi * cc1sq;
+           temp           = satrec.d2 * tsi * satrec.cc1 / 3.0;
+           satrec.d3    = (17.0 * ao + sfour) * temp;
+           satrec.d4    = 0.5 * temp * ao * tsi * (221.0 * ao + 31.0 * sfour) *
+                            satrec.cc1;
+           satrec.t3cof = satrec.d2 + 2.0 * cc1sq;
+           satrec.t4cof = 0.25 * (3.0 * satrec.d3 + satrec.cc1 *
+                            (12.0 * satrec.d2 + 10.0 * cc1sq));
+           satrec.t5cof = 0.2 * (3.0 * satrec.d4 +
+                            12.0 * satrec.cc1 * satrec.d3 +
+                            6.0 * satrec.d2 * satrec.d2 +
+                            15.0 * cc1sq * (2.0 * satrec.d2 + cc1sq));
+         }
+       } // if omeosq = 0 ...
+
+       /* finally propogate to zero epoch to initialize all others. */
+       // sgp4fix take out check to let satellites process until they are actually below earth surface
+//       if(satrec.error == 0)
+       sgp4(whichconst, satrec, 0.0, r, v);
+
+       satrec.init = 'n';
+
+//#include "debug6.cpp"
+       //sgp4fix return boolean. satrec.error contains any error codes
+       return true;
+}  // end sgp4init
 
 /*-----------------------------------------------------------------------------
 *
-*                             PROCEDURE SGP4INIT
+*                             procedure sgp4
 *
-*  This PROCEDURE initializes variables for SGP4. The fix to conform to
-*    Ver 3.01 consisted only of adding a VAR so the 'o elements would be
-*    passed back for deep space initialization cases.
+*  this procedure is the sgp4 prediction model from space command. this is an
+*    updated and combined version of sgp4 and sdp4, which were originally
+*    published separately in spacetrack report #3. this version follows the
+*    methodology from the aiaa paper (2006) describing the history and
+*    development of the code.
 *
-*  Author        : David Vallado                  303-344-6037    1 Mar 2001
+*  author        : david vallado                  719-573-2600   28 jun 2005
 *
-*  Inputs        :
-*    Satn        - Satellite Number
-*    Year        - Year of observation                    1950-2049
-*    BSTAR       - SGP4 type drag Coefficient              kg/m2ER
-*    Ecco        - Eccentricity
-*    Epoch       - EPoch time in days from Jan 0, 1950. 0 hr
-*    Argpo       - Argument of perigee (output IF ds)
-*    Inclo       - Inclination
-*    Mo          - Mean Anomaly (output IF ds)
-*    No          - Mean motion
-*    Omegao      - Longitude of ascending node
+*  inputs        :
+*    satrec	 - initialised structure from sgp4init() call.
+*    tsince	 - time eince epoch (minutes)
 *
-*  Outputs       :
-*    No          - Mean motion
-*    Omegao      - Longitude of ascending node
-*    Init        - Flag for first pass 1-yes, 0-not first pass
-*    NeValues    - Near Earth common values for subsequent calls
-*    DsValues    - Deep Space common values for calls
+*  outputs       :
+*    r           - position vector                     km
+*    v           - velocity                            km/sec
+*  return code - non-zero on error.
+*                   1 - mean elements, ecc >= 1.0 or ecc < -0.001 or a < 0.95 er
+*                   2 - mean motion less than 0.0
+*                   3 - pert elements, ecc < 0.0  or  ecc > 1.0
+*                   4 - semi-latus rectum < 0.0
+*                   5 - epoch elements are sub-orbital
+*                   6 - satellite has decayed
 *
-*  Locals        :
-*    CNODM       -
-*    SNODM       -
-*    COSIM       -
-*    SINIM       -
-*    COSOMM      -
-*    SINOMM      -
-*    Cc1sq       -
-*    Cc2         -
-*    Cc3         -
-*    Coef        -
-*    Coef1       -
-*    Cosio4      -
-*    DAY         -
-*    Dndt        -
-*    EM          -
-*    EMSQ        -
-*    Eeta        -
-*    Etasq       -
-*    GAM         -
-*    Argpm       -
-*    Ndem        -
-*    Inclm       - Inclination
-*    Mm          - Mean Anomaly
-*    Nm          - Mean Motion
-*    Perige      -
-*    Pinvsq      -
-*    Psisq       -
-*    Qzms24      -
-*    RTEMSQ      -
-*    S1, S2, S3, S4, S5, S6, S7          -
-*    SFour       -
-*    SS1, SS2, SS3, SS4, SS5, SS6, SS7         -
-*    SZ1, SZ2, SZ3
-*    SZ11, SZ12, SZ13, SZ21, SZ22, SZ23, SZ31, SZ32, SZ33        -
-*    Tc          -
-*    Temp        -
-*    Temp1, Temp2, Temp3       -
-*    Tsi         -
-*    XPIDOT      -
-*    Xhdot1      -
-*    Z1, Z2, Z3          -
-*    Z11, Z12, Z13, Z21, Z22, Z23, Z31, Z32, Z33         -
+*  locals        :
+*    am          -
+*    axnl, aynl        -
+*    betal       -
+*    cosim   , sinim   , cosomm  , sinomm  , cnod    , snod    , cos2u   ,
+*    sin2u   , coseo1  , sineo1  , cosi    , sini    , cosip   , sinip   ,
+*    cosisq  , cossu   , sinsu   , cosu    , sinu
+*    delm        -
+*    delomg      -
+*    dndt        -
+*    eccm        -
+*    emsq        -
+*    ecose       -
+*    el2         -
+*    eo1         -
+*    eccp        -
+*    esine       -
+*    argpm       -
+*    argpp       -
+*    omgadf      -
+*    pl          -
+*    r           -
+*    rtemsq      -
+*    rdotl       -
+*    rl          -
+*    rvdot       -
+*    rvdotl      -
+*    su          -
+*    t2  , t3   , t4    , tc
+*    tem5, temp , temp1 , temp2  , tempa  , tempe  , templ
+*    u   , ux   , uy    , uz     , vx     , vy     , vz
+*    inclm       - inclination
+*    mm          - mean anomaly
+*    nm          - mean motion
+*    nodem       - right asc of ascending node
+*    xinc        -
+*    xincp       -
+*    xl          -
+*    xlm         -
+*    mp          -
+*    xmdf        -
+*    xmx         -
+*    xmy         -
+*    nodedf      -
+*    xnode       -
+*    nodep       -
+*    np          -
 *
-*  Coupling      :
-*    INITL       -
-*    DSCom       -
-*    DPPER       -
-*    DSINIT      -
+*  coupling      :
+*    getgravconst-
+*    dpper
+*    dpspace
 *
-*  References    :
-*    NORAD SpaceTrack Report No.3 "Models For Propagation of Norad Element Sets"
-*              1 NOV 1980:  Felix R. Hoots, Ronald L. Roehrich
-*
+*  references    :
+*    hoots, roehrich, norad spacetrack report #3 1980
+*    hoots, norad spacetrack report #6 1986
+*    hoots, schumacher and glover 2004
+*    vallado, crawford, hujsak, kelso  2006
   ----------------------------------------------------------------------------*/
-void SGP4Init
-    (
-      LINT Satn, SINT Year, Real Epoch, Real& BStar, Real& Ecco, Real& Argpo,
-      Real& Inclo, Real& Mo, Real& No, Real& Omegao,
-      SINT& Init, NearEarthType& NEValues, DeepSpaceType& DSValues
-    )
+
+bool sgp4
+     (
+       gravconsttype whichconst, elsetrec& satrec,  double tsince,
+       double r[3],  double v[3]
+     )
 {
-  /* --------------------- Local Variables ------------------------ */
-  Real AO, AINV, EINV, CON42, COSIO, SINIO, COSIO2, EccSQ, 
-       OMEOSQ, POSQ,   rp,     RTEOSQ,
-       CNODM , SNODM , COSIM , SINIM , COSOMM, SINOMM, Cc1sq ,
-       Cc2   , Cc3   , Coef  , Coef1 , COSIO4, DAY   , Dndt  ,
-       EM    , EMSQ  , Eeta  , EtaSQ , GAM   , Argpm , Omegam,
-       Inclm , Mm    , Nm    , Perige, PinvSQ, PsiSQ , Qzms24,
-       RTEMSQ, S1    , S2    , S3    , S4    , S5    , S6    ,
-       S7    , SFour , SS1   , SS2   , SS3   , SS4   , SS5   ,
-       SS6   , SS7   , SZ1   , SZ2   , SZ3   , SZ11  , SZ12  ,
-       SZ13  , SZ21  , SZ22  , SZ23  , SZ31  , SZ32  , SZ33  ,
-       Tc    , Temp  , Temp1 , Temp2 , Temp3 , TSI   , XPIDOT,
-       Xhdot1, Z1    , Z2    , Z3    , Z11   , Z12   , Z13   ,
-       Z21   , Z22   , Z23   , Z31   , Z32   , Z33,
-       Qzms2t, SS, RadiusEarthKm, twopi, J2,J3oJ2,J4,X2o3;
+     double am   , axnl  , aynl , betal ,  cosim , cnod  ,
+         cos2u, coseo1, cosi , cosip ,  cosisq, cossu , cosu,
+         delm , delomg, em   , emsq  ,  ecose , el2   , eo1 ,
+         ep   , esine , argpm, argpp ,  argpdf, pl,     mrt = 0.0,
+         mvt  , rdotl , rl   , rvdot ,  rvdotl, sinim ,
+         sin2u, sineo1, sini , sinip ,  sinsu , sinu  ,
+         snod , su    , t2   , t3    ,  t4    , tem5  , temp,
+         temp1, temp2 , tempa, tempe ,  templ , u     , ux  ,
+         uy   , uz    , vx   , vy    ,  vz    , inclm , mm  ,
+         nm   , nodem, xinc , xincp ,  xl    , xlm   , mp  ,
+         xmdf , xmx   , xmy  , nodedf, xnode , nodep, tc  , dndt,
+         twopi, x2o3  , j2   , j3    , tumin, j4 , xke   , j3oj2, radiusearthkm,
+         mu, vkmpersec;
+     int ktr;
 
-  /* ------------------------ INITIALIZATION --------------------- */
-  /* ----------- set all Near Earth variables to zero ------------ */
-  NEValues.Isimp   = 0;   NEValues.Method = 0;   NEValues.Aycof    = 0.0; 
-  NEValues.CON41   = 0.0; NEValues.Cc1    = 0.0; NEValues.Cc4      = 0.0; 
-  NEValues.Cc5     = 0.0; NEValues.D2     = 0.0; NEValues.D3       = 0.0; 
-  NEValues.D4      = 0.0; NEValues.Delmo  = 0.0; NEValues.Eta      = 0.0; 
-  NEValues.ArgpDot = 0.0; NEValues.Omgcof = 0.0; NEValues.Sinmao   = 0.0;
-  NEValues.T       = 0.0; NEValues.T2cof  = 0.0; NEValues.T3cof    = 0.0; 
-  NEValues.T4cof   = 0.0; NEValues.T5cof  = 0.0; NEValues.X1mth2   = 0.0; 
-  NEValues.X7thm1  = 0.0; NEValues.MDot   = 0.0; NEValues.OmegaDot = 0.0; 
-  NEValues.Xlcof   = 0.0; NEValues.Xmcof  = 0.0; NEValues.OmegaCF  = 0.0;
+     /* ------------------ set mathematical constants --------------- */
+     // sgp4fix divisor for divide by zero check on inclination
+     // the old check used 1.0 + cos(pi-1.0e-9), but then compared it to
+     // 1.5 e-12, so the threshold was changed to 1.5e-12 for consistency
+     const double temp4 =   1.5e-12;
+     twopi = 2.0 * pi;
+     x2o3  = 2.0 / 3.0;
+     // sgp4fix identify constants and allow alternate values
+     getgravconst( whichconst, tumin, mu, radiusearthkm, xke, j2, j3, j4, j3oj2 );
+     vkmpersec     = radiusearthkm * xke/60.0;
 
-  /* ----------- set all Deep Space variables to zero ------------ */
-  DSValues.IRez  = 0;   DSValues.D2201 = 0.0; DSValues.D2211 = 0.0; 
-  DSValues.D3210 = 0.0; DSValues.D3222 = 0.0; DSValues.D4410 = 0.0; 
-  DSValues.D4422 = 0.0; DSValues.D5220 = 0.0; DSValues.D5232 = 0.0; 
-  DSValues.D5421 = 0.0; DSValues.D5433 = 0.0; DSValues.Dedt  = 0.0; 
-  DSValues.Del1  = 0.0; DSValues.Del2  = 0.0; DSValues.Del3  = 0.0;
-  DSValues.Didt  = 0.0; DSValues.Dmdt  = 0.0; DSValues.Dnodt = 0.0; 
-  DSValues.Domdt = 0.0; DSValues.E3    = 0.0; DSValues.Ee2   = 0.0; 
-  DSValues.Peo   = 0.0; DSValues.Pgho  = 0.0; DSValues.Pho   = 0.0; 
-  DSValues.Pinco = 0.0; DSValues.Plo   = 0.0; DSValues.Se2   = 0.0; 
-  DSValues.Se3   = 0.0; DSValues.Sgh2  = 0.0; DSValues.Sgh3  = 0.0;
-  DSValues.Sgh4  = 0.0; DSValues.Sh2   = 0.0; DSValues.Sh3   = 0.0; 
-  DSValues.Si2   = 0.0; DSValues.Si3   = 0.0; DSValues.Sl2   = 0.0; 
-  DSValues.Sl3   = 0.0; DSValues.Sl4   = 0.0; DSValues.GSTo  = 0.0; 
-  DSValues.Xfact = 0.0; DSValues.Xgh2  = 0.0; DSValues.Xgh3  = 0.0; 
-  DSValues.Xgh4  = 0.0; DSValues.Xh2   = 0.0; DSValues.Xh3   = 0.0;
-  DSValues.Xi2   = 0.0; DSValues.Xi3   = 0.0; DSValues.Xl2   = 0.0; 
-  DSValues.Xl3   = 0.0; DSValues.Xl4   = 0.0; DSValues.Xlamo = 0.0; 
-  DSValues.Zmol  = 0.0; DSValues.Zmos  = 0.0; DSValues.Atime = 0.0; 
-  DSValues.Xli   = 0.0; DSValues.Xni   = 0.0;
+     /* --------------------- clear sgp4 error flag ----------------- */
+     satrec.t     = tsince;
+     satrec.error = 0;
 
-  RadiusEarthKm = 6378.135;
-  SS     = 78.0 / RadiusEarthKm + 1.0;
-  Qzms24 = Power(((120.0 - 78.0) / RadiusEarthKm), 4);
-  J2     =  1.082616E-3;
-  J3oJ2  = -2.53881E-6 / J2;
-  X2o3   =  2.0 / 3.0;
-  J4     = -1.65597E-6;
+     /* ------- update for secular gravity and atmospheric drag ----- */
+     xmdf    = satrec.mo + satrec.mdot * satrec.t;
+     argpdf  = satrec.argpo + satrec.argpdot * satrec.t;
+     nodedf  = satrec.nodeo + satrec.nodedot * satrec.t;
+     argpm   = argpdf;
+     mm      = xmdf;
+     t2      = satrec.t * satrec.t;
+     nodem   = nodedf + satrec.nodecf * t2;
+     tempa   = 1.0 - satrec.cc1 * satrec.t;
+     tempe   = satrec.bstar * satrec.cc4 * satrec.t;
+     templ   = satrec.t2cof * t2;
 
-  InitL
-      (
-        Satn, Ecco, Epoch, Inclo, No, NEValues.Method, AINV, AO, 
-        NEValues.CON41, CON42, COSIO, COSIO2, EINV, EccSQ, OMEOSQ, 
-        POSQ, rp, RTEOSQ, SINIO, DSValues.GSTo
-      );
+     if (satrec.isimp != 1)
+       {
+         delomg = satrec.omgcof * satrec.t;
+         delm   = satrec.xmcof *
+                  (pow((1.0 + satrec.eta * cos(xmdf)), 3) -
+                  satrec.delmo);
+         temp   = delomg + delm;
+         mm     = xmdf + temp;
+         argpm  = argpdf - temp;
+         t3     = t2 * satrec.t;
+         t4     = t3 * satrec.t;
+         tempa  = tempa - satrec.d2 * t2 - satrec.d3 * t3 -
+                          satrec.d4 * t4;
+         tempe  = tempe + satrec.bstar * satrec.cc5 * (sin(mm) -
+                          satrec.sinmao);
+         templ  = templ + satrec.t3cof * t3 + t4 * (satrec.t4cof +
+                          satrec.t * satrec.t5cof);
+       }
 
-  if ((OMEOSQ >= 0.0 ) || ( No >= 0.0))
-  {
-    NEValues.Isimp = 0;
-    if (rp < (220.0 / RadiusEarthKm + 1.0))
-      NEValues.Isimp = 1;
-    SFour  = SS;
-    Qzms24 = Qzms2t;
-    Perige = (rp - 1.0) * RadiusEarthKm;
-    
-    /* - For perigees below 156 km, S and Qoms2t are altered - */
-    if (Perige < 156.0)
-    {
-      SFour = Perige - 78.0;
-      if (Perige < 98.0)
-        SFour = 20.0;
-      Qzms24 = Power(((120.0 - SFour) / RadiusEarthKm), 4.0);
-      SFour  = SFour / RadiusEarthKm + 1.0;
-    }
-    PinvSQ = 1.0 / POSQ;
-    
-    TSI  = 1.0 / (AO - SFour);
-    NEValues.Eta  = AO * Ecco * TSI;
-    EtaSQ = NEValues.Eta * NEValues.Eta;
-    Eeta  = Ecco * NEValues.Eta;
-    PsiSQ = fabs(1.0 - EtaSQ);
-    Coef  = Qzms24 * Power(TSI, 4.0);
-    Coef1 = Coef / Power(PsiSQ, 3.5);
-    Cc2   = Coef1 * No * (AO * (1.0 + 1.5 * EtaSQ + Eeta * 
-                   (4.0 + EtaSQ)) + 0.375 * J2 * TSI / PsiSQ * NEValues.CON41 * 
-                   (8.0 + 3.0 * EtaSQ * (8.0 + EtaSQ)));
-    NEValues.Cc1   = BStar * Cc2;
-    Cc3   = 0.0;
-    if (Ecco > 1.0E-4)
-      Cc3 = -2.0 * Coef * TSI * J3oJ2 * No * SINIO / Ecco;
-    NEValues.X1mth2 = 1.0 - COSIO2;
-    NEValues.Cc4    = 2.0* No * Coef1 * AO * OMEOSQ * 
-                      (NEValues.Eta * (2.0 + 0.5 * EtaSQ) + Ecco * 
-                      (0.5 + 2.0 * EtaSQ) - J2 * TSI / (AO * PsiSQ) * 
-                      (-3.0 * NEValues.CON41 * (1.0 - 2.0 * Eeta + EtaSQ * 
-                      (1.5 - 0.5 * Eeta)) + 0.75 * NEValues.X1mth2 * 
-                      (2.0 * EtaSQ - Eeta * (1.0 + EtaSQ)) * cos(2.0 * Argpo)));
-    NEValues.Cc5 = 2.0 * Coef1 * AO * OMEOSQ * (1.0 + 2.75 *
-                   (EtaSQ + Eeta) + Eeta * EtaSQ);
-    COSIO4 = COSIO2 * COSIO2;
-    Temp1  = 1.5 * J2 * PinvSQ * No;
-    Temp2  = 0.5 * Temp1 * J2 * PinvSQ;
-    Temp3  = -0.46875 * J4 * PinvSQ * PinvSQ * No;
-    NEValues.MDot     = No + 0.5 * Temp1 * RTEOSQ * NEValues.CON41 + 0.0625 * 
-                       Temp2 * RTEOSQ * (13.0 - 78.0 * COSIO2 + 137.0 * COSIO4);
-    NEValues.ArgpDot  = -0.5 * Temp1 * CON42 + 0.0625 * Temp2 * 
-                        (7.0 - 114.0 * COSIO2 + 395.0 * COSIO4) + 
-                        Temp3 * (3.0 - 36.0 * COSIO2 + 49.0 * COSIO4);
-    Xhdot1            = -Temp1 * COSIO;
-    NEValues.OmegaDot = Xhdot1 + (0.5 * Temp2 * (4.0 - 19.0 * COSIO2) +
-                         2.0 * Temp3 * (3.0 - 7.0 * COSIO2)) * COSIO;
-    XPIDOT            =  NEValues.ArgpDot+ NEValues.OmegaDot;
-    NEValues.Omgcof   = BStar * Cc3 * cos(Argpo);
-    NEValues.Xmcof    = 0.0;
-    if (Ecco > 1.0E-4)
-      NEValues.Xmcof = -X2o3 * Coef * BStar / Eeta;
-    NEValues.OmegaCF = 3.5 * OMEOSQ * Xhdot1 * NEValues.Cc1;
-    NEValues.T2cof   = 1.5 * NEValues.Cc1;
-    NEValues.Xlcof   = -0.25 * J3oJ2 * SINIO * 
-                       (3.0 + 5.0 * COSIO) / (1.0 + COSIO);
-    NEValues.Aycof   = -0.5 * J3oJ2 * SINIO;
-    NEValues.Delmo   = Power((1.0 + NEValues.Eta * cos(Mo)), 3);
-    NEValues.Sinmao  = sin(Mo);
-    NEValues.X7thm1  = 7.0 * COSIO2 - 1.0;
+     nm    = satrec.no;
+     em    = satrec.ecco;
+     inclm = satrec.inclo;
+     if (satrec.method == 'd')
+       {
+         tc = satrec.t;
+         dspace
+             (
+               satrec.irez,
+               satrec.d2201, satrec.d2211, satrec.d3210,
+               satrec.d3222, satrec.d4410, satrec.d4422,
+               satrec.d5220, satrec.d5232, satrec.d5421,
+               satrec.d5433, satrec.dedt,  satrec.del1,
+               satrec.del2,  satrec.del3,  satrec.didt,
+               satrec.dmdt,  satrec.dnodt, satrec.domdt,
+               satrec.argpo, satrec.argpdot, satrec.t, tc,
+               satrec.gsto, satrec.xfact, satrec.xlamo,
+               satrec.no, satrec.atime,
+               em, argpm, inclm, satrec.xli, mm, satrec.xni,
+               nodem, dndt, nm
+             );
+       } // if method = d
 
-    Init = 0;
+     if (nm <= 0.0)
+       {
+//         printf("# error nm %f\n", nm);
+         satrec.error = 2;
+         // sgp4fix add return
+         return false;
+       }
+     am = pow((xke / nm),x2o3) * tempa * tempa;
+     nm = xke / pow(am, 1.5);
+     em = em - tempe;
 
-    /* --------------- Deep Space Initialization ------------- */
-    if ((TwoPi / No) >= 225.0)
-    {
-      NEValues.Method = 2;
-      NEValues.Isimp  = 1;
-      Tc    =  0.0;
-      Inclm = Inclo;
+     // fix tolerance for error recognition
+     // sgp4fix am is fixed from the previous nm check
+     if ((em >= 1.0) || (em < -0.001)/* || (am < 0.95)*/ )
+       {
+//         printf("# error em %f\n", em);
+         satrec.error = 1;
+         // sgp4fix to return if there is an error in eccentricity
+         return false;
+       }
+     // sgp4fix fix tolerance to avoid a divide by zero
+     if (em < 1.0e-6)
+         em  = 1.0e-6;
+     mm     = mm + satrec.no * templ;
+     xlm    = mm + argpm + nodem;
+     emsq   = em * em;
+     temp   = 1.0 - emsq;
 
-      DSCom
-          (
-            Epoch, Ecco,   Argpo, Tc,       Inclo,        Omegao, No,
-            SNODM, CNODM,  SINIM, COSIM,    SINOMM,       COSOMM,
-            DAY, DSValues.E3, DSValues.Ee2, EM,           EMSQ, GAM,
-            DSValues.Peo,  DSValues.Pgho,   DSValues.Pho, DSValues.Pinco, 
-            DSValues.Plo,  RTEMSQ,          DSValues.Se2, DSValues.Se3,
-            DSValues.Sgh2, DSValues.Sgh3,   DSValues.Sgh4,
-            DSValues.Sh2,  DSValues.Sh3,    DSValues.Si2, DSValues.Si3, 
-            DSValues.Sl2,  DSValues.Sl3,    DSValues.Sl4, S1, S2, S3, S4, S5,
-            S6,   S7,   SS1,  SS2,  SS3,  SS4,  SS5,  SS6,  SS7, SZ1, SZ2, SZ3,
-            SZ11, SZ12, SZ13, SZ21, SZ22, SZ23, SZ31, SZ32, SZ33, 
-            DSValues.Xgh2, DSValues.Xgh3,   DSValues.Xgh4, DSValues.Xh2, 
-            DSValues.Xh3,  DSValues.Xi2,    DSValues.Xi3,  DSValues.Xl2, 
-            DSValues.Xl3,  DSValues.Xl4,    Nm, Z1, Z2, Z3, Z11,
-            Z12, Z13, Z21, Z22, Z23, Z31, Z32, Z33, 
-            DSValues.Zmol, DSValues.Zmos
-          );
-      DPPer
-          (
-            DSValues.E3, DSValues.Ee2, DSValues.Peo, DSValues.Pgho, 
-            DSValues.Pho, DSValues.Pinco, DSValues.Plo, DSValues.Se2, 
-            DSValues.Se3, DSValues.Sgh2, DSValues.Sgh3, DSValues.Sgh4,
-            DSValues.Sh2, DSValues.Sh3, DSValues.Si2, DSValues.Si3, 
-            DSValues.Sl2, DSValues.Sl3, DSValues.Sl4, NEValues.T, 
-            DSValues.Xgh2, DSValues.Xgh3, DSValues.Xgh4, DSValues.Xh2,
-            DSValues.Xh3, DSValues.Xi2, DSValues.Xi3, DSValues.Xl2, 
-            DSValues.Xl3, DSValues.Xl4, DSValues.Zmol, DSValues.Zmos, 1,
-            Ecco, Inclo, Omegao, Argpo, Mo
-          );
-      DSInit
-          (
-            COSIM, EMSQ, Argpo, S1, S2, S3, S4, S5, SINIM, SS1, SS2, SS3, SS4,
-            SS5, SZ1, SZ3, SZ11, SZ13, SZ21, SZ23, SZ31, SZ33, NEValues.T, Tc,
-            DSValues.GSTo, Mo, NEValues.MDot, No, Omegao, NEValues.OmegaDot,
-            XPIDOT, Z1, Z3, Z11, Z13, Z21, Z23, Z31, Z33,
-            Ecco, EccSQ, EM, Argpm, Inclm, Mm, Nm, Omegam,
-            DSValues.IRez,  DSValues.Atime, 
-            DSValues.D2201, DSValues.D2211, DSValues.D3210, DSValues.D3222 ,
-            DSValues.D4410, DSValues.D4422, DSValues.D5220, DSValues.D5232, 
-            DSValues.D5421, DSValues.D5433, DSValues.Dedt,  DSValues.Didt,
-            DSValues.Dmdt,  Dndt,           DSValues.Dnodt, DSValues.Domdt ,
-            DSValues.Del1,  DSValues.Del2,  DSValues.Del3,  DSValues.Xfact, 
-            DSValues.Xlamo, DSValues.Xli,   DSValues.Xni
-          );
-    }
- 
-    /* ----------- Set variables IF not deep space ----------- */
-    if (NEValues.Isimp != 1)
-    {
-      Cc1sq          = NEValues.Cc1 * NEValues.Cc1;
-      NEValues.D2    = 4.0 * AO * TSI * Cc1sq;
-      Temp           = NEValues.D2 * TSI * NEValues.Cc1 / 3.0;
-      NEValues.D3    = (17.0 * AO + SFour) * Temp;
-      NEValues.D4    = 0.5 * Temp * AO * TSI * (221.0 * AO + 31.0 * SFour) * 
-                       NEValues.Cc1;
-      NEValues.T3cof = NEValues.D2 + 2.0 * Cc1sq;
-      NEValues.T4cof = 0.25 * (3.0 * NEValues.D3 + NEValues.Cc1 * 
-                       (12.0 * NEValues.D2 + 10.0 * Cc1sq));
-      NEValues.T5cof = 0.2 * (3.0 * NEValues.D4 + 
-                       12.0 * NEValues.Cc1 * NEValues.D3 + 
-                       6.0 * NEValues.D2 * NEValues.D2 + 
-                       15.0 * Cc1sq * (2.0 * NEValues.D2 + Cc1sq));
-    }
-  }
+     nodem  = fmod(nodem, twopi);
+     argpm  = fmod(argpm, twopi);
+     xlm    = fmod(xlm, twopi);
+     mm     = fmod(xlm - argpm - nodem, twopi);
 
-  if (Help == 'Y')
-    if (SGP4File != NULL)
-    {
-      fprintf(SGP4File, "%7s\n", 
-                        " ------------------After SGP4Init :-------------");
-      fprintf(SGP4File, "    Inputs  : \n");
-      fprintf(SGP4File,
-          "%7s%13d%7s%13d%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "Satn", Satn, "Yr", Year, "BStar", BStar, "Ecco", Ecco, 
-          "Epoch", Epoch, "Argpo", Argpo);
-      fprintf(SGP4File, "f%7s%13.7f%7s%13.7f\n", "Inclo", Inclo, "Mo", Mo);
-      fprintf(SGP4File, " In and Out variables \n");
-      fprintf(SGP4File, "f%7s%13.7f\n", "No", No);
-      fprintf(SGP4File, "    Outputs  :\n");
-      fprintf(SGP4File, "%7s%13d%7s%13d%7s%13d%7s%13.7f\n",
-          "INIT", Init, "Isimp", NEValues.Isimp, 
-          "Method", NEValues.Method, "Aycof", NEValues.Aycof);
-      fprintf(SGP4File, "%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "CON41", NEValues.CON41, "Cc1", NEValues.Cc1, "Cc4", NEValues.Cc4);
-      fprintf(SGP4File, "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "Cc5", NEValues.Cc5, "D2",    NEValues.D2, "D3", NEValues.D3,
-          "D4",  NEValues.D4,  "Delmo", NEValues.Delmo);
-      fprintf(SGP4File, "%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "Eta", NEValues.Eta, "ArgpDot", NEValues.ArgpDot,
-          "Omgcof", NEValues.Omgcof);
-      fprintf(SGP4File, "%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "Sinmao", NEValues.Sinmao, "T2cof", NEValues.T2cof,
-          "T3cof", NEValues.T3cof);
-      fprintf(SGP4File,
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "T4cof",  NEValues.T4cof,  "T5cof",  NEValues.T5cof, 
-          "GSTo",   DSValues.GSTo,   "X1mth2", NEValues.X1mth2, 
-          "X7thm1", NEValues.X7thm1, "Xlcof",  NEValues.Xlcof);
-      fprintf(SGP4File, "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "Xmcof",   NEValues.Xmcof,   "MDot",     NEValues.MDot, 
-          "OmegaCF", NEValues.OmegaCF, "OmegaDot", NEValues.OmegaDot);
-      fprintf(SGP4File, "   IN and Outputs from Deep space satellites :\n");
-      fprintf(SGP4File, "%7s%13.7f%7s%13.7f\n",
-          "T", NEValues.T, "Omegao", Omegao);
-      fprintf(SGP4File, "%7s%13d%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "Irez",  DSValues.IRez,  "Atime", DSValues.Atime, 
-          "D2201", DSValues.D2201, "D2211", DSValues.D2211, 
-          "D3210", DSValues.D3210);
-      fprintf(SGP4File, 
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "D3222", DSValues.D3222, "D4410", DSValues.D4410, 
-          "D4422", DSValues.D4422, "D5220", DSValues.D5220, 
-          "D5232", DSValues.D5232, "D5421", DSValues.D5421);
-      fprintf(SGP4File, "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%f\n",
-          "D5433", DSValues.D5433, "Dedt", DSValues.Dedt, 
-          "Del1",  DSValues.Del1,  "Del2", DSValues.Del2, 
-          "Del3",  DSValues.Del3);
-      fprintf(SGP4File, "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%f\n",
-          "Didt",  DSValues.Didt,  "Dmdt",  DSValues.Dmdt, 
-          "Dnodt", DSValues.Dnodt, "Domdt", DSValues.Domdt, 
-          "E3",    DSValues.E3);
-      fprintf(SGP4File, 
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "Ee2", DSValues.Ee2, "Peo",   DSValues.Peo,   "Pgho", DSValues.Pgho, 
-          "Pho", DSValues.Pho, "Pinco", DSValues.Pinco, "Plo",  DSValues.Plo);
-      fprintf(SGP4File, 
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "Se2",  DSValues.Se2,  "Se3",  DSValues.Se3,  "Sgh2", DSValues.Sgh2,
-          "Sgh3", DSValues.Sgh3, "Sgh4", DSValues.Sgh4, "Sh2",  DSValues.Sh2);
-      fprintf(SGP4File, 
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "Sh3", DSValues.Sh3, "Si2", DSValues.Si2, "Si3", DSValues.Si3,
-          "Sl2", DSValues.Sl2, "Sl3", DSValues.Sl3, "Sl4", DSValues.Sl4);
-      fprintf(SGP4File, "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%f\n",
-          "Xfact", DSValues.Xfact, "Xgh2", DSValues.Xgh2, "Xgh3", DSValues.Xgh3,
-          "Xgh4",  DSValues.Xgh4,  "Xh2",  DSValues.Xh2);
-      fprintf(SGP4File, "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%f\n",
-          "Xh3",  DSValues.Xh3, "Xi2", DSValues.Xi2, "Xi3", DSValues.Xi3,
-          "Xl2",  DSValues.Xl2, "Xl3", DSValues.Xl3);
-      fprintf(SGP4File, 
-          "%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f%7s%13.7f\n",
-          "Xl4", DSValues.Xl4, "Xli",  DSValues.Xli,  "Xlamo", DSValues.Xlamo,
-          "Xni", DSValues.Xni, "Zmol", DSValues.Zmol, "Zmos",  DSValues.Zmos);
-    }
-}
-void TwoLine2RV
-    (
-      char* LongStr1, char* LongStr2, char Show, ElSetRec SatRec, 
-      Vector& Ro, Vector& Vo, FILE* OutFile, char* SatName, char* LDate,
-      char* DDate, char *SatCatFileName
-    )
-{
-}
+     /* ----------------- compute extra mean quantities ------------- */
+     sinim = sin(inclm);
+     cosim = cos(inclm);
 
-void TwoLine2RVSGP4
-    (
-      char* LongStr1, char* LongStr2, char Show, ElSetRec SatRec, 
-      Vector& Ro, Vector& Vo, FILE* OutFile, char* SatName, char* LDate,
-      char* DDate, char *SatCatFileName
-    )
-{
-}
+     /* -------------------- add lunar-solar periodics -------------- */
+     ep     = em;
+     xincp  = inclm;
+     argpp  = argpm;
+     nodep  = nodem;
+     mp     = mm;
+     sinip  = sinim;
+     cosip  = cosim;
+     if (satrec.method == 'd')
+       {
+         dpper
+             (
+               satrec.e3,   satrec.ee2,  satrec.peo,
+               satrec.pgho, satrec.pho,  satrec.pinco,
+               satrec.plo,  satrec.se2,  satrec.se3,
+               satrec.sgh2, satrec.sgh3, satrec.sgh4,
+               satrec.sh2,  satrec.sh3,  satrec.si2,
+               satrec.si3,  satrec.sl2,  satrec.sl3,
+               satrec.sl4,  satrec.t,    satrec.xgh2,
+               satrec.xgh3, satrec.xgh4, satrec.xh2,
+               satrec.xh3,  satrec.xi2,  satrec.xi3,
+               satrec.xl2,  satrec.xl3,  satrec.xl4,
+               satrec.zmol, satrec.zmos, satrec.inclo,
+               'n', ep, xincp, nodep, argpp, mp, satrec.operationmode
+             );
+         if (xincp < 0.0)
+           {
+             xincp  = -xincp;
+             nodep = nodep + pi;
+             argpp  = argpp - pi;
+           }
+         if ((ep < 0.0 ) || ( ep > 1.0))
+           {
+//            printf("# error ep %f\n", ep);
+             satrec.error = 3;
+             // sgp4fix add return
+             return false;
+           }
+       } // if method = d
+
+     /* -------------------- long period periodics ------------------ */
+     if (satrec.method == 'd')
+       {
+         sinip =  sin(xincp);
+         cosip =  cos(xincp);
+         satrec.aycof = -0.5*j3oj2*sinip;
+         // sgp4fix for divide by zero for xincp = 180 deg
+         if (fabs(cosip+1.0) > 1.5e-12)
+             satrec.xlcof = -0.25 * j3oj2 * sinip * (3.0 + 5.0 * cosip) / (1.0 + cosip);
+           else
+             satrec.xlcof = -0.25 * j3oj2 * sinip * (3.0 + 5.0 * cosip) / temp4;
+       }
+     axnl = ep * cos(argpp);
+     temp = 1.0 / (am * (1.0 - ep * ep));
+     aynl = ep* sin(argpp) + temp * satrec.aycof;
+     xl   = mp + argpp + nodep + temp * satrec.xlcof * axnl;
+
+     /* --------------------- solve kepler's equation --------------- */
+     u    = fmod(xl - nodep, twopi);
+     eo1  = u;
+     tem5 = 9999.9;
+     ktr = 1;
+     //   sgp4fix for kepler iteration
+     //   the following iteration needs better limits on corrections
+     while (( fabs(tem5) >= 1.0e-12) && (ktr <= 10) )
+       {
+         sineo1 = sin(eo1);
+         coseo1 = cos(eo1);
+         tem5   = 1.0 - coseo1 * axnl - sineo1 * aynl;
+         tem5   = (u - aynl * coseo1 + axnl * sineo1 - eo1) / tem5;
+         if(fabs(tem5) >= 0.95)
+             tem5 = tem5 > 0.0 ? 0.95 : -0.95;
+         eo1    = eo1 + tem5;
+         ktr = ktr + 1;
+       }
+
+     /* ------------- short period preliminary quantities ----------- */
+     ecose = axnl*coseo1 + aynl*sineo1;
+     esine = axnl*sineo1 - aynl*coseo1;
+     el2   = axnl*axnl + aynl*aynl;
+     pl    = am*(1.0-el2);
+     if (pl < 0.0)
+       {
+//         printf("# error pl %f\n", pl);
+         satrec.error = 4;
+         // sgp4fix add return
+         return false;
+       }
+       else
+       {
+         rl     = am * (1.0 - ecose);
+         rdotl  = sqrt(am) * esine/rl;
+         rvdotl = sqrt(pl) / rl;
+         betal  = sqrt(1.0 - el2);
+         temp   = esine / (1.0 + betal);
+         sinu   = am / rl * (sineo1 - aynl - axnl * temp);
+         cosu   = am / rl * (coseo1 - axnl + aynl * temp);
+         su     = atan2(sinu, cosu);
+         sin2u  = (cosu + cosu) * sinu;
+         cos2u  = 1.0 - 2.0 * sinu * sinu;
+         temp   = 1.0 / pl;
+         temp1  = 0.5 * j2 * temp;
+         temp2  = temp1 * temp;
+
+         /* -------------- update for short period periodics ------------ */
+         if (satrec.method == 'd')
+           {
+             cosisq                 = cosip * cosip;
+             satrec.con41  = 3.0*cosisq - 1.0;
+             satrec.x1mth2 = 1.0 - cosisq;
+             satrec.x7thm1 = 7.0*cosisq - 1.0;
+           }
+         mrt   = rl * (1.0 - 1.5 * temp2 * betal * satrec.con41) +
+                 0.5 * temp1 * satrec.x1mth2 * cos2u;
+         su    = su - 0.25 * temp2 * satrec.x7thm1 * sin2u;
+         xnode = nodep + 1.5 * temp2 * cosip * sin2u;
+         xinc  = xincp + 1.5 * temp2 * cosip * sinip * cos2u;
+         mvt   = rdotl - nm * temp1 * satrec.x1mth2 * sin2u / xke;
+         rvdot = rvdotl + nm * temp1 * (satrec.x1mth2 * cos2u +
+                 1.5 * satrec.con41) / xke;
+
+         /* --------------------- orientation vectors ------------------- */
+         sinsu =  sin(su);
+         cossu =  cos(su);
+         snod  =  sin(xnode);
+         cnod  =  cos(xnode);
+         sini  =  sin(xinc);
+         cosi  =  cos(xinc);
+         xmx   = -snod * cosi;
+         xmy   =  cnod * cosi;
+         ux    =  xmx * sinsu + cnod * cossu;
+         uy    =  xmy * sinsu + snod * cossu;
+         uz    =  sini * sinsu;
+         vx    =  xmx * cossu - cnod * sinsu;
+         vy    =  xmy * cossu - snod * sinsu;
+         vz    =  sini * cossu;
+
+         /* --------- position and velocity (in km and km/sec) ---------- */
+         r[0] = (mrt * ux)* radiusearthkm;
+         r[1] = (mrt * uy)* radiusearthkm;
+         r[2] = (mrt * uz)* radiusearthkm;
+         v[0] = (mvt * ux + rvdot * vx) * vkmpersec;
+         v[1] = (mvt * uy + rvdot * vy) * vkmpersec;
+         v[2] = (mvt * uz + rvdot * vz) * vkmpersec;
+       }  // if pl > 0
+
+     // sgp4fix for decaying satellites
+     if (mrt < 1.0)
+       {
+//         printf("# decay condition %11.6f \n",mrt);
+         satrec.error = 6;
+         return false;
+       }
+
+//#include "debug7.cpp"
+     return true;
+}  // end sgp4
+
+
+/* -----------------------------------------------------------------------------
+*
+*                           function gstime
+*
+*  this function finds the greenwich sidereal time.
+*
+*  author        : david vallado                  719-573-2600    1 mar 2001
+*
+*  inputs          description                    range / units
+*    jdut1       - julian date in ut1             days from 4713 bc
+*
+*  outputs       :
+*    gstime      - greenwich sidereal time        0 to 2pi rad
+*
+*  locals        :
+*    temp        - temporary variable for doubles   rad
+*    tut1        - julian centuries from the
+*                  jan 1, 2000 12 h epoch (ut1)
+*
+*  coupling      :
+*    none
+*
+*  references    :
+*    vallado       2004, 191, eq 3-45
+* --------------------------------------------------------------------------- */
+
+double  gstime
+        (
+          double jdut1
+        )
+   {
+     const double twopi = 2.0 * pi;
+     const double deg2rad = pi / 180.0;
+     double       temp, tut1;
+
+     tut1 = (jdut1 - 2451545.0) / 36525.0;
+     temp = -6.2e-6* tut1 * tut1 * tut1 + 0.093104 * tut1 * tut1 +
+             (876600.0*3600 + 8640184.812866) * tut1 + 67310.54841;  // sec
+     temp = fmod(temp * deg2rad / 240.0, twopi); //360/86400 = 1/240, to deg, to rad
+
+     // ------------------------ check quadrants ---------------------
+     if (temp < 0.0)
+         temp += twopi;
+
+     return temp;
+   }  // end gstime
+
+/* -----------------------------------------------------------------------------
+*
+*                           function getgravconst
+*
+*  this function gets constants for the propagator. note that mu is identified to
+*    facilitiate comparisons with newer models. the common useage is wgs72.
+*
+*  author        : david vallado                  719-573-2600   21 jul 2006
+*
+*  inputs        :
+*    whichconst  - which set of constants to use  wgs72old, wgs72, wgs84
+*
+*  outputs       :
+*    tumin       - minutes in one time unit
+*    mu          - earth gravitational parameter
+*    radiusearthkm - radius of the earth in km
+*    xke         - reciprocal of tumin
+*    j2, j3, j4  - un-normalized zonal harmonic values
+*    j3oj2       - j3 divided by j2
+*
+*  locals        :
+*
+*  coupling      :
+*    none
+*
+*  references    :
+*    norad spacetrack report #3
+*    vallado, crawford, hujsak, kelso  2006
+  --------------------------------------------------------------------------- */
+
+void getgravconst
+     (
+      gravconsttype whichconst,
+      double& tumin,
+      double& mu,
+      double& radiusearthkm,
+      double& xke,
+      double& j2,
+      double& j3,
+      double& j4,
+      double& j3oj2
+     )
+     {
+
+       switch (whichconst)
+         {
+           // -- wgs-72 low precision str#3 constants --
+           case wgs72old:
+           mu     = 398600.79964;        // in km3 / s2
+           radiusearthkm = 6378.135;     // km
+           xke    = 0.0743669161;
+           tumin  = 1.0 / xke;
+           j2     =   0.001082616;
+           j3     =  -0.00000253881;
+           j4     =  -0.00000165597;
+           j3oj2  =  j3 / j2;
+         break;
+           // ------------ wgs-72 constants ------------
+           case wgs72:
+           mu     = 398600.8;            // in km3 / s2
+           radiusearthkm = 6378.135;     // km
+           xke    = 60.0 / sqrt(radiusearthkm*radiusearthkm*radiusearthkm/mu);
+           tumin  = 1.0 / xke;
+           j2     =   0.001082616;
+           j3     =  -0.00000253881;
+           j4     =  -0.00000165597;
+           j3oj2  =  j3 / j2;
+         break;
+           case wgs84:
+           // ------------ wgs-84 constants ------------
+           mu     = 398600.5;            // in km3 / s2
+           radiusearthkm = 6378.137;     // km
+           xke    = 60.0 / sqrt(radiusearthkm*radiusearthkm*radiusearthkm/mu);
+           tumin  = 1.0 / xke;
+           j2     =   0.00108262998905;
+           j3     =  -0.00000253215306;
+           j4     =  -0.00000161098761;
+           j3oj2  =  j3 / j2;
+         break;
+         default:
+           fprintf(stderr,"unknown gravity option (%d)\n",whichconst);
+         break;
+         }
+
+     }   // end getgravconst
+
+
+
+
+

@@ -1,2913 +1,1427 @@
-#include "string.h"
-#include "stdlib.h"
-#include "stdio.h"
-#include "math.h"
+/*     ----------------------------------------------------------------
+*
+*                                astmath.cpp
+*
+*    this file contains miscellaneous math functions.
+*
+*                          Companion code for
+*             Fundamentals of Astrodynamics and Applications
+*                                  2007
+*                            by David Vallado
+*
+*       (w) 719-573-2600, email dvallado@agi.com
+*
+*    current :
+*               7 may 08  david vallado
+*                           misc updates, fix sgn, show both options for matrix
+*                           multiplications
+*    changes :
+*              22 jan 08  david vallado
+*                           fix some minor errors, fixes to matmult
+*              19 oct 07  david vallado
+*                           fix sgn baseline comparison
+*              30 may 07  david vallado
+*                           3rd edition baseline
+*              21 jul 05  david vallado
+*                           2nd printing baseline
+*              14 may 01  david vallado
+*                           2nd edition baseline
+*              23 nov 87  david vallado
+*                           original baseline
+*       ----------------------------------------------------------------      */
 
 #include "astmath.h"
 
-char  Show = 'N';
-FILE *FileOut = NULL;
 
-/*****************************************************************************
- * Class Method implementations of Vector
-*****************************************************************************/
-
-Vector::Vector(void)
-{
-  dim = VDIM; 
-  mag = 0.0;
-}
-
-Vector::Vector(UINT d)
-{
-  dim = d;
-  xmag();
-}
-
-Vector::~Vector(void)
-{
-}
-
-void Vector::xmag(void)
-{
-  mag = 0.0;
-  for (UINT i = 0; i < dim; i++)
-    mag += vec[i] * vec[i];
-  mag = sqrt(mag);
-}
-
-/*
- * Overloaded Operators
- */
-Real& Vector::operator()(UINT d)
-{
-  if ((d <= dim) && (d > 0))
-    return vec[d-1];
-  else
-    return vec[0];
-}
-
-Vector& Vector::operator=(Vector& v)
-{
-  if (this == &v)
-    return *this;
-  for (UINT i = 0; i < dim; i++)
-    vec[i] = v.vec[i];
-  mag = v.mag;
-  return *this;
-}
-
-Vector& Vector::operator+(Vector& v)
-{
-  Vector *res;
-
-  res = new Vector(v.dim);
-  res->Clear();
-  if (dim == v.dim)
-    for (UINT i = 0; i < dim; i++)
-      res->vec[i] = vec[i] + v.vec[i];
-  res->mag = res->Mag();
-  return *res;
-}
-
-Vector& Vector::operator-(Vector& v)
-{
-  Vector *res;
-
-  res = new Vector(v.dim);
-  res->Clear();
-  if (dim == v.dim)
-    for (UINT i = 0; i < dim; i++)
-      res->vec[i] = vec[i] - v.vec[i];
-  res->mag = res->Mag();
-  return *res;
-}
-
-Real Vector::operator*(Vector& v)
-{
-  Real res = 0.0;
-
-  if (dim == v.dim)
-  {
-    for (UINT i = 0; i < dim; i++)
-      res += vec[i] * v.vec[i];
-    return res;
-  }
-  else
-    return 0.0;
-}
-
-Vector& Vector::operator*(Real v)
-{
-  Vector *res;
-
-  res = new Vector(dim);
-  for (UINT i = 0; i < dim; i++)
-    res->vec[i] = v * vec[i];
-  res->Mag();
-
-  return *res;
-}
-
-Vector& Vector::operator*(Matrix& m)
-{
-  Vector *res;
-  Real    t;
-
-  res = new Vector(dim);
-  for (UINT i = 0; i < dim; i++)
-  {
-    t = 0.0;
-    for (UINT j = 0; j < dim; j++)
-      t = t + vec[j] * m.Get(j+1, i+1);
-    res->vec[i] = t;
-  }
-
-  return *res;
-}
-
-Vector& Vector::operator/(Real v)
-{
-  Vector *res;
-
-  res = new Vector(dim);
-  for (UINT i = 0; i < dim; i++)
-    res->vec[i] = vec[i] / v;
-  res->Mag();
-
-  return *res;
-}
-/*
- * User Functions
- */
-Vector& Vector::Add(Vector& v)
-{
-  Vector *res;
-
-  res = new Vector(dim);
-  for (UINT i = 0; i < dim; i++)
-    res->vec[i] = vec[i] + v.vec[i];
-  res->Mag();
-
-  return *res;
-}
-
-VStatus Vector::Add(Vector& v, Vector& OutVec)
-{
-  for (UINT i = 0; i < dim; i++)
-    OutVec.vec[i] = vec[i] + v.vec[i];
-  OutVec.Mag();
-
-  return VOK;
-}
-
-Real Vector::Angle(Vector& v)
-{
-  const Real Small = 0.000001;
-  const Real Undefined = 999999.1;
-  Real       t;
-
-  if (mag * v.mag > Small * Small)
-  {
-    t = Dot(v) / (mag * v.mag);
-    if (fabs(t) > 1.0)
-      t = Sgn(t);
-    return (acos(t));
-  }
-  else
-    return Undefined;
-}
-
-VStatus Vector::Angle(Vector& v, Real& theta)
-{
-  const Real Small = 0.000001;
-  const Real Undefined = 999999.1;
-  Real       t;
-
-  if (mag * v.mag > Small * Small)
-  {
-    t = Dot(v) / (mag * v.mag);
-    if (fabs(t) > 1.0)
-      t = Sgn(t);
-    theta = acos(t);
-  }
-  else
-    theta = Undefined;
-}
-void Vector::Clear(void)
-{
-  if (dim != 0)
-    for (int i = 0; i < dim; i++)
-      vec[i] = 0.0;
-  mag = 0.0;
-}
-
-Vector& Vector::Cross(Vector& v)
-{
-  Vector *res;
-
-  res = new Vector(v.dim);
-  res->vec[0] = vec[1] * v.vec[2] - vec[2] * v.vec[1];
-  res->vec[1] = vec[2] * v.vec[0] - vec[0] * v.vec[2];
-  res->vec[2] = vec[0] * v.vec[1] - vec[1] * v.vec[0];
-  res->mag = res->Mag();
-
-  return *res;
-}
-
-VStatus Vector::Cross(Vector& v, Vector& OutVec)
-{
-  OutVec.vec[0] = vec[1] * v.vec[2] - vec[2] * v.vec[1];
-  OutVec.vec[1] = vec[2] * v.vec[0] - vec[0] * v.vec[2];
-  OutVec.vec[2] = vec[0] * v.vec[1] - vec[1] * v.vec[0];
-  OutVec.Mag();
-
-  return VOK;
-}
-
-UINT Vector::Dim(void)
-{
-  return dim;
-}
-
-void Vector::Display(char *s, UINT p)
-{
-  printf("%s\n", s);
-  for (UINT i = 0; i < dim; i++)
-    printf("v(%d) = %0.*f\n", i, p, vec[i]);
-  printf("\n");
-}
-
-Real Vector::Dot(Vector& v)
-{
-  Real res = 0.0;
-
-  if (dim == v.dim)
-  {
-    for (UINT i = 0; i < dim; i++)
-      res += vec[i] * v.vec[i];
-    return res;
-  }
-  else
-    return 0.0;
-}
-
-Real Vector::Get(UINT d)
-{
-  if ((d <= dim) && (d > 0))
-    return vec[d-1];
-  else
-    return 0.0;
-}
-
-VStatus Vector::Get(Real &val, UINT d)
-{
-  if ((d <= dim) && (d > 0))
-  {
-    val = vec[d-1];
-    return VOK;
-  }
-  else
-    return BAD_INDEX;
-}
-
-Real Vector::Mag(void)
-{
-  xmag();
-  return mag;
-}
-
-void Vector::Mag(Real n)
-{
-  mag = n;
-}
-
-Vector& Vector::Norm(void)
-{
-  Vector *res;
-
-  res = new Vector(dim);
-  res->Clear();
-  if (mag > 0.000001)
-  {
-    for (UINT i = 0; i < dim; i++)
-      res->vec[i] = vec[i] / mag;
-    res->mag = 1.0;
-  }
-  else
-  {
-    for (UINT i = 0; i < dim; i++)
-      res->vec[i] = 0.0;
-    res->mag = 0.0;
-  }
-
-  return *res;
-}
-
-VStatus Vector::Norm(Vector& OutVec)
-{
-  OutVec.Clear();
-  if (mag > 0.000001)
-  {
-    for (UINT i = 0; i < dim; i++)
-      OutVec.vec[i] = vec[i] / mag;
-    OutVec.Mag();
-  }
-  else
-  {
-    for (UINT i = 0; i < dim; i++)
-      OutVec.vec[i] = 0.0;
-    OutVec.mag = 0.0;
-  }
-
-  return VOK;
-}
-
-Vector& Vector::Rot1(Real v)
-{
-  Real c, s;
-  Vector *res;
-
-  c = cos(v);
-  s = sin(v);
-  res = new Vector(dim);
-  res->Clear();
-  res->vec[2] = c * vec[2] - s * vec[1];
-  res->vec[1] = c * vec[1] + s * vec[2];
-  res->vec[0] = vec[0];
-  res->Mag();
-
-  return *res;
-}
-
-VStatus Vector::Rot1(Real v, Vector& OutVec)
-{
-  Real c, s;
-
-  c = cos(v);
-  s = sin(v);
-  OutVec.Clear();
-  OutVec.vec[2] = c * vec[2] - s * vec[1];
-  OutVec.vec[1] = c * vec[1] + s * vec[2];
-  OutVec.vec[0] = vec[0];
-  OutVec.Mag();
-
-  return VOK;
-}
-
-Vector& Vector::Rot2(Real v)
-{
-  Real c, s;
-  Vector *res;
-
-  c = cos(v);
-  s = sin(v);
-  res = new Vector(dim);
-  res->Clear();
-  res->vec[2] = c * vec[2] - s * vec[0];
-  res->vec[0] = c * vec[0] + s * vec[2];
-  res->vec[1] = vec[0];
-  res->Mag();
-
-  return *res;
-}
-
-VStatus Vector::Rot2(Real v, Vector& OutVec)
-{
-  Real c, s;
-
-  c = cos(v);
-  s = sin(v);
-  OutVec.Clear();
-  OutVec.vec[2] = c * vec[2] - s * vec[0];
-  OutVec.vec[0] = c * vec[0] + s * vec[2];
-  OutVec.vec[1] = vec[0];
-  OutVec.Mag();
-
-  return VOK;
-}
-
-Vector& Vector::Rot3(Real v)
-{
-  Real c, s;
-  Vector *res;
-
-  c = cos(v);
-  s = sin(v);
-  res = new Vector(dim);
-  res->Clear();
-  res->vec[1] = c * vec[1] - s * vec[0];
-  res->vec[0] = c * vec[0] + s * vec[2];
-  res->vec[2] = vec[0];
-  res->Mag();
-
-  return *res;
-}
-
-VStatus Vector::Rot3(Real v, Vector& OutVec)
-{
-  Real c, s;
-
-  c = cos(v);
-  s = sin(v);
-  OutVec.Clear();
-  OutVec.vec[1] = c * vec[1] - s * vec[0];
-  OutVec.vec[0] = c * vec[0] + s * vec[2];
-  OutVec.vec[2] = vec[0];
-  OutVec.Mag();
-
-  return VOK;
-}
-
-VStatus Vector::Set(Real val, UINT d)
-{
-  if (vec == NULL)
-    return EMPTY_VECTOR;
-  else if ((d > dim) || (d < 1))
-    return BAD_INDEX;
-  else
-  {
-    vec[d-1] = val;
-    xmag();
-    return VOK;
-  }
-}
-
-/*
- * Friend Functions
- */
-Vector& operator*(Real n, Vector& v)
-{
-  Vector *res = new Vector(v.dim);
-
-  for (UINT i = 0; i < v.dim; i++)
-    res->vec[i] = n * v.vec[i];
-
-  return *res;
-}
-
-VStatus Mult(Vector& v, Matrix& m)
-{
-  Vector nvec(v.Dim());
-  Real   t;
-  UINT   d = v.Dim();;
-
-  nvec.Clear();
-  for(UINT i = 1; i <= d; i++)
-  {
-    t = 0.0;
-    for(UINT j = 1; j <= d; j++)
-      t += v.Get(j) * m.Get(j, i);
-    nvec.Set(t, i);
-  }
-  for(UINT i = 1; i <= nvec.Dim(); i++)
-    v.Set(nvec.Get(i), i);
-
-  return VOK;
-}
-
-/*****************************************************************************
- * Class Method implementations of Matrix
-*****************************************************************************/
-Matrix::Matrix(void)
-{
-  rdim = MDIMR;
-  cdim = MDIMC;
-}
-
-Matrix::Matrix(UINT r, UINT c)
-{
-  rdim = r;
-  cdim = c;
-}
-
-Matrix::~Matrix(void)
-{
-}
-
-/* Overloaded Operators */
-Real& Matrix::operator()(UINT r, UINT c)
-{
-  if ((r >= 0) && (r <=rdim))
-    if ((c >= 0) && (c <=cdim))
-    {
-      return mat[r][c];
-    }
-    else
-      return mat[0][0];
-  else
-    return mat[0][0];
-}
-
-Matrix& Matrix::operator+(Real m)
-{
-  UINT offset;
-
-  Matrix *nmat = new Matrix(rdim, cdim);
-
-  for (UINT r = 0; r < rdim; r++)
-    for (UINT c = 0; c < cdim; c++)
-      nmat->mat[r][c] = mat[r][c] + m;
-  return *nmat;
-}
-
-Matrix& Matrix::operator+(Matrix& m)
-{
-  UINT offset;
-
-  Matrix *nmat = new Matrix(rdim, cdim);
-
-  for (UINT r = 0; r < rdim; r++)
-    for (UINT c = 0; c < cdim; c++)
-      nmat->mat[r][c] = mat[r][c] + m.mat[r][c];
-  return *nmat;
-}
-
-Matrix& Matrix::operator-(Real m)
-{
-  UINT offset;
-
-  Matrix *nmat = new Matrix(rdim, cdim);
-
-  for (UINT r = 0; r < rdim; r++)
-    for (UINT c = 0; c < cdim; c++)
-      nmat->mat[r][c] = mat[r][c] - m;
-  return *nmat;
-}
-
-Matrix& Matrix::operator-(Matrix& m)
-{
-  Matrix *nmat = new Matrix(rdim, cdim);
-
-  for (UINT i = 0; i < rdim; i++)
-    for (UINT j = 0; j < cdim; j++)
-      nmat->mat[i][j] = mat[i][j] - m.mat[i][j];
-  return *nmat;
-}
-
-Matrix& Matrix::operator*(Real m)
-{
-  UINT offset;
-
-  Matrix *nmat = new Matrix(rdim, cdim);
-
-  for (UINT r = 0; r < rdim; r++)
-    for (UINT c = 0; c < cdim; c++)
-      nmat->mat[r][c] = mat[r][c] * m;
-  return *nmat;
-}
-
-Matrix& Matrix::operator*(Matrix& m)
-{
-  Matrix *nmat = new Matrix(rdim, m.cdim);
-
-  nmat->Clear();
-  for (UINT i = 0; i < rdim; i++)
-    for (UINT j = 0; j < m.cdim; j++)
-      for (UINT k = 0; k < rdim; k++)
-        nmat->mat[i][j] += mat[i][k] * m.mat[k][j];
-  return *nmat;
-}
-
-Vector& Matrix::operator*(Vector& v)
-{
-  Vector *nvec;
-  Real    t;
-
-  nvec = new Vector(rdim);
-  for (UINT i = 1; i <= rdim; i++)
-  {
-    t = 0.0;
-    for (UINT j = 1; j <= cdim; j++)
-      t = t + v.Get(j) * mat[i-1][j-1];
-    nvec->Set(t, i);
-  }
-
-  return *nvec;
-}
-
-Matrix& Matrix::operator/(Real m)
-{
-  UINT offset;
-
-  Matrix *nmat = new Matrix(rdim, cdim);
-
-  for (UINT r = 0; r < rdim; r++)
-    for (UINT c = 0; c < cdim; c++)
-      nmat->mat[r][c] = mat[r][c] / m;
-  return *nmat;
-}
-
-/*
- * User Functions
- */
-void Matrix::Clear(void)
-{
-  if ((rdim != 0) && (cdim != 0))
-    for (int r = 0; r < rdim; r++)
-      for (int c = 0; c < cdim; c++)
-        mat[r][c] = 0.0;
-}
-
-Real Matrix::Determinant(void)
-{
-  const Real Small = 0.00000001;
-  Real       Temp, D, Sum;
-  Matrix     L(rdim, cdim), U(rdim, cdim);
-
-  if ((rdim == 0) || (cdim == 0))
-    return EMPTY_MATRIX;
-  if (rdim != cdim)
-    return NOT_SQUARE;
-
-  Sum = 0.0;
-  /* ----------- Switch a non zero row to the first row ---------- */
-  if (fabs(mat[0][0]) < Small)
-  {
-    Integer j = 1;
-    while (j <= rdim)
-    {
-      if (fabs(mat[j-1][0]) > Small)
-      {
-        for (Integer k = 1; k <= rdim; k++)
-        {
-          Temp = mat[0][k-1];
-          mat[0][k-1] = mat[j-1][k-1];
-          mat[j-1][k-1] = Temp;
-        }
-        j = rdim + 1;
-      }
-      j++;
-    }
-  }
-
-  for (Integer i = 1; i <= rdim; i++)
-    L.mat[i-1][0] = mat[i-1][0];
-  for (Integer j = 1; j <= rdim; j++)
-    U.mat[0][j-1] = mat[0][j-1] / L.mat[0][0];
-  for (Integer j = 2; j <= rdim; j++)
-  {
-    for (Integer i = j; i <= rdim; i++)
-    {
-      Sum = 0.0;
-      for (Integer k = 1; k <= j - 1; k++)
-        Sum = Sum + L.mat[i-1][k-1] * U.mat[k-1][j-1];
-      L.mat[i-1][j-1] = mat[i-1][j-1] - Sum;
-    }
-    U.mat[j-1][j-1] = 1.0;
-    if (j < rdim)
-    {
-      for (Integer i = j + 1; i <= rdim; i++)
-      {
-        Sum = 0.0;
-        for (Integer k = 1; k <= j - 1; k++)
-          Sum = Sum + L.mat[j][k] * U.mat[k][i];
-        U.mat[j-1][i-1] = (mat[j-1][i-1] - Sum) / L.mat[j-1][j-1];
-      }
-    }
-  }
-  D = 1.0;
-  for (Integer i = 1; i <= rdim; i++)
-    D = D * L.mat[i-1][i-1];
-  return D;
-}
-
-MStatus Matrix::Determinant(Real& n)
-{
-  const Real Small = 0.00000001;
-  Integer i, j, k;
-  Real    Temp, D, Sum;
-  Matrix  L(rdim, cdim), U(rdim, cdim);
-
-  if ((rdim == 0) || (cdim == 0))
-    return EMPTY_MATRIX;
-  if (rdim != cdim)
-    return NOT_SQUARE;
-
-  Sum = 0.0;
-  /* ----------- Switch a non zero row to the first row ---------- */
-  if (fabs(mat[0][0]) < Small)
-  {
-    j = 1;
-    while (j <= rdim)
-    {
-      if (fabs(mat[j-1][0]) > Small)
-      {
-        for (k = 1; k <= rdim; k++)
-        {
-          Temp = mat[0][k-1];
-          mat[0][k-1] = mat[j][k];
-          mat[j-1][k-1] = Temp;
-        }
-        j = rdim + 1;
-      }
-      j++;
-    }
-  }
-
-  for (i = 1; i <= rdim; i++)
-    L(i, 1) = mat[i-1][0];
-  for (j = 1; j <= rdim; j++)
-    U(1, j) = mat[0][j-1] / L(1, 1);
-  for (j = 2; j <= rdim; j++)
-  {
-    for (i = j; i <= rdim; i++)
-    {
-      Sum = 0.0;
-      for (k = 1; k <= j - 1; k++)
-        Sum = Sum + L(i, k) * U(k, j);
-      L(i, j) = mat[i-1][j-1] - Sum;
-    }
-    U(j, j) = 1.0;
-    if (j < rdim)
-    {
-      for (i = j + 1; i <= rdim; i++)
-      {
-        Sum = 0.0;
-        for (k = 1; k <= j - 1; k++)
-          Sum = Sum + L(j, k) * U(k, i);
-        U(j, i) = (mat[j-1][i-1] - Sum) / L(j, j);
-      }
-    }
-  }
-  D = 1.0;
-  for (i = 1; i <= rdim; i++)
-    D = D * L(i, i);
-  n = D;
-  return MOK;
-}
-
-UINT Matrix::DimC(void)
-{
-  return cdim;
-}
-
-UINT Matrix::DimR(void)
-{
-  return rdim;
-}
-
-MStatus Matrix::Display(char *title, Integer precision)
-{
-  Integer dec = precision;
-
-  if (precision > 11)
-    dec = 10;
-  printf("%s\n", title);
-  for (UINT r = 0; r < DimR(); r++)
-  {
-    for (UINT c = 0; c < DimC(); c++)
-      printf(" %0.*f ", dec, mat[r][c]);
-    printf("\n");
-  }
-}
-
-Real Matrix::Get(UINT r, UINT c)
-{
-  if ((r <= rdim) && (c <= cdim))
-    return mat[r-1][c-1];
-  else
-    return 0.0;
-}
-
-MStatus Matrix::Get(Real &val, UINT r, UINT c)
-{
-  if ((r <= rdim) && (r > 0))
-    if ((c <= cdim) && (c > 0))
-      val = mat[r-1][c-1];
-    else
-      return BAD_INDEX2;
-  else
-    return BAD_INDEX1;
-}
-
-Matrix& Matrix::Identity(void)
-{
-  Matrix *nmat = new Matrix(rdim, cdim);
-
-  for (UINT r = 0; r < rdim; r++)
-    for (UINT c = 0; c < cdim; c++)
-      nmat->mat[r][c] = 0.0;
-  for (UINT r = 0; r < rdim; r++)
-    nmat->mat[r][r] = 1.0;
-
-  return *nmat;
-}
-
-MStatus Matrix::Identity(Matrix& m)
-{
-  if (m.rdim = m.cdim)
-  {
-    for (UINT r = 0; r < m.rdim; r++)
-      for (UINT c = 0; c < m.cdim; c++)
-        m.mat[r][c] = 0.0;
-    for (UINT r = 0; r < m.rdim; r++)
-      m.mat[r][r] = 1.0;
-    return MOK;
-  }
-  else
-    return NOT_SQUARE;
-}
-
-MStatus Matrix::Inverse(Matrix& m)
-{
-  Matrix  Inv(rdim, cdim);
-  Matrix  LU(rdim, cdim);
-  Matrix  B(rdim, cdim);
-  Integer Index[rdim];
-
-  Inv.Clear();
-  LU.Clear();
-  B.Clear();
-
-  for (UINT i = 1; i <= rdim; i++)
-  {
-    Index[i-1] = i;
-    for (UINT j = 1; j <= rdim; j++)
-      LU.mat[i-1][j-1] = mat[i-1][j-1];
-  }
-
-  LU.LUDeCompose(LU, Index);
-
-  for (UINT j = 1; j <= rdim; j++)
-  {
-    for (UINT i = 1; i <= rdim; i++)
-      if (i == j)
-        B.Set(1.0, i, j);
-      else
-        B.Set(0.0, i, 1);
-
-    LU.LUBkSubstitute(B, Index);
-
-    for (UINT i = 1; i <= rdim; i++)
-      Inv.Set(B.mat[i-1][j-1], i, j);
-  }
-
-  for (UINT i = 0; i < rdim; i++)
-    for (UINT j = 0; j < cdim; j++)
-      m.mat[i][j] = Inv.mat[i][j];
-
-  return MOK;
-}
-
-Matrix& Matrix::Inverse(void)
-{
-  Matrix *nmat = new Matrix(rdim, cdim);
-  Matrix  LU(rdim, cdim);
-  Matrix  B(rdim, cdim);
-  Integer Index[rdim];
-
-  nmat->Clear();
-  LU.Clear();
-  B.Clear();
-
-  for (UINT i = 1; i <= rdim; i++)
-  {
-    Index[i-1] = i;
-    for (UINT j = 1; j <= cdim; j++)
-      LU.mat[i-1][j-1] = mat[i-1][j-1];
-  }
-
-  LU.LUDeCompose(LU, Index);
-
-  for (UINT j = 1; j <= cdim; j++)
-  {
-    for (UINT i = 1; i <= rdim; i++)
-      if (i == j)
-        B.Set(1.0, i, 1);
-      else
-        B.Set(0.0, i, 1);
-
-    LU.LUBkSubstitute(B, Index);
-
-    for (UINT i = 1; i <= rdim; i++)
-      nmat->Set(B.mat[i-1][1-1], i, j);
-  }
-
-  return *nmat;
-}
-
-MStatus Matrix::LUBkSubstitute(Matrix& B, Integer* Index)
-{
-  Integer iPtr, IO;
-  Real    Sum;
-
-  IO = 0;
-  for (UINT i = 1; i <= rdim; i++)
-  {
-    iPtr = Index[i-1];
-    Sum = B.mat[iPtr-1][1-1];
-    B.Set(B.mat[i-1][1-1], iPtr, 1);
-    if (IO != 0)
-      for (UINT j = IO; j <= i - 1; j++)
-        Sum = Sum - mat[i-1][j-1] * B.mat[j-1][1-1];
-    else
-      if (Sum != 0.0)
-        IO = i;
-    B.Set(Sum, i, 1);
-  }
-
-  B.Set(B.mat[rdim-1][1-1] / mat[rdim-1][rdim-1], rdim, 1);
-
-  for (UINT i = (rdim - 1); i >= 1; i--)
-  {
-    Sum = B.mat[i-1][1-1];
-    for (UINT j = i + 1; j <= rdim; j++)
-      Sum = Sum - mat[i-1][j-1] * B.mat[j-1][1-1];
-    B.Set(Sum / mat[i-1][i-1], i, 1);
-  }
-
-  return MOK;
-}
-
-MStatus Matrix::LUDeCompose(Matrix& LU, Integer *Index)
-{
-  const Real Small = 0.000001;
-  Integer    iMax;
-  Real       Scale[rdim], Sum, AMax, Dum;
-
-  for (UINT i = 0; i < rdim; i++)
-    for (UINT j = 0; j < cdim; j++)
-      LU.mat[i][j] = mat[i][j];
-  for (UINT i = 0; i < rdim; i++)
-    Scale[i] = 0.0;
-  iMax = 0;
-
-  for (UINT i = 1; i <= rdim; i++)
-  {
-    AMax = 0.0;
-    for (UINT j = 1; j <= rdim; j++)
-      if (fabs(LU.mat[i-1][j-1]) > AMax)
-        AMax = fabs(LU.mat[i-1][j-1]);
-    if (fabs(AMax) < Small)
-    {
-      printf("Singular Matrix AMax\n");
-      exit(0);
-    }
-    Scale[i-1] = 1.0 / AMax;
-  }
-
-  for (UINT j = 1; j <= rdim; j++)
-  {
-    for (UINT i = 1; i < j; i++)
-    {
-      Sum = LU.mat[i-1][j-1];
-      for (UINT k = 1; k < i; k++)
-        Sum = Sum - LU.mat[i-1][k-1] * LU.mat[k-1][j-1];
-      LU.Set(Sum, i, j);
-    }
-    AMax = 0.0;
-    for (UINT i = j; i <= rdim; i++)
-    {
-      Sum = LU.mat[i-1][j-1];
-      for (UINT k = 1; k < j; k++)
-        Sum = Sum - LU.mat[i-1][k-1] * LU.mat[k-1][j-1];
-      LU.Set(Sum, i, j);
-      Dum = Scale[i-1] * fabs(Sum);
-      if (Dum >= AMax)
-      {
-        iMax = i;
-        AMax = Dum;
-      }
-    }
-    if (j != iMax)
-    {
-      for (UINT k = 1; k <= rdim; k++)
-      {
-        Dum = LU.mat[iMax-1][k-1];
-        LU.Set(LU.mat[j-1][k-1], iMax, k);
-        LU.Set(Dum, j, k);
-      }
-      Scale[iMax-1] = Scale[j-1];
-    }
-    Index[j-1] = iMax;
-    if (fabs(LU.mat[j-1][j-1]) < Small)
-    {
-      printf("Matrix is Singular LU\n");
-      exit(0);
-    }
-    if (j != rdim)
-    {
-      Dum = 1.0 / LU.mat[j-1][j-1];
-      for (UINT i = j + 1; i <= rdim; i++)
-        LU.Set(Dum * LU.mat[i-1][j-1], i, j);
-    }
-  }
-
-  return MOK;
-}
-
-MStatus Matrix::Scale(Matrix& m, Real sc)
-{
-  Matrix res;
-
-  for (UINT r = 1; r <= rdim; r++)
-    for (UINT c = 1; c <= cdim; c++)
-      res.Set(mat[r-1][c-1] * sc, r, c);
-  for (UINT r = 1; r <= rdim; r++)
-    for (UINT c = 1; c <= cdim; c++)
-      m.Set(res(r, c), r, c);
-}
-
-Matrix& Matrix::Scale(Real sc)
-{
-  Matrix *nmat = new Matrix(rdim, cdim);
-
-  for (UINT r = 1; r <= rdim; r++)
-    for (UINT c = 1; c <= cdim; c++)
-      nmat->Set(mat[r-1][c-1] * sc, r, c);
-
-  return *nmat;
-}
-
-MStatus Matrix::Set(Real val, UINT r, UINT c)
-{
-  if (mat == NULL)
-    return EMPTY_MATRIX;
-  if ((r <= rdim) && (r > 0))
-    if ((c <= cdim) && (c > 0))
-    {
-      mat[r-1][c-1] = val;
-      return MOK;
-    }
-    else
-      return BAD_INDEX2;
-  else
-    return BAD_INDEX1;
-}
-
-bool Matrix::Square(void)
-{
-  if (rdim == cdim)
-    return true;
-  else
-    return false;
-}
-
-Matrix& Matrix::Transpose(void)
-{
-  Matrix *nmat = new Matrix(cdim, rdim);
-
-  for (UINT r = 1; r <= rdim; r++)
-    for (UINT c = 1; c <= cdim; c++)
-      nmat->Set(mat[r-1][c-1], c, r);
-
-  return *nmat;
-}
-
-/*****************************************************************************
- * Class Method implementations of Complex
-*****************************************************************************/
-void Complex::xmag(void)
-{
-  mag = sqrt(val[0] * val[0] + val[1] * val[1]);
-}
-
-Complex::Complex(void)
-{
-  val[0] = 0.0;
-  val[1] = 0.0;
-  mag    = 0.0;
-}
-
-Complex::Complex(Real r, Real i)
-{
-  val[0] = r;
-  val[1] = i;
-  xmag();
-}
-
-Complex::~Complex(void)
-{
-}
-
-Complex& Complex::operator=(Complex& v)
-{
-  if (&v == this)
-    return *this;
-  val[0] = v.val[0];
-  val[1] = v.val[1];
-  mag    = v.mag;
-  return *this;
-}
-
-Complex& Complex::operator+(Complex& v)
-{
-  Complex *nv = new Complex();
-
-  nv->val[0] = val[0] + v.val[0];
-  nv->val[1] = val[1] + v.val[1];
-  nv->xmag();
-  return *nv;
-}
-
-Complex& Complex::operator+(Real n)
-{
-  Complex *nv = new Complex();
-
-  nv->val[0] = val[0] + n;
-  nv->val[1] = val[1];
-  nv->xmag();
-  return *nv;
-}
-
-Complex& Complex::operator-(Complex& v)
-{
-  Complex *nv = new Complex();
-
-  nv->val[0] = val[0] - v.val[0];
-  nv->val[1] = val[1] - v.val[1];
-  nv->xmag();
-  return *nv;
-}
-
-Complex& Complex::operator-(Real n)
-{
-  Complex *nv = new Complex();
-
-  nv->val[0] = val[0] - n;
-  nv->val[1] = val[1];
-  nv->xmag();
-  return *nv;
-}
-
-Complex& Complex::operator*(Complex& v)
-{
-  Complex *nv = new Complex();
-
-  nv->val[0] = val[0] * v.val[0] - val[1] * v.val[1];
-  nv->val[1] = val[0] * v.val[1] + val[1] * v.val[0];
-  nv->xmag();
-  return *nv;
-}
-
-Complex& Complex::operator*(Real n)
-{
-  Complex *nv = new Complex();
-
-  nv->val[0] = val[0] * n;
-  nv->val[1] = val[1] * n;
-  nv->xmag();
-  return *nv;
-}
-
-Complex& Complex::operator/(Complex& v)
-{
-  Complex *nv = new Complex();
-  Real     d;
-
-  d          = v.val[0] * v.val[0] + v.val[1] * v.val[1];
-  nv->val[0] = (val[0]  * v.val[0] + val[1]   * v.val[1]) / d;
-  nv->val[1] = (val[1]  * v.val[0] - val[0]   * v.val[1]) / d;
-  nv->xmag();
-  return *nv;
-}
-
-Complex& Complex::operator/(Real n)
-{
-  Complex *nv = new Complex();
-
-  nv->val[0] = val[0] / n;
-  nv->val[1] = val[1] / n;
-  nv->xmag();
-  return *nv;
-}
-
-/* User Functions */
-Complex& Complex::Add(Complex& v)
-{
-  Complex *nv = new Complex();
-
-  nv->val[0] = val[0] + v.val[0];
-  nv->val[1] = val[1] + v.val[1];
-  nv->xmag();
-  return *nv;
-}
-
-CStatus Complex::Add(Complex& v, Complex& res)
-{
-  res.val[0] = val[0] + v.val[0];
-  res.val[1] = val[1] + v.val[1];
-  res.xmag();
-  return COK;
-}
-
-Real Complex::Angle(Complex& v)
-{
-  const Real Small = 0.000001;
-  const Real Undefined = 999999.1;
-
-  if (mag * v.mag > Small * Small)
-  {
-    return Atan2(v.val[1] / v.mag, v.val[0] / v.mag) - 
-           Atan2(  val[1] /   mag,   val[0] /   mag);
-  }
-  else
-    return Undefined;
-}
-
-CStatus Complex::Angle(Complex& v, Real& theta)
-{
-  const Real Small = 0.000001;
-  const Real Undefined = 999999.1;
-
-  if (mag * v.mag > Small * Small)
-  {
-    theta = Atan2(v.val[1] / v.mag, v.val[0] / v.mag) - 
-            Atan2(  val[1] /   mag,   val[0] /   mag);
-  }
-  else
-    theta = Undefined;
-}
-
-void Complex::Clear(void)
-{
-  val[0] = 0.0;
-  val[1] = 0.0;
-  mag    = 0.0;
-}
-
-void Complex::Display(void)
-{
-  printf("(%0.4f, %0.4fi)\n", val[0], val[1]);
-  printf("\n");
-}
-
-Complex& Complex::Div(Complex& v)
-{
-  Complex *nv = new Complex();
-  Real     d;
-
-  d          = v.val[0] * v.val[0] + v.val[1] * v.val[1];
-  nv->val[0] = (val[0]  * v.val[0] + val[1]   * v.val[1]) / d;
-  nv->val[1] = (val[1]  * v.val[0] - val[0]   * v.val[1]) / d;
-  nv->xmag();
-  return *nv;
-}
-
-Complex& Complex::Div(Real n)
-{
-  Complex *nv = new Complex();
-
-  nv->val[0] = val[0] / n;
-  nv->val[1] = val[1] / n;
-  nv->xmag();
-  return *nv;
-}
-
-Complex& Complex::Dot(Complex& v)
-{
-  Complex *nv = new Complex();
-
-  nv->val[0] = val[0] * v.val[0] - val[1] * v.val[1];
-  nv->val[1] = val[0] * v.val[1] + val[1] * v.val[0];
-  nv->xmag();
-  return *nv;
-}
-
-Real Complex::GetI(void)
-{
-  return val[1];
-}
-
-CStatus  Complex::GetI(Real& r)
-{
-  r = val[1];
-}
-
-Real Complex::GetR(void)
-{
-  return val[0];
-}
-
-CStatus Complex::GetR(Real& r)
-{
-  r = val[0];
-}
-
-Real Complex::Mag(void)
-{
-  return mag;
-}
-
-void Complex::Mag(Real& m)
-{
-  m = mag;
-}
-
-Complex& Complex::Mult(Complex& v)
-{
-  Complex *nv = new Complex();
-
-  nv->val[0] = val[0] * v.val[0] - val[1] * v.val[1];
-  nv->val[1] = val[0] * v.val[1] + val[1] * v.val[0];
-  nv->xmag();
-  return *nv;
-}
-
-Complex& Complex::Mult(Real n)
-{
-  Complex *nv = new Complex();
-
-  nv->val[0] = val[0] * n;
-  nv->val[1] = val[1] * n;
-  nv->xmag();
-  return *nv;
-}
-
-CStatus Complex::Set(Real r, Real i)
-{
-  val[0] = r;
-  val[1] = i;
-  xmag();
-}
-
-CStatus Complex::SetI(Real i)
-{
-  val[1] = i;
-  xmag();
-}
-
-CStatus Complex::SetR(Real r)
-{
-  val[0] = r;
-  xmag();
-}
-
-Real Complex::Sqrt(void)
-{
-  if (val[0] < 0.0)
-    /* ----------------------- imaginary roots --------------------- */
-    return sqrt(-val[0]);
-  else
-    /* ---------------------------- Real roots --------------------- */
-    return sqrt(val[0]);
-}
-
-CStatus Complex::Sqrt(Real& n)
-{
-  if (val[0] < 0.0)
-    /* ----------------------- imaginary roots --------------------- */
-    n = sqrt(-val[0]);
-  else
-    /* ---------------------------- Real roots --------------------- */
-    n = sqrt(val[0]);
-}
-
-Complex& Complex::Sub(Complex& v)
-{
-  Complex *nv = new Complex();
-
-  nv->val[0] = val[0] - v.val[0];
-  nv->val[1] = val[1] - v.val[1];
-  nv->xmag();
-  return *nv;
-}
-
-CStatus Complex::Sub(Complex& v, Complex& res)
-{
-  res.val[0] = val[0] - v.val[0];
-  res.val[1] = val[1] - v.val[1];
-  res.xmag();
-  return COK;
-}
-
-/*
- * Friend Functions
- */
-Complex& operator+(Real n, Complex& v)
-{
-  Complex *nv = new Complex();
-
-  nv->val[0] = v.val[0] + n;
-  nv->val[1] = v.val[1];
-  nv->xmag();
-  return *nv;
-}
-
-Complex& operator-(Real n, Complex& v)
-{
-  Complex *nv = new Complex();
-
-  nv->val[0] = n - v.val[0];
-  nv->val[1] =   - v.val[1];
-  nv->xmag();
-  return *nv;
-}
-
-Complex& operator*(Real n, Complex& v)
-{
-  Complex *nv = new Complex();
-
-  nv->val[0] = v.val[0] * n;
-  nv->val[1] = v.val[1] * n;
-  nv->xmag();
-  return *nv;
-}
-
-Complex& Div(Real n, Complex& v)
-{
-  Complex *nv = new Complex();
-
-  nv->val[0] = n;
-  nv->val[1] = 0;
-  *nv = *nv / v;
-  return *nv;
-}
-
-Complex& Mult(Real n, Complex& v)
-{
-  Complex *nv = new Complex();
-
-  nv->val[0] = v.val[0] * n;
-  nv->val[1] = v.val[1] * n;
-  nv->xmag();
-  return *nv;
-}
-
-/*****************************************************************************
- *                    Non Class Mathematics
-*****************************************************************************/
-/* Forward References */
-void DMulRSub(Vector&, Vector&, Vector, Vector);
-LINT SignFix(LINT);
-
-/* Non Class Globals */
-/*------------------------------------------------------------------------------
-|
-|                           FUNCTION ARCCOSH
-|
-|  This FUNCTION evaluates the inverse hyperbolic cosine FUNCTION.
-|
-|  Author        : David Vallado                  303-344-6037    1 Mar 2001
-|
-|  Inputs          Description                    Range / Units
-|    XVal        - ANGLE Value                                  1.0 to Infinity
-|
-|  OutPuts       :
-|    ARCCOSH     - Result                                       any real
-|
-|  Locals        :
-|    Temp        - Temporary EXTENDED Value
-|
-|  Coupling      :
-|    None.
-|
- -----------------------------------------------------------------------------*/
-Real Arccosh(Real v)
-{
-  Real t;
-
-  if (v * v - 1.0 < 0.0)
-  {
-    t = 999999.9;
-    printf("Error in Arccosh function\n");
-  }
-  else
-    t = log(v + sqrt(v * v - 1.0));
-
-  return t;
-}
-
-/*------------------------------------------------------------------------------
-|
-|                           FUNCTION ARCSINH
-|
-|  This FUNCTION evaluates the inverse hyperbolic sine FUNCTION.
-|
-|  Author        : David Vallado                  303-344-6037    1 Mar 2001
-|
-|  Inputs          Description                    Range / Units
-|    XVal        - ANGLE Value                                  any real
-|
-|  OutPuts       :
-|    ARCSINH     - Result                                       any real
-|
-|  Locals        :
-|    None.
-|
-|  Coupling      :
-|    None.
-|
- -----------------------------------------------------------------------------*/
-Real Arcsinh(Real v)
-{
-  Real t;
-
-  if (1.0 - fabs(v) < 0.000001)
-  {
-    t = 999999.9;
-    printf("Error in Arctanh function\n");
-  }
-  else
-    t = 0.5 * log((1.0 + v) / (1.0 - v));
-
-  return t;
-}
-
-/*------------------------------------------------------------------------------
-|
-|                           FUNCTION ARCTANH
-|
-|  This FUNCTION evaluates the inverse hyperbolic tangent FUNCTION.
-|
-|  Author        : David Vallado                  303-344-6037    1 Mar 2001
-|
-|  Inputs          Description                    Range / Units
-|    XVal        - ANGLE Value                                  -1.0 to 1.0
-|
-|  OutPuts       :
-|    ARCTANH     - Result                                       any real
-|
-|  Locals        :
-|    Temp        - Temporary EXTENDED Value
-|
-|  Coupling      :
-|    None.
-|
- -----------------------------------------------------------------------------*/
-Real Arctanh(Real v)
-{
-  return log(v + sqrt(v * v + 1.0));
-}
-
-/*------------------------------------------------------------------------------
-|
-|                           FUNCTION ATAN2
-|
-|  This FUNCTION performs the arc tangent 2 FUNCTION which resolves
-|    quadrants.  The arguments passed are the sine and cosine values.
-|
-|  Algorithm     : Determine the quadrant using IF statments
-|                  IF the answer is not a sepcial case, 0, 180, etc
-|                     find the arctangent
-|                  otherwise, find the special case values
-|
-|  Author        : David Vallado                  303-344-6037    1 Mar 2001
-|
-|  Inputs          Description                    Range / Units
-|    SinValue    - Sine of desired ANGLE                        rad
-|    CosValue    - Cosine of desired value                      rad
-|
-|  OutPuts       :
-|    ATAN2       - Arctangent with resolved quadrants           0.0 to 2Pi rad
-|
-|  Locals        :
-|    TanArg      - Temporary EXTENDED Value
-|    Quadrant    - Quadrant of the answer                       1 2 3 4
-|    SinINTEGER  - Sign of the value                            +1 or -1
-|
-|  Coupling      :
-|    None.
-|
- -----------------------------------------------------------------------------*/
-Real Atan2(Real sinval, Real cosval)
-{
-  Real TanArg;
-  LINT Quadrant;
-  LINT SinInt;
-
-  Quadrant = 5;
-  if ((sinval > 0.0) && (sinval < 1.0) && (cosval > 0.0) && (cosval < 1.0))
-    Quadrant = 1;
-  if ((sinval > 0.0) && (sinval < 1.0) && (cosval < 0.0) && (cosval > -1.0))
-    Quadrant = 2;
-  if ((sinval > -1.0) && (sinval < 0.0) && (cosval < 0.0) && (cosval > -1.0))
-    Quadrant = 3;
-  if ((sinval > -1.0) && (sinval < 0.0) && (cosval > 0.0) && (cosval < 1.0))
-    Quadrant = 4;
-
-  if (Quadrant != 5)
-  {
-    TanArg = atan(sinval / cosval);
-    if ((Quadrant < 4) && (Quadrant != 1))
-      TanArg = TanArg + 2.0 * PI;
-  }
-  else
-  {
-    SinInt = (LINT)Round(sinval);
-    switch (SinInt)
-    {
-      case -1:
-        TanArg = 3.0 * PI / 2.0;
-      case 0:
-        if (Round(cosval) > 0.0)
-          TanArg = 0.0;
+double  sgn
+        (
+          double x
+        )
+   {
+     if (x < 0.0)
+       {
+          return -1.0;
+       }
+       else
+       {
+          return 1.0;
+       }
+
+   }  // end sgn
+
+
+// round a number to the nearest integer
+double round
+       (
+         double x
+       )
+   {
+       double temp;
+       temp = floor( x + 0.5);
+       return int(temp);
+   }  // end round
+
+/* -----------------------------------------------------------------------------
+*
+*                           function acosh
+*
+*  this function evaluates the inverse hyperbolic cosine function.
+*
+*  author        : david vallado                  719-573-2600    1 mar 2001
+*
+*  inputs          description                    range / units
+*    xval        - angle value                                  1.0 to infinity
+*
+*  outputs       :
+*    acosh       - result                                       any real
+*
+*  locals        :
+*    temp        - temporary value
+*
+*  coupling      :
+*    none.
+*
+* --------------------------------------------------------------------------- */
+
+double  acosh
+        (
+          double xval
+        )
+   {
+     double temp;
+     if ( xval*xval - 1.0 < 0.0 )
+       {
+         temp = undefined;
+         printf("error in arccosh function \n");
+       } 
+       else
+         temp= log( xval + sqrt( xval*xval - 1.0 ) );
+
+     return temp;
+   }
+
+
+/* -----------------------------------------------------------------------------
+*
+*                           function asinh
+*
+*  this function evaluates the inverse hyperbolic sine function.
+*
+*  author        : david vallado                  719-573-2600    1 mar 2001
+*
+*  inputs          description                    range / units
+*    xval        - angle value                                  any real
+*
+*  outputs       :
+*    asinh       - result                                       any real
+*
+*  locals        :
+*    none.
+*
+*  coupling      :
+*    none.
+*
+* --------------------------------------------------------------------------- */
+
+double  asinh
+        (
+          double xval
+        )
+   {
+     return log( xval + sqrt( xval*xval + 1.0 ) );
+   }  // end asinh
+
+
+/* ------------------------------------------------------------------------------
+*
+*                           function cot
+*
+*  this function finds the cotangent of an input in radians.
+*
+*  author        : david vallado                  719-573-2600    1 Mar 2001
+*
+*  inputs          description                    range / units
+*    xval        - input to take cotangent of        rad
+*
+*  outputs       :
+*    cot         - result
+*
+*  locals        :
+*    temp        - temporary real variable
+*
+ ---------------------------------------------------------------------------- */
+
+double cot
+       (
+         double xval
+       )
+   {
+      double temp;
+
+      temp = tan( xval );
+      if (fabs( temp ) < 0.00000001 )
+          return infinite;
         else
-          TanArg = PI;
-      case 1:
-        TanArg = PI / 2.0;
-    }
-  }
-  return TanArg;
-}
+          return 1.0 / temp;
+   }  // procedure cot
 
-void DMulRSub(Vector& AlpR, Vector& Alpi, Vector BetR, Vector Beti)
-{
-  Real Te1,  Te2,  Te3,  Te4,  Te5, Te6,  Te7,  Te8,    Te9, Te10, Te11, Te12,
-       Te13, Te14, Te15, Te16, Tem, DE15, DE16, TemTe7, TemTe8;
 
-  Te1 = AlpR(1) - AlpR(3);
-  Te2 = Alpi(1) - Alpi(3);
-  Te5 = AlpR(3) - AlpR(2);
-  Te6 = Alpi(3) - Alpi(2);
-  Tem = Te5 * Te5 + Te6 * Te6;
+/* -----------------------------------------------------------------------------
+*
+*                           function dot
+*
+*  this function finds the dot product of two vectors.
+*
+*  author        : david vallado                  719-573-2600    1 mar 2001
+*
+*  inputs          description                    range / units
+*    vec1        - vector number 1
+*    vec2        - vector number 2
+*
+*  outputs       :
+*    dot         - result
+*
+*  locals        :
+*    none.
+*
+*  coupling      :
+*    none.
+*
+* --------------------------------------------------------------------------- */
 
-  /* ---------------- Check for zero values of tem -------------- */
-  if (fabs(Tem) > 1.0E-20)
-  {
-    Te3 = (Te1 * Te5 + Te2 * Te6) / Tem;
-    Te4 = (Te2 * Te5 - Te1 * Te6) / Tem;
-  }
-  else
-  {
-    Te3 = 0.0;
-    Te4 = 0.0;
-  }
+double  dot
+        (
+          double x[3], double y[3]
+        )
+   {
+     return (x[0]*y[0] + x[1]*y[1] + x[2]*y[2]);
+   }  // end dot
 
-  Te7  = Te3 + 1.0;
-  Te9  = Te3 * Te3 - Te4 * Te4;
-  Te10 = 2.0 * Te3 * Te4;
-  DE15 = Te7 * BetR(3) - Te4 * Beti(3);
-  DE16 = Te7 * Beti(3) + Te4 * BetR(3);
-  Te11 = Te3 * BetR(2) - Te4 * Beti(2) + BetR(1) - DE15;
-  Te12 = Te3 * Beti(2) + Te4 * BetR(2) + Beti(1) - DE16;
+/* -----------------------------------------------------------------------------
+*
+*                           function mag
+*
+*  this procedure finds the magnitude of a vector.  the tolerance is set to
+*    0.000001, thus the 1.0e-12 for the squared test of underflows.
+*
+*  author        : david vallado                  719-573-2600    1 mar 2001
+*
+*  inputs          description                    range / units
+*    vec       - vector
+*
+*  outputs       :
+*    vec       - answer stored in function return
+*
+*  locals        :
+*    none.
+*
+*  coupling      :
+*    none.
+*
+* --------------------------------------------------------------------------- */
 
-  Te7  = Te9 - 1.0;
-  Te1  = Te9 * BetR(2) - Te10 * Beti(2);
-  Te2  = Te9 * Beti(2) + Te10 * BetR(2);
-  Te13 = Te1 - BetR(1) - Te7 * BetR(3) + Te10 * Beti(3);
-  Te14 = Te2 - Beti(1) - Te7 * Beti(3) - Te10 * BetR(3);
-  Te15 = DE15 * Te3 - DE16 * Te4;
-  Te16 = DE15 * Te4 + DE16 * Te3;
+double  mag
+        (
+          double x[3]
+        )
+   {
+     return sqrt(x[0]*x[0] + x[1]*x[1] + x[2]*x[2]);
+   }  // end mag
 
-  Te1 = Te13 * Te13 - Te14 * Te14 - 4.0 * (Te11 * Te15 - Te12 * Te16);
-  Te2 = 2.0 * Te13 * Te14 - 4.0 * (Te12 * Te15 + Te11 * Te16);
+/* -----------------------------------------------------------------------------
+*
+*                           procedure cross
+*
+*  this procedure crosses two vectors.
+*
+*  author        : david vallado                  719-573-2600    1 mar 2001
+*
+*  inputs          description                    range / units
+*    vec1        - vector number 1
+*    vec2        - vector number 2
+*
+*  outputs       :
+*    outvec      - vector result of a x b
+*
+*  locals        :
+*    none.
+*
+*  coupling      :
+*    none
+*
+ ---------------------------------------------------------------------------- */
 
-  /* --------------------------------------------------------------------
-  |   Sometimes, for stiff systems (the roots vary widely in order
-  |   of magnitude), Te1 and Te2 get large enough to have their
-  |   squares overflow the floating point range.  To prevent this,
-  |   when either one is large, they are scaled by 10**10 for the
-  |   purpose of finding TeM.  The scale is restored when the
-  |   magnitude computation is completed.  This should not affect
-  |   the accuracy of the computations, since the mantissa is not
-  |   affected, only the exponent.^
-   -------------------------------------------------------------------- */
+void    cross
+        (
+          double vec1[3], double vec2[3], double outvec[3]
+        )
+   {
+     outvec[0]= vec1[1]*vec2[2] - vec1[2]*vec2[1];
+     outvec[1]= vec1[2]*vec2[0] - vec1[0]*vec2[2];
+     outvec[2]= vec1[0]*vec2[1] - vec1[1]*vec2[0];
+   }  // end cross
 
-  if ((Te1 > 1.0E15) || (Te2 > 1.0E15))
-  {
-    Te1 = Te1 * 1.0E-10;
-    Te2 = Te2 * 1.0E-10;
-    Tem = 1.0E10 * sqrt(Te1 * Te1 + Te2 * Te2);
-  }
-  else
-    Tem = sqrt(Te1 * Te1 + Te2 * Te2);
+/* -----------------------------------------------------------------------------
+*
+*                           procedure norm
+*
+*  this procedure calculates a unit vector given the original vector.  if a
+*    zero vector is input, the vector is set to zero.
+*
+*  author        : david vallado                  719-573-2600    1 mar 2001
+*
+*  inputs          description                    range / units
+*    vec         - vector
+*
+*  outputs       :
+*    outvec      - unit vector
+*
+*  locals        :
+*    i           - index
+*    small       - value defining a small value
+*    magv        - magnitude of the vector
+*
+*  coupling      :
+*    mag           magnitude of a vector
+*
+* --------------------------------------------------------------------------- */
 
-  if (Te1 > 0.0)
-  {
-    Te3 = sqrt(0.5 * (Tem + Te1));
-    if (Te2 < 0.0)
-      Te3 = -Te3;
-    /* ----------------- check for zero values of te3 -------------- */
-    if (fabs(Te3) < 1.0E-15)
-      Te4 = 0.0;
-    else
-      Te4 = 0.5 * Te2 / Te3;
-  }
-  else
-  {
-    Te4 = sqrt(0.5 * (Tem - Te1));
-    /* --------------------- Check for underflows ------------------ */
-    if (fabs(Te4) < 1.0E-15)
-      Te3 = 0.0;
-    else
-      Te3 = 0.5 * Te2 / Te4;
-  }
+void    norm
+        (
+          double vec[3],
+          double outvec[3]
+        )
+   {
+     const double small = 0.000001;
+     double magv;
+     int i;
 
-  Te7  = Te13 + Te3;
-  Te8  = Te14 + Te4;
-  Te9  = Te13 - Te3;
-  Te10 = Te14 - Te4;
-  Te1  = 2.0 * Te15;
-  Te2  = 2.0 * Te16;
+     magv = mag( vec );
+     if (magv > small)
+       {
+         for (i = 0; i <= 2; i++)
+             outvec[i]= vec[i]/magv;
+       }
+       else
+         for (i = 0; i <= 2; i++)
+             outvec[i]= 0.0;
+   }
 
-  if ((Te7 * Te7 + Te8 * Te8 - Te9 * Te9 - Te10 * Te10) <= 0.0)
-  {
-    Te7 = Te9;
-    Te8 = Te10;
-  }
-  Tem = Te7 * Te7+Te8 * Te8;
+/* -----------------------------------------------------------------------------
+*
+*                           procedure roti
+*
+*  this procedure performs a rotation about the ith axis. i is specified
+*    for each operation.
+*
+*  author        : david vallado                  719-573-2600    1 mar 2001
+*
+*  inputs          description                    range / units
+*    vec         - input vector
+*    xval        - angle of rotation              rad
+*
+*  outputs       :
+*    outvec      - vector result
+*
+*  locals        :
+*    c           - cosine of the angle xval
+*    s           - sine of the angle xval
+*    temp        - temporary extended value
+*
+*  coupling      :
+*    none.
+*
+* --------------------------------------------------------------------------- */
 
-  TemTe7 = Tem * Te7;
-  TemTe8 = Tem * Te8;
+void    rot1
+        (
+          double vec[3],
+          double xval,
+          double outvec[3]
+        )
+   {
+      double c, s, temp;
 
-  /* ------------- Check for values of almost zero -------------- */
-  if (fabs(TemTe7) < 1.0E-20)
-  {
-    Te3 = 0.0;
-    Te4 = 0.0;
-  }
-  else
-  {
-    Te3 = Te1 / Tem * Te7;
-    Te4 = Te2 / Tem * Te7;
-  }
-  if (fabs(TemTe8) > 1.0E-20)
-  {
-    Te3 = Te3 + Te2 / Tem * Te8;
-    Te4 = Te4 - Te1 / Tem * Te8;
-  }
+      temp= vec[2];
+      c= cos( xval );
+      s= sin( xval );
 
-  AlpR(4) = AlpR(3) + Te3 * Te5 - Te4 * Te6;
-  Alpi(4) = Alpi(3) + Te3 * Te6 + Te4 * Te5;
-}
+      outvec[2]= c*vec[2] - s*vec[1];
+      outvec[1]= c*vec[1] + s*temp;
+      outvec[0]= vec[0];
+   }
 
-/*------------------------------------------------------------------------------
-|
-|                           PROCEDURE FACTOR
-|
-|  This PROCEDURE is a root finding algorithm.  It takes the polynomial and
-|    returns the roots (real and imaginary) in the Roots array.
-|
-|  Author        : David Vallado                  303-344-6037    1 Mar 2001
-|
-|  Inputs          Description                    Range / Units
-|    Poly        - Array of 16 coefficients
-|                    representing the polynomial
-|                    [1] is x
-|                    others are zero
-|    NRoots      - Number of roots
-|
-|  OutPuts       :
-|    Roots       - Array containing roots (real,imag)
-|
-|  Locals        :
-|                -
-|                -
-|                -
-|
-|  Coupling      :
-|    DMulRSub    -
-|
-|  References    :
-|    Original FORTRAN code from USAFA/DFAS MiniTotal program, author unknown
-|    This is Bairstows method?
-|
- -----------------------------------------------------------------------------*/
-void Factor(Real *Poly, UINT NRoots, Real **Roots)
-{
-  const Real Small = 0.000001;
-  Real  DPoly[16];
-  Vector AlpR(3);
-  Vector Alpi(3);
-  Vector BetR(3);
-  Vector Beti(3);
-  bool   Skip;
-  int    Mode, LoopCnt, kk, i, j, l, RootCnt;
-  Real   Temp1,    Temp2,    AXR, AXi, PMax, Tem1, Tem2,
-         TempReal, TempImag, Temp7;
+void    rot2
+        (
+          double vec[3],
+          double xval,
+          double outvec[3]
+        )
+   {
+      double c, s, temp;
 
-  PMax = 0.0;
-  for (kk = 1; kk <= NRoots + 1; kk++)
-    if (fabs(Poly[kk-1]) > PMax)
-      PMax = Poly[kk-1];
+      temp= vec[2];
+      c= cos( xval );
+      s= sin( xval );
 
-  if (fabs(PMax) < Small)
-    PMax = 1.0;
+      outvec[2]= c*vec[2] + s*vec[0];
+      outvec[0]= c*vec[0] - s*temp;
+      outvec[1]= vec[1];
+   }
 
-  for (kk = 1; kk <= NRoots+1; kk++)
-    DPoly[kk-1] = Poly[kk-1] / PMax;
+void    rot3
+        (
+          double vec[3],
+          double xval,
+          double outvec[3]
+        )
+   {
+      double c, s, temp;
 
-  if (NRoots > 0)
-  {
-    RootCnt = 0;
-    i = NRoots + 1;
+      temp= vec[1];
+      c= cos( xval );
+      s= sin( xval );
 
-    while ((fabs(DPoly[i-1]) < Small) && (RootCnt != NRoots))
-    {
-      RootCnt = RootCnt + 1;
-      Roots[RootCnt][0] = 0.0;
-      Roots[RootCnt][1] = 0.0;
-      i = i - 1;
-    }
+      outvec[1]= c*vec[1] - s*vec[0];
+      outvec[0]= c*vec[0] + s*temp;
+      outvec[2]= vec[2];
+   }
 
-    if (RootCnt != NRoots)
-    {
-      AXR = 0.8;
-      AXi = 0.0;
-      l   = 1;
-      LoopCnt = 1;
-      AlpR(1) = AXR;
-      Alpi(1) = AXi;
-      Mode = 1;
+/* -----------------------------------------------------------------------------
+*
+*                                  rotimat
+*
+*  this function sets up a rotation matrix for an input angle about the first
+*    axis.
+*
+*  author        : david vallado                  719-573-2600   10 jan 2003
+*
+*  revisions
+*                -
+*
+*  inputs          description                    range / units
+*    xval        - angle of rotation              rad
+*
+*  outputs       :
+*    outmat      - matrix result
+*
+*  locals        :
+*    c           - cosine of the angle xval
+*    s           - sine of the angle xval
+*
+*  coupling      :
+*    none.
+*
+* --------------------------------------------------------------------------- */
 
-      while (RootCnt < NRoots)
-      {
-        BetR.Mag(DPoly[0]);
-        for (i = 1; i <= NRoots; i++)
+void    rot1mat
+        (
+          double xval,
+          std::vector< std::vector<double> > &outmat
+//          double outmat[3][3]
+        )
+   {
+     outmat.resize(3);  // rows
+     for (std::vector< std::vector<double> >::iterator it=outmat.begin(); it != outmat.end();++it)
+          it->resize(3);
+     double c, s;
+     c= cos( xval );
+     s= sin( xval );
+
+     outmat[0][0]= 1.0;
+     outmat[0][1]= 0.0;
+     outmat[0][2]= 0.0;
+
+     outmat[1][0]= 0.0;
+     outmat[1][1]= c;
+     outmat[1][2]= s;
+
+     outmat[2][0]= 0.0;
+     outmat[2][1]= -s;
+     outmat[2][2]= c;
+   }
+
+void    rot2mat
+        (
+          double xval,
+          std::vector< std::vector<double> > &outmat
+//          double outmat[3][3]
+        )
+   {
+     outmat.resize(3);  // rows
+     for (std::vector< std::vector<double> >::iterator it=outmat.begin(); it != outmat.end();++it)
+          it->resize(3);
+     double c, s;
+     c= cos( xval );
+     s= sin( xval );
+
+     outmat[0][0]= c;
+     outmat[0][1]= 0.0;
+     outmat[0][2]= -s;
+
+     outmat[1][0]= 0.0;
+     outmat[1][1]= 1.0;
+     outmat[1][2]= 0.0;
+
+     outmat[2][0]= s;
+     outmat[2][1]= 0.0;
+     outmat[2][2]= c;
+   }
+
+void    rot3mat
+        (
+          double xval,
+          std::vector< std::vector<double> > &outmat
+//          double outmat[3][3]
+        )
+   {
+     outmat.resize(3);  // rows
+     for (std::vector< std::vector<double> >::iterator it=outmat.begin(); it != outmat.end();++it)
+          it->resize(3);
+     double c, s;
+     c= cos( xval );
+     s= sin( xval );
+
+     outmat[0][0]= c;
+     outmat[0][1]= s;
+     outmat[0][2]= 0.0;
+
+     outmat[1][0]= -s;
+     outmat[1][1]= c;
+     outmat[1][2]= 0.0;
+
+     outmat[2][0]= 0.0;
+     outmat[2][1]= 0.0;
+     outmat[2][2]= 1.0;
+   }
+
+
+/* -----------------------------------------------------------------------------
+*
+*                           procedure addvec
+*
+*  this procedure adds two vectors possibly multiplied by a constant.
+*
+*  author        : david vallado                  719-573-2600    1 mar 2001
+*
+*  inputs          description                    range / units
+*    a1          - constant multiplier
+*    a2          - constant multiplier
+*    vec1        - vector number 1
+*    vec2        - vector number 2
+*
+*  outputs       :
+*    outvec      - vector result of a + b
+*
+*  locals        :
+*    row         - index
+*
+*  coupling      :
+*     none
+*
+* --------------------------------------------------------------------------- */
+
+void    addvec
+        (
+          double a1, double vec1[3],
+          double a2, double vec2[3],
+          double vec3[3]
+        )
+   {
+     int row;
+
+     for (row = 0; row <= 2; row++)
+       {
+         vec3[row]= 0.0;
+         vec3[row] = a1* vec1[row] + a2* vec2[row];
+       }
+   }
+
+/* -----------------------------------------------------------------------------
+*
+*                           procedure addvec3
+*
+*  this procedure adds three vectors possibly multiplied by a constant.
+*
+*  author        : david vallado                  719-573-2600    1 mar 2001
+*
+*  inputs          description                    range / units
+*    a1          - constant multiplier
+*    a2          - constant multiplier
+*    a3          - constant multiplier
+*    vec1        - vector number 1
+*    vec2        - vector number 2
+*    vec3        - vector number 3
+*
+*  outputs       :
+*    outvec      - vector result of a + b + c
+*
+*  locals        :
+*    row         - index
+*
+*  coupling      :
+*     none
+* --------------------------------------------------------------------------- */
+
+void    addvec3
+        (
+          double a1, double vec1[3],
+          double a2, double vec2[3],
+          double a3, double vec3[3],
+          double vec4[3]
+        )
+   {
+     int row;
+
+     for (row = 0; row <= 2; row++)
+       {
+         vec4[row]= 0.0;
+         vec4[row] = a1* vec1[row] + a2* vec2[row]+ a3* vec3[row];
+       }
+   }
+
+
+/* -----------------------------------------------------------------------------
+*
+*                           procedure angle
+*
+*  this procedure calculates the angle between two vectors.  the output is
+*    set to 999999.1 to indicate an undefined value.  be sure to check for
+*    this at the output phase.
+*
+*  author        : david vallado                  719-573-2600    1 mar 2001
+*
+*  inputs          description                    range / units
+*    vec1        - vector number 1
+*    vec2        - vector number 2
+*
+*  outputs       :
+*    theta       - angle between the two vectors  -pi to pi
+*
+*  locals        :
+*    temp        - temporary real variable
+*    magv1       - magnitude of vec1
+*    magv2       - magnitude of vec2
+*    small       - value defining a small value
+*    undefined   - large number to use in place of a not defined number
+*
+*  coupling      :
+*    dot           dot product of two vectors
+*    acos          arc cosine function
+*    mag           magnitude of a vector
+*
+* --------------------------------------------------------------------------- */
+
+double  angle
+        (
+          double vec1[3],
+          double vec2[3]
+        )
+   {
+     double small, magv1, magv2, temp;
+     small     = 0.00000001;
+
+     magv1 = mag(vec1);
+     magv2 = mag(vec2);
+
+     if (magv1*magv2 > small*small)
+       {
+         temp= dot(vec1,vec2) / (magv1*magv2);
+         if (fabs( temp ) > 1.0)
+             temp= sgn(temp) * 1.0;
+         return acos( temp );
+       }
+       else
+         return undefined;
+   }  // end angle
+
+// this writes a vector out to the screen
+void    writevec
+        (
+          char title[10],
+          double r[3], double v[3], double a[3]
+        )
+   {
+     printf("%10s  %15.8f%15.8f%15.8f",title, r[0],r[1],r[2] );
+     printf(" v %15.9f%15.9f%15.9f"   ,v[0],v[1],v[2] );
+     printf(" a %14.9f%14.9f%14.9f\n" ,a[0],a[1],a[2] );
+   }
+
+/* -----------------------------------------------------------------------------
+*
+*                           procedure matvecmult
+*
+*  this procedure multiplies a 3x3 matrix and a 3x1 vector together.
+*
+*  author        : david vallado                  719-573-2600    1 mar 2001
+*
+*  inputs          description                    range / units
+*    mat         - 3 x 3 matrix
+*    vec         - vector
+*
+*  outputs       :
+*    vecout      - vector result of mat * vec
+*
+*  locals        :
+*    row         - row index
+*    col         - column index
+*    ktr         - index
+*
+*  coupling      :
+*
+* --------------------------------------------------------------------------- */
+
+void    matvecmult
+        (
+          std::vector< std::vector<double> > mat,
+//          double mat[3][3],
+          double vec[3],
+          double vecout[3]
+        )
+   {
+     int row,col,ktr;
+
+     for (row = 0; row <= 2; row++)
+       {
+         vecout[row]= 0.0;
+         for (ktr = 0; ktr <= 2; ktr++)
+             vecout[row]= vecout[row] + mat[row][ktr] * vec[ktr];
+       }
+   }
+
+/* -----------------------------------------------------------------------------
+*
+*                           procedure matmult
+*
+*  this procedure multiplies two matricies up to 10x10 together.
+*
+*  author        : david vallado                  719-573-2600    7 dec 2007
+*
+*  inputs          description                    range / units
+*    mat1        - matrix number 1
+*    mat2        - matrix number 2
+*    mat1r       - matrix number 1 rows
+*    mat1c       - matrix number 1 columns
+*    mat2c       - matrix number 2 columns
+*
+*  outputs       :
+*    mat3        - matrix result of mat1 * mat2 of size mat1r x mat2c
+*
+*  locals        :
+*    row         - row index
+*    col         - column index
+*    ktr         - index
+*
+*  coupling      :
+*
+* --------------------------------------------------------------------------- */
+
+void    matmult
+        (
+          std::vector< std::vector<double> > mat1,
+          std::vector< std::vector<double> > mat2,
+          std::vector< std::vector<double> > &mat3,
+//          double mat1[3][3],
+//          double mat2[3][3],
+//          double mat3[3][3],
+          int mat1r, int mat1c, int mat2c
+        )
+   {
+     int row,col,ktr;
+     // specify the actual sizes
+     mat3.resize(mat1r);  // rows
+     for (std::vector< std::vector<double> >::iterator it=mat3.begin(); it != mat3.end();++it)
+          it->resize(mat2c);
+
+
+     for (row = 0; row < mat1r; row++)
+       {
+         for (col = 0; col < mat2c; col++)
+           {
+             mat3[row][col]= 0.0;
+             for (ktr = 0; ktr < mat1c; ktr ++)
+                 mat3[row][col]= mat3[row][col] + mat1[row][ktr] * mat2[ktr][col];
+           }
+       }
+   }
+
+/* -----------------------------------------------------------------------------
+*
+*                           procedure mattrans
+*
+*  this procedure finds the transpose of a matrix.
+*
+*  author        : david vallado                  719-573-2600    1 mar 2001
+*
+*  inputs          description                    range / units
+*    mat1        - matrix number 1
+*    mat1r       - matrix number 1 rows
+*    mat1c       - matrix number 1 columns
+*
+*  outputs       :
+*    mat2        - matrix result of transpose mat2
+*
+*  locals        :
+*    row         - row index
+*    col         - column index
+*
+*  coupling      :
+*
+* --------------------------------------------------------------------------- */
+
+void    mattrans
+        (
+          std::vector< std::vector<double> > mat1,
+          std::vector< std::vector<double> > &mat2,
+//          double mat1[3][3],
+//          double mat2[3][3],
+          int mat1r, int mat1c
+        )
+   {
+     int row,col;
+
+     mat2.resize(mat1c);  // rows
+     for (std::vector< std::vector<double> >::iterator it=mat2.begin(); it != mat2.end();++it)
+          it->resize(mat1r);
+
+     for (row = 0; row < mat1r; row++)
+       {
+         for (col = 0; col < mat1c; col++)
+             mat2[col][row] = mat1[row][col];
+       }
+   }
+
+/* ------------------------------------------------------------------------------
+*
+*                           procedure ludecomp
+*
+*  this procedure decomposes a matrix into an lu form.
+*
+*  author        : david vallado                  719-573-2600    1 mar 2001
+*
+*  inputs          description                    range / units
+*    order       - order of matrix
+*
+*  outputs       :
+*    lu          - lu decomposition matrix
+*    index       - index vector for pivoting
+*
+*  locals        :
+*    i           - index
+*    j           - index
+*    k           - index
+*    imax        - pivot row pointer
+*    scale       - scale factor vector
+*    sum         - temporary variables
+*    amax        - temporary variables
+*    dum         - temporary variables
+*
+*  coupling      :
+*    none
+*
+*  references    :
+*    numerical recipes - flannery
+*
+ ----------------------------------------------------------------------------- */
+
+void ludecomp
+     (
+       std::vector< std::vector<double> > &lu,
+       std::vector< int > &indexx,
+//          double lu[3][3],
+//          double indexx[3],
+       int order
+     )
+   {
+     const double small = 0.000001;
+     int i, j, k, imax;
+     std::vector< std::vector<double> > scale(order+1,2);
+     double sum, amax, dum;
+
+     imax = 0;
+     for (i = 1; i <= order; i++)
+       {
+         amax = 0.0;
+         for (j = 1; j <= order; j++)
+             if (fabs( lu[i][j] ) > amax)
+                 amax = fabs(lu[i][j]);
+         if (fabs(amax) < small)
+           {
+             printf(" singular matrix amax ");
+           }
+         scale[i][1] =  1.0 / amax;
+       }
+     for (j = 1; j <= order; j++)
+       {
+         for (i = 1; i <= j - 1; i++)
+           {
+             sum = lu[i][j];
+             for (k = 1; k <= i - 1; k++)
+                 sum = sum - lu[i][k] * lu[k][j];
+             lu[i][j] = sum;
+           }
+         amax = 0.0;
+         for (i = j; i <= order; i++)
+           {
+             sum = lu[i][j];
+             for (k = 1; k <= j - 1; k++)
+                 sum = sum - lu[i][k] * lu[k][j];
+             lu[i][j] = sum;
+             dum = scale[i][1] * fabs(sum);
+             if (dum >= amax)
+               {
+                 imax = i;
+                 amax = dum;
+               }
+           }
+         if (j != imax)
+           {
+             for (k = 1; k <= order; k++)
+               {
+                 dum = lu[imax][k];
+                 lu[imax][k] = lu[j][k];
+                 lu[j][k] =  dum;
+               }
+             scale[imax][1] = scale[j][1];
+           }
+         indexx[j] = imax;
+         if (fabs( lu[j][j]) < small)
+           {
+             printf(" matrix is singular lu ");
+           }
+         if (j != order)
+           {
+             dum = 1.0 / lu[j][j];
+             for (i = j + 1; i <= order; i++)
+                 lu[i][j] = dum * lu[i][j];
+           }
+       }
+   } // procedure ludecmp
+
+/* ------------------------------------------------------------------------------
+*
+*                           procedure lubksub
+*
+*  this procedure finds the inverse of a matrix using lu decomposition.
+*
+*  author        : david vallado                  719-573-2600    1 mar 2001
+*
+*  inputs          description                    range / units
+*    order       - order of matrix
+*    lu          - lu decomposition matrix
+*    index       - index vector for pivoting
+*
+*  outputs       :
+*    b           - solution vector
+*
+*  locals        :
+*    i           - index
+*    j           - index
+*    i0          - pointer to non-zero element
+*    iptr        - pivot rwo pointer
+*    sum         - temporary variables
+*
+*  coupling      :
+*    none
+*
+*  references    :
+*    numerical recipes - flannery
+*
+ ----------------------------------------------------------------------------- */
+
+void lubksub
+     (
+       std::vector< std::vector<double> > lu,
+       std::vector< int > indexx,
+//          double lu[3][3],
+//          double indexx[3],
+       int order,
+       std::vector< std::vector<double> > &b
+//          double b[3][3]
+     )
+   {
+     int i, j, iptr, i0;
+     double sum;
+
+     i0 = 0;
+     for (i = 1; i <= order; i++)
+       {
+         iptr = indexx[i];
+         sum  = b[iptr][1];
+         b[iptr][1] = b[i][1];
+         if (i0 != 0)
+             for (j = i0; j <= i - 1; j++)
+                 sum = sum - lu[i][j] * b[j][1];
+           else
+             if (sum != 0.0)
+                i0 = i;
+         b[i][1] = sum;
+       }
+
+     b[order][1] = b[order][1] / lu[order][order];
+
+     for (i = order - 1; i >= 1; i--)
+       {
+         sum = b[i][1];
+         for (j = i + 1; j <= order; j++)
+            sum = sum - lu[i][j] * b[j][1];
+         b[i][1] = sum / lu[i][i];
+       }
+  }  //  procedure lubksub
+
+/* ------------------------------------------------------------------------------
+*
+*                           procedure matinverse
+*
+*  this procedure finds the inverse of a matrix using lu decomposition.
+*  internally, the function uses arrays starting at 1 to be consistent with
+*  other procedures.
+*
+*  author        : david vallado                  719-573-2600    1 mar 2001
+*
+*  inputs          description                    range / units
+*    mat         - matrix to invert, 0 array starts
+*    order       - order of matrix
+*
+*  outputs       :
+*    matinv      - inverted matrix, 0 array starts
+*
+*  locals        :
+*    i           - index
+*    j           - index
+*    index       - index vector for pivoting
+*    lu          - lu decomposition matrix
+*    b           - operational vector to form matinv
+*
+*  coupling      :
+*    ludecomp    -
+*    lubksub     -
+*
+*  references    :
+*    numerical recipes - flannery
+*
+ ----------------------------------------------------------------------------- */
+
+void matinverse
+     ( std::vector< std::vector<double> > mat,
+//          double mat[3][3],
+       int  order,
+       std::vector< std::vector<double> > &matinv
+//          double matinv[3][3]
+     )
+   {
+      int i, j;
+      std::vector< int > indexx(order+1);
+      std::vector< std::vector<double> > lu(order+1,order+1);
+      std::vector< std::vector<double> >  b(order+1,2);
+
+      matinv.resize(order);  // rows
+      for (std::vector< std::vector<double> >::iterator it=matinv.begin(); it != matinv.end();++it)
+          it->resize(order);
+
+      for (i = 1; i <= order; i++)
         {
-          Temp1 = BetR.Mag() * AXR - Beti.Mag() * AXi;
-          Beti.Mag(Beti.Mag() * AXR + BetR.Mag() * AXi);
-          BetR.Mag(Temp1 + DPoly[j-1]);
+          indexx[i] = i;
+          for (j = 1; j <= order; j++)
+              lu[i][j] = mat[i-1][j-1];
         }
-
-        TempReal = BetR.Mag();
-        TempImag = Beti.Mag();
-
-        if (RootCnt != 0)
+      ludecomp(lu, indexx, order);
+       for (j = 1; j <= order; j++)
         {
-          for (i = 1; i <= RootCnt; i++)
+          for (i = 1; i <= order; i++)
+            {
+             if (i == j)
+                 b[i][1] = 1.0;
+               else
+                 b[i][1] = 0.0;
+            }
+
+          lubksub(lu, indexx, order, b);
+          for (i = 1; i <= order; i++)
+             matinv[i-1][j-1] = b[i][1];
+        }
+   } // procedure matinverse
+
+
+void writemat
+     (
+       char matname[30],
+       std::vector< std::vector<double> > mat,
+//          double mat[3][3],
+       int row, int col
+     )
+   {
+     int r, c;
+
+     printf("matrix %15s \n",matname );
+     for (r = 0; r < row; r++)
+       {
+         for (c = 0; c < col; c++)
+             printf("%16.11f ",mat[r][c] );
+         printf(" \n");
+       }
+   }
+
+void writeexpmat
+     (
+       char matname[30],
+       std::vector< std::vector<double> > mat,
+//          double mat[3][3],
+       int row, int col
+     )
+   {
+     int r, c;
+
+     printf("matrix %15s \n",matname );
+     for (r = 0; r < row; r++)
+       {
+         for (c = 0; c < col; c++)
+             printf("%14g ",mat[r][c] );
+         printf(" \n");
+       }
+   }
+
+/* -----------------------------------------------------------------------------
+*
+*                           function cubicspl
+*
+*  this function performs cubic splining of an input zero crossing
+*  function in order to find function values.
+*
+*  author        : david vallado                  719-573-2600     7 aug 2005
+*
+*  revisions
+*                -
+*  inputs          description                    range / units
+*    p0,p1,p2,p3 - function values used for splining
+*    t0,t1,t2,t3 - time values used for splining
+*
+*  outputs       :
+*    acu0..acu3  - splined polynomial coefficients. acu3 t^3, etc
+*
+*  locals        : none
+*
+*  coupling      :
+*    none
+*
+*  references    :
+*    vallado       2007, 556
+* --------------------------------------------------------------------------- */
+
+void cubicspl
+     (
+       double p1, double p2, double p3, double p4,
+       double& acu0, double& acu1, double& acu2, double& acu3
+     )
+     {
+        acu0 = p2;
+        acu1 = -p1/3.0 - 0.5*p2 + p3 -p4/6.0;
+        acu2 = 0.5*p1 - p2 + 0.5*p3;
+        acu3 = -p1/6.0 + 0.5*p2 - 0.5*p3 + p4/6.0;
+     }
+
+/* -----------------------------------------------------------------------------
+*
+*                           function cubic
+*
+*  this function solves for the three roots of a cubic equation.  there are
+*    no restrictions on the coefficients, and imaginary results are passed
+*    out as separate values.  the general form is y = a3x3 + b2x2 + c1x + d0.  note
+*    that r1i will always be zero since there is always at least one real root.
+*
+*  author        : david vallado                  719-573-2600    1 mar 2001
+*
+*  revisions
+*    vallado     - convert to matlab              719-573-2600   18 dec 2002
+*
+*  inputs          description                    range / units
+*    a3          - coefficient of x cubed term
+*    b2          - coefficient of x squared term
+*    c1          - coefficient of x term
+*    d0          - constant
+*    opt         - option for output              I all roots including imaginary
+*                                                 R only real roots
+*                                                 U only unique real roots (no repeated)
+*
+*  outputs       :
+*    r1r         - real portion of root 1
+*    r1i         - imaginary portion of root 1
+*    r2r         - real portion of root 2
+*    r2i         - imaginary portion of root 2
+*    r3r         - real portion of root 3
+*    r3i         - imaginary portion of root 3
+*
+*  locals        :
+*    temp1       - temporary value
+*    temp2       - temporary value
+*    p           - coefficient of x squared term where x cubed term is 1.0
+*    q           - coefficient of x term where x cubed term is 1.0
+*    r           - coefficient of constant term where x cubed term is 1.0
+*    delta       - discriminator for use with cardans formula
+*    e0          - angle holder for trigonometric solution
+*    phi         - angle used in trigonometric solution
+*    cosphi      - cosine of phi
+*    sinphi      - sine of phi
+*
+*  coupling      :
+*    quadric     - quadratic roots
+*
+*  references    :
+*    vallado       2007, 975
+*
+* --------------------------------------------------------------------------- */
+
+void cubic
+         (
+           double a3, double b2, double c1, double d0, char opt,
+           double& r1r, double& r1i, double& r2r, double& r2i, double& r3r, double& r3i
+         )
+   {
+        const double rad      = 57.29577951308230;
+        const double onethird = 1.0/3.0;
+        const double small    = 0.00000001;
+        double temp1, temp2, p, q, r, delta, e0, cosphi, sinphi, phi;
+        // ------------------------  implementation   --------------------------
+        r1r  = 0.0;
+        r1i  = 0.0;
+        r2r  = 0.0;
+        r2i  = 0.0;
+        r3r  = 0.0;
+        r3i  = 0.0;
+
+        if (fabs(a3) > small)
           {
-            Tem1    = AXR - Roots[i][0];
-            Tem2    = AXi - Roots[i][1];
-            Temp1   = Tem1 * Tem1 + Tem2 * Tem2;
-            Temp2   = (BetR.Mag() * Tem1 + Beti.Mag() * Tem2) / Temp1;
-            Beti.Mag((Beti.Mag() * Tem1 - BetR.Mag() * Tem2) / Temp1);
-            BetR.Mag(Temp2);
-          }
+           // ------------- force coefficients into std form -------------------
+            p= b2/a3;
+            q= c1/a3;
+            r= d0/a3;
 
-          switch (Mode)
-          {
-            case 1:
-              BetR(1) = BetR.Mag();
-              Beti(1) = Beti.Mag();
-              AXR     = 0.85;
-              AlpR(2) = AXR;
-              Alpi(2) = AXi;
-              Mode    = 2;
-              break;
-            case 2:
-              BetR(2) = BetR.Mag();
-              Beti(2) = Beti.Mag();
-              AXR     = 0.9;
-              AlpR(3) = AXR;
-              Alpi(3) = AXi;
-              Mode    = 3;
-              break;
-            case 3:
-              BetR(3) = BetR.Mag();
-              Beti(3) = Beti.Mag();
-              DMulRSub(AlpR, Alpi, BetR, Beti);
-              AXR     = AlpR.Mag();
-              AXi     = Alpi.Mag();
-              Mode    = 4;
-              break;
-            case 4:
-   /* -------------------  the convergence mode ------------------- */
-              Skip = false;
-              if (fabs(TempReal) + fabs(TempImag) > 1.0E-20)
-                Temp7 = fabs(AlpR(3) - AXR) + fabs(Alpi(3) - AXi);
-              if (Temp7 / (fabs(AXR) + fabs(AXi)) > 1.0E-7)
+            a3= onethird*( 3.0 *q - p*p );
+            b2= (1.0 /27.0 )*( 2.0 *p*p*p - 9.0 *p*q + 27.0 *r );
+
+            delta= (a3*a3*a3/27.0 ) + (b2*b2*0.25 );
+
+            // -------------------- use cardans formula ------------------------
+            if ( delta > small )
               {
-                LoopCnt++;
-                for (i = 1; i<= 3; i++)
-                {
-                  AlpR(i) = AlpR(i+1);
-                  Alpi(i) = Alpi(i+1);
-                  BetR(i) = BetR(i+1);
-                  Beti(i) = Beti(i+1);
-                }
-                if (LoopCnt < 100)
-                {
-                  DMulRSub(AlpR, Alpi, BetR, Beti);
-                  AXR  = AlpR.Mag();
-                  AXi  = Alpi.Mag();
-                  Mode = 4;
-                  Skip = true;
-                }
-              }
+                temp1= (-b2*0.5 )+sqrt(delta);
+                temp2= (-b2*0.5 )-sqrt(delta);
+                temp1= sgn(temp1)*pow( fabs(temp1),onethird );
+                temp2= sgn(temp2)*pow( fabs(temp2),onethird );
+                r1r= temp1 + temp2 - p*onethird;
 
-              if (!Skip)
-              {
-                RootCnt++;
-                Roots[RootCnt][0] = AlpR.Mag();
-                Roots[RootCnt][1] = Alpi.Mag();
-                LoopCnt = 0;
-
-                if (RootCnt < NRoots)
-                {
-                  if (fabs(Roots[RootCnt][1]) > Small)
+                if (opt=='I')
                   {
-                    if (l = 1)
-                    {
-                      AXR     =  AlpR(1);
-                      AXi     = -Alpi(1);
-                      Alpi(1) = -Alpi(1);
-                      Mode    =  5;
-                    }
-                    else
-                    {
-                      AXR     = 0.8;
-                      AXi     = 0.0;
-                      l       = 1;
-                      LoopCnt = 1;
-                      AlpR(1) = AXR;
-                      Alpi(1) = AXi;
-                      Mode    = 1;
-                    }
+                    r2r= -0.5 *(temp1 + temp2) - p*onethird;
+                    r2i= -0.5 *sqrt( 3.0  )*(temp1 - temp2);
+                    r3r= -0.5 *(temp1 + temp2) - p*onethird;
+                    r3i= -r2i;
                   }
                   else
                   {
-                    AXR     = 0.8;
-                    AXi     = 0.0;
-                    l       = 1;
-                    LoopCnt = 1;
-                    AlpR(1) = AXR;
-                    Alpi(1) = AXi;
-                    Mode    = 1;
+                    r2r= 99999.9;
+                    r3r= 99999.9;
                   }
-                }
+               }
+              else
+               {
+            // -------------------- evaluate zero point ------------------------
+            if ( fabs( delta ) < small  )
+              {
+                r1r= -2.0*sgn(b2)*pow(fabs(b2*0.5),onethird) - p*onethird;
+                r2r=      sgn(b2)*pow(fabs(b2*0.5),onethird) - p*onethird;
+                if (opt=='U')
+                    r3r= 99999.9;
+                  else
+                    r3r= r2r;
               }
-              break;
-            case 5:
-              BetR(1) =  BetR.Mag();
-              Beti(1) =  Beti.Mag();
-              AXR     =  AlpR(2);
-              AXi     = -Alpi(2);
-              Alpi(2) = -Alpi(2);
-              Mode    = 6;
-              break;
-            case 6:
-              BetR(2) = BetR.Mag();
-              Beti(2) = Beti.Mag();
-              AXR     =  AlpR(3);
-              AXi     = -Alpi(3);
-              Alpi(3) = -Alpi(3);
-              Mode    = 3;
-              break;
-            default:
-              break;
-          }
-        }
-      }
-    }
-  }
-}
-
-/*------------------------------------------------------------------------------
-|
-|                           FUNCTION BINOMIAL
-|
-|  This FUNCTION finds the value of a BINOMIAL coefficient
-|
-|  Author        : David Vallado                  303-344-6037    1 Mar 2001
-|
-|  Inputs          Description                    Range / Units
-|    i           -
-|    j           -
-|
-|  Outputs       :
-|    FUNCTION    - answer
-|
-|  Locals        :
-|    None.
-|
-|  Coupling      :
-|    FACTORIAL   - Finds the FACTORIAL of a number
-|
- -----------------------------------------------------------------------------*/
-Real Binomial(ULINT f1, ULINT f2)
-{
-  return (Factorial(f2) / (Factorial(f1) * Factorial(f2 - f1)));
-}
-
-/*------------------------------------------------------------------------------
-|
-|                           FUNCTION COMPSQRT
-|
-|  This function finds the square root of a real number and returns the complex
-|    result.
-|
-|  Author        : David Vallado                  303-344-6037    1 Mar 2001
-|
-|  Inputs        :
-|    R           - Real number, usually negative
-|
-|  OutPuts       :
-|    CompSQRT    - Square Root (real,imag)
-|
-|  Coupling      :
-|    None
-|
- -----------------------------------------------------------------------------*/
-Real ComplexSqrt(Real n)
-{
-  if (n < 0.0)
-    /* ----------------------- imaginary roots --------------------- */
-    return sqrt(-n);
-  else
-    /* ---------------------------- Real roots --------------------- */
-    return sqrt(n);
-}
-
-/*------------------------------------------------------------------------------
-|
-|                           FUNCTION COT
-|
-|  This FUNCTION finds the Cotangent of an ANGLE in radians.
-|
-|  Author        : David Vallado                  303-344-6037    1 Mar 2001
-|
-|  Inputs          Description                    Range / Units
-|    XVal        - ANGLE to take Cotangent of                   rad
-|
-|  OutPuts       :
-|    COT         - Result
-|
-|  Locals        :
-|    Temp        - Temporary Real variable
-|
- -----------------------------------------------------------------------------*/
-Real Cot(Real v)
-{
-  Real t;
-
-  t = tan(v);
-  if (fabs(t) < 0.000001)
-    return 999999.9;
-  else
-    return (1.0 / t);
-}
-
-/*------------------------------------------------------------------------------
-|
-|                           PROCEDURE CUBIC
-|
-|  This PROCEDURE solves for the three Roots of a CUBIC equation.  There are
-|    no restrictions on the coefficients, and imaginary results are passed
-|    out as separate values.  The general form is y = ax3 + bx2 + cx + d.  Note
-|    that R1i will ALWAYS be ZERO since there is ALWAYS at least one REAL Root.
-|
-|  Author        : David Vallado                  303-344-6037    1 Mar 2001
-|
-|  Inputs          Description                    Range / Units
-|    a           - Coefficient of x cubed term
-|    b           - Coefficient of x squared term
-|    c           - Coefficient of x term
-|    d           - Constant
-|
-|  OutPuts       :
-|    R1r         - Real portion of Root 1
-|    R1i         - Imaginary portion of Root 1
-|    R2r         - Real portion of Root 2
-|    R2i         - Imaginary portion of Root 2
-|    R3r         - Real portion of Root 3
-|    R3i         - Imaginary portion of Root 3
-|
-|  Locals        :
-|    Temp1       - Temporary value
-|    Temp2       - Temporary value
-|    Root1       - Temporary value of the Root
-|    Root2       - Temporary value of the Root
-|    Root3       - Temporary value of the Root
-|    P           - Coefficient of x squared term where x cubed term is 1.0
-|    Q           - Coefficient of x term where x cubed term is 1.0
-|    R           - Coefficient of constant term where x cubed term is 1.0
-|    Delta       - Discriminator for use with Cardans formula
-|    E0          - ANGLE holder for trigonometric solution
-|    Phi         - ANGLE used in trigonometric solution
-|    CosPhi      - Cosine of Phi
-|    SinPhi      - Sine of Phi
-|
-|  Coupling      :
-|    ATAN2         Arctangent including check for 180-360 deg
-|    POWER         Raise a base to an exponent
-|
-|  References    :
-|    Vallado       2001,
-|
- -----------------------------------------------------------------------------*/
-void Cubic
-    (
-      Real a, Real b, Real c, Real d,
-      Real& R1r, Real& R1i, Real& R2r, Real& R2i, Real& R3r, Real& R3i
-    )
-{
-  const Real Rad      = 18.0 / PI;
-  const Real Small    = 0.000001;
-  const Real OneThird = 1.0 / 3.0;
-
-  Real Temp1, Temp2, Root1, Root2, Root3, P, Q, R, Delta,
-       E0, CosPhi, SinPhi, Phi;
-
-  R1r   = 0.0;
-  R1i   = 0.0;
-  R2r   = 0.0;
-  R2i   = 0.0;
-  R3r   = 0.0;
-  R3i   = 0.0;
-  Root1 = 0.0;
-  Root2 = 0.0;
-  Root3 = 0.0;
-
-  /* ------------ Force coefficients into std form --------------- */
-  P = b / a;
-  Q = c / a;
-  R = d / a;
-
-  a = OneThird * (3.0 * Q - P * P);
-  b = (1.0 / 27.0) * (2.0 * P * P * P - 9.0 * P * Q + 27.0 * R);
-
-  Delta = (a * a * a / 27.0) + (b * b * 0.25);
-
-  /* ------------------- Use Cardans formula --------------------- */
-  if (Delta > Small)
-  {
-    Temp1 = (-b * 0.5) + sqrt(Delta);
-    Temp2 = (-b * 0.5) - sqrt(Delta);
-    if (fabs(Temp1) > Small)
-        Temp1 = Power(Temp1, OneThird);
-    if (fabs(Temp2) > Small)
-        Temp2 = Power(Temp2, OneThird);
-    Root1 = Temp1 + Temp2;
-    Root2 = -0.5 * (Temp1 + Temp2);
-    Root3 = -0.5 * (Temp1 + Temp2);
-    R2i   = -0.5 * sqrt(3.0) * (Temp1 - Temp2);
-    R3i   = -R2i;
-  }
-  else
-  {
-    /* ---------------- Evaluate zero point ------------------------ */
-    if (fabs(Delta) < Small)
-    {
-      if (fabs(b) > Small)
-      {
-        Root1 = -2.0 * Power(b * 0.5, OneThird);
-        Root2 =  Power(b * 0.5, OneThird);
-        Root3 = Root2;
-      }
-      else
-      {
-        /* ---------------- Use trigonometric identities --------------- */
-        E0      = 2.0 * sqrt(-a * OneThird);
-        CosPhi  = (-b / (2.0 * sqrt(-a * a * a / 27.0)));
-        SinPhi  = sqrt(1.0 - CosPhi * CosPhi);
-        Phi     = Atan2(SinPhi, CosPhi);
-        Root1   = E0 * cos(Phi * OneThird);
-        Root2   = E0 * cos(Phi * OneThird + 120.0 / Rad);
-        Root3   = E0 * cos(Phi * OneThird + 240.0 / Rad);
-      }
-    }
-  }
-  
-  R1r = Root1 - P * OneThird;
-  R2r = Root2 - P * OneThird;
-  R3r = Root3 - P * OneThird;
-}
-
-/*------------------------------------------------------------------------------
-|
-|                           FUNCTION CSC
-|
-|  This FUNCTION finds the Cosecant of an ANGLE in radians.
-|
-|  Author        : David Vallado                  303-344-6037    1 Mar 2001
-|
-|  Inputs          Description                    Range / Units
-|    XVal        - ANGLE to take Cosecant of                    rad
-|
-|  OutPuts       :
-|    CSC         - Result
-|
-|  Locals        :
-|    Temp        - Temporary Real variable
-|
- -----------------------------------------------------------------------------*/
-Real Csc(Real v)
-{
-  Real t;
-
-  t = sin(v);
-  if (fabs(t) < 0.000001)
-    return 999999.9;
-  else
-    return (1.0 / t);
-}
-
-/*------------------------------------------------------------------------------
-|
-|                           FUNCTION FACTORIAL
-|
-|  This FUNCTION finds the value of a FACTORIAL.
-|
-|  Author        : David Vallado                  303-344-6037    1 Mar 2001
-|
-|  Inputs          Description                    Range / Units^
-|    x           - Input value^M
-|
-|  Outputs       :
-|    FUNCTION    - answer
-|
-|  Locals        :
-|    Temp        - Temporary variable
-|    i           - Index
-|
-|  Coupling      :
-|    None.
-|
- -----------------------------------------------------------------------------*/
-Real Factorial(ULINT f)
-{
-  Real res = 1;
-
-  for (ULINT i = 1; i <= f; i++)
-    res *= (Real)i;
-  return res;
-}
-
-Real Fraction(Real n)
-{
-  return (n - (LINT) n);
-}
-
-bool IsInt(Real n)
-{
-  const Real Small = 0.00000000001;
-
-  return (((fabs(Fraction(n)) < Small) ||
-          (1.0 - fabs(Fraction(n)) < Small)) &&
-          (fabs(n) < MaxLongInt));
-}
-
-/*------------------------------------------------------------------------------
-|
-|                           FUNCTION MAX
-|
-|  This FUNCTION determines the maximum of 2 values.
-|
-|  Author        : David Vallado                  303-344-6037    1 Mar 2001
-|
-|  Inputs          Description                    Range / Units
-|    X           - Value number 1
-|    Y           - Value number 2
-|
-|  OutPuts       :
-|    MAX         - Minimum of x or y
-|
-|  Locals        :
-|    None.
-|
-|  Coupling      :
-|    None.
-|
- -----------------------------------------------------------------------------*/
-Real Max(Real m, Real n)
-{
-  if (m >= n)
-    return m;
-  else
-    return n;
-}
-
-/*------------------------------------------------------------------------------
-|
-|                           FUNCTION MIN
-|
-|  This FUNCTION determines the minimum of 2 values.
-|
-|  Author        : David Vallado                  303-344-6037    1 Mar 2001
-|
-|  Inputs          Description                    Range / Units
-|    X           - Value number 1
-|    Y           - Value number 2
-|
-|  OutPuts       :
-|    MIN         - Minimum of x or y
-|
-|  Locals        :
-|    None.
-|
-|  Coupling      :
-|    None.
-|
- -----------------------------------------------------------------------------*/
-Real Min(Real m, Real n)
-{
-  if (m <= n)
-    return m;
-  else
-    return n;
-}
-
-/*------------------------------------------------------------------------------
-|
-|                           FUNCTION REALMOD
-|
-|  This FUNCTION performs the MOD operation for REALs.
-|
-|  Algorithm     : Assign a temporary variable
-|                  Subtract off an INTEGER number of values while the xval is
-|                     too large
-|
-|  Author        : David Vallado                  303-344-6037    1 Mar 2001
-|
-|  Inputs          Description                    Range / Units
-|    XVal        - Value to MOD
-|    ModBy       - Value to MOD with
-|
-|  OutPuts       :
-|    REALMOD     - Result                         -ModBy <=  Answer  <= +ModBy
-|
-|  Locals        :
-|    TempValue   - Temporary EXTENDED value
-|
-|  Coupling      :
-|    None.
-|
- -----------------------------------------------------------------------------*/
-Real Mod(Real n, Real m)
-{
-  Real t;
-
-  t = n;
-  while (fabs(t) > m)
-  {
-    t = t - (Real)((LINT)(n / m) * m);
-  }
-  return t;
-}
-
-/*------------------------------------------------------------------------------
-|
-|                           PROCEDURE PLANE
-|
-| This PROCEDURE calculates the equation of a PLANE given 3 points
-|   pt1 - x1,y1,z1, pt2 - x2,y2,z2, pt3 - x3,y3,z3 , and outputs the
-|   a b c d variables describing the PLANE. NOTE that the general equation
-|   of a PLANE is defined here as:  ax + by + cz + d = 0  and the values
-|   are obtained by solving the ordered determinant  x  y  z   1
-|                                                    x1 y1 z1  1   =0
-|                                                    x2 y2 z2  1
-|                                                    x3 y3 z3  1
-|
-|  Algorithm     : find the line differences for each set of points
-|                  Calculate the coefficients of the PLANE
-|
-|  Author        : David Vallado                  303-344-6037    1 Mar 2001
-|
-|  Inputs          Description                    Range / Units
-|    x1,y1,z1    - point # 1
-|    x2,y2,z2    - point # 2
-|    x3,y3,z3    - point # 3
-|
-|  OutPuts       :
-|    a,b,c,d     - constants for the equation of the PLANE
-|
-|  Locals        :
-|    z23
-|
-|  Coupling      :
-|    None.
-|
- -----------------------------------------------------------------------------*/
-void Plane(Real x1, Real y1, Real z1,
-           Real x2, Real y2, Real z2, 
-           Real x3, Real y3, Real z3,
-           Real& a, Real& b, Real& c,  Real& d)
-{
-  Real z23, y23, x23, yz23, yz32, xz23, xz32, xy23, xy32;
-
-  z23 = z2 - z3;
-  y23 = y2 - y3;
-  x23 = x2 - x3;
-
-  yz23 = y2 * z3;
-  yz32 = y3 * z2;
-  xz23 = x2 * z3;
-  xz32 = x3 * z2;
-  xy32 = x3 * y2;
-
-  a = y1 * z23 - z1 * y23 + yz23 - yz32;
-  b = x1 * z23 - z1 * x23 + xz23 - xz32;
-  c = x1 * y23 - y1 * x23 + xy23 - xy32;
-  d = x1 * (yz23 - yz32) + y1 * (xz32 - xz23) + z1 * (xy23 - xy32);
-}
-
-void Polyfit
-    (
-      UINT Degree, UINT NumPts, Matrix DataPoints, Matrix Coeff, 
-      Real& MinX, Real& MinY
-    )
-{
-  Matrix a(Degree+1, Degree+1);
-  Matrix ai(Degree+1, Degree+1);
-  Matrix b(Degree+1, 1);
-  Matrix parr(2 * Degree, 1);
-  Real   p;
-
-  a.Clear();
-  ai.Clear();
-  b.Clear();
-  parr.Clear();
-
-  /* ---- Find the sum of the product terms (x*y) ---- */
-  for (UINT k = 1; k <= NumPts; k++)
-  {
-    p = 1;
-    for (UINT r = 1; r <= Degree+1; r++)
-    {
-      b(r, 1) = b(r, 1) + 2.0 * DataPoints(k, 2);
-    }
-  }
-
-  /* ---- Find the sum of powers for x (x**) ---- */
-  for (UINT k = 1; k <= NumPts; k++)
-  {
-    p = DataPoints(k, 1);
-    for (UINT j = 1; j <= 2 * Degree+1; j++)
-    {
-      parr(j, 1) = parr(j, 1) + p;
-      p = p * DataPoints(k, 1);
-    }
-  }
-
-  /* ---- Find the matrix entries for the equations ---- */
-  for (UINT r = 1; r <= Degree+1; r++)
-  {
-    for (UINT c = 1; c <= Degree+1; c++)
-    {
-      if (r + c != 2)
-        a(r, c) = parr(r + c - 2, 1);
-      else
-        a(r, c) = NumPts;
-    }
-  }
-
-  /* ---- Solve linear equations for coeffeicients ---- */
-  ai = a.Inverse();
-  Coeff = ai * b;
-  
-  /* ---- Find minimum values ---- */
-  MinX = -Coeff(2, 1) / (2.0 * Coeff(3, 1));
-  MinY = Coeff(3, 1) * MinX * MinX + Coeff(2, 1) * MinX + Coeff(1, 1);
-}
-
-/*------------------------------------------------------------------------------
-|
-|                           FUNCTION POWER
-|
-|  This FUNCTION performs the raising of a base to a POWER.  Notice the many
-|    statements to allow processing of negative INTEGER values.
-|
-|  Algorithm     : IF the base and exponent are positive, calculate the answer
-|                  Otherwise, check for 0 base 1st, THEN 0 exponent
-|
-|  Author        : David Vallado                  303-344-6037    1 Mar 2001
-|
-|  Inputs          Description                    Range / Units
-|    Base        - Base value
-|    Pwr         - POWER to raise base to
-|
-|  OutPuts       :
-|    POWER       - Result
-|
-|  Locals        :
-|    None.
-|
-|  Coupling      :
-|    None.
-|
-|  References    : PC Magazine, 10 Sep 91, pg. 465-466.
-|
- -----------------------------------------------------------------------------*/
-Real Power(Real b, Real e)
-{
-  const Real Small = 0.00000000001;
-  Real  Recip;
-
-  if (fabs(b) > Small)
-  {
-    if (fabs(e) > Small)
-    {
-      /* --------------- Base is (+) and Exponent <> 0 ---------------- */
-      if (b > 0.0)
-        return exp(e * log(b));
-      else
-      {
-        /*--------- Base is (-) and Exponent is an INTEGER --------- */
-        if (IsInt(e))
-          return (exp(e * log(-b)) * SignFix((LINT)Round(e)));
+              else
+              {
+                // --------------- use trigonometric identities ----------------
+                e0     = 2.0 *sqrt(-a3*onethird);
+                cosphi = (-b2/(2.0 *sqrt(-a3*a3*a3/27.0 )) );
+                sinphi = sqrt( 1.0 -cosphi*cosphi );
+                phi    = atan2( sinphi,cosphi );
+                if (phi < 0.0)
+                    phi = phi + 2.0*pi;
+                r1r= e0*cos( phi*onethird ) - p*onethird;
+                r2r= e0*cos( phi*onethird + 120.0 /rad ) - p*onethird;
+                r3r= e0*cos( phi*onethird + 240.0 /rad ) - p*onethird;
+              } // if fabs(delta)...
+             }  // if delta > small
+          }  // if fabs > small
         else
         {
-          /* ----------- Base is (-) and Exponent is real ----------- */
-          Recip = 1.0 / e;
-          /* ---- Base is (-) and Exponent is recip of odd int ---- */
-          if ((fabs(Round(Recip) - Recip) < 0.000001) && 
-              (ODD((LINT)Round(Recip))))
-            return -exp(e * log(-b));
-          else
+          quadric( b2, c1, d0, opt, r1r, r1i, r2r, r2i );
+          r3r  = 99999.9;
+          r3i  = 99999.9;
+        }
+   }
+
+/* -----------------------------------------------------------------------------
+*
+*                           function cubicinterp
+*
+*  this function performs a cubic spline. four points are needed.
+*
+*  author        : david vallado                  719-573-2600   1 dec  2005
+*
+*  revisions
+*
+*  inputs          description                    range / units
+*    valuein     - kp
+*
+*  outputs       :
+*    out         - ap
+*
+*  locals        :
+*                -
+*
+*  coupling      :
+*    cubicspl
+*
+*  references    :
+*    vallado       2007, 556
+* --------------------------------------------------------------------------- */
+
+double  cubicinterp
+        (
+          double p1a, double p1b, double p1c, double p1d, double p2a, double p2b,
+          double p2c, double p2d, double valuein
+        )
+   {
+        double kc0, kc1, kc2, kc3, ac0, ac1, ac2, ac3,
+               r1r, r1i, r2r, r2i, r3r, r3i, value;
+
+           // -------- assign function points ---------
+           cubicspl(p1a, p1b, p1c, p1d, ac0, ac1, ac2, ac3);
+           cubicspl(p2a, p2b, p2c, p2d, kc0, kc1, kc2, kc3);
+
+           // recover the original function values
+           // use the normalized time first, but at an arbitrary interval
+           cubic(kc3, kc2, kc1, kc0-valuein, 'R', r1r, r1i, r2r, r2i, r3r, r3i);
+
+           if ((r1r >= -0.000001) && (r1r <= 1.001))
+             {
+               value = r1r;
+             }
+             else
+             {
+               if ((r2r >= -0.000001) && (r2r <= 1.001))
+                 {
+                   value = r2r;
+                 }
+                 else
+                 {
+                   if ((r3r >= -0.000001) && (r3r <= 1.001))
+                     {
+                       value = r3r;
+                     }
+                     else
+                     {
+                       value = 0.0;
+                       printf("error in cubicinterp root %17.14f %11.7f %11.7f %11.7f \n",
+                               valuein,r1r,r2r,r3r);
+                     }
+                 }
+             }
+           return (ac3*pow(value,3)  + ac2*value*value  + ac1*value + ac0);
+
+   } // cubicinterp
+
+/* -----------------------------------------------------------------------------
+*
+*                           function quadric
+*
+*  this function solves for the two roots of a quadric equation.  there are
+*    no restrictions on the coefficients, and imaginary results are passed
+*    out as separate values.  the general form is y = ax2 + bx + c.
+*
+*  author        : david vallado                  719-573-2600    1 mar 2001
+*
+*  revisions
+*    vallado     - convert to matlab              719-573-2600    3 dec 2002
+*
+*  inputs          description                    range / units
+*    a           - coefficient of x squared term
+*    b           - coefficient of x term
+*    c           - constant
+*    opt         - option for output              I all roots including imaginary
+*                                                 R only real roots
+*                                                 U only unique real roots (no repeated)
+*
+*  outputs       :
+*    r1r         - real portion of root 1
+*    r1i         - imaginary portion of root 1
+*    r2r         - real portion of root 2
+*    r2i         - imaginary portion of root 2
+*
+*  locals        :
+*    discrim     - discriminate b2 - 4ac
+*
+*  coupling      :
+*    none.
+*
+*  references    :
+*    vallado       2007, 974
+*
+* ----------------------------------------------------------------------------*/
+
+void quadric
+     (
+       double a, double b, double c, char opt,
+       double& r1r, double& r1i, double& r2r, double& r2i
+     )
+   {
+        const double small    = 0.0000001;
+        double delta, discrim;
+        // --------------------  implementation   ----------------------
+        r1r = 0.0;
+        r1i = 0.0;
+        r2r = 0.0;
+        r2i = 0.0;
+
+        discrim = b*b - 4.0 *a*c;
+
+        // ---------------------  real roots  --------------------------
+        if ( fabs(discrim) < small  )
           {
-            return 0.0;
-            printf("Error in POWER with base = %0.3f and Pwr = %0.3f\n", b, e);
+            r1r = -b / ( 2.0 *a );
+            r2r = r1r;
+            if (opt=='U')
+                r2r = 99999.9;
           }
-        }
-      }
-    }
-    else
-      return 1.0;
-  }
-  else
-    return 0.0;
-}
+          else
+           {
+            if (fabs(a) < small)
+                 r1r = -c/b;
+              else
+               {
+                if ( discrim > 0.0  )
+                  {
+                    r1r = ( -b + sqrt(discrim) ) / ( 2.0 *a );
+                    r2r = ( -b - sqrt(discrim) ) / ( 2.0 *a );
+                  }
+                  else
+                  {
+                    // ------------------ complex roots --------------------
+                    if (opt=='I')
+                      {
+                        r1r = -b / ( 2.0 *a );
+                        r2r = r1r;
+                        r1i =  sqrt(-discrim) / ( 2.0 *a );
+                        r2i = -sqrt(-discrim) / ( 2.0 *a );
+                      }
+                      else
+                      {
+                        r1r = 99999.9;
+                        r2r = 99999.9;
+                      }
+                  }
+                }
+             }
+   }
 
-/*------------------------------------------------------------------------------
-|
-|                           PROCEDURE QUADRATIC
-|
-|  This PROCEDURE solves for the two Roots of a QUADRATIC equation.  There are
-|    no restrictions on the coefficients, and imaginary results are passed
-|    out as separate values.  The general form is y = ax2 + bx + c.
-|
-|  Author        : David Vallado                  303-344-6037    1 Mar 2001
-|
-|  Inputs          Description                    Range / Units
-|    a           - Coefficient of x squared term
-|    b           - Coefficient of x term
-|    c           - Constant
-|
-|  OutPuts       :
-|    R1r         - Real portion of Root 1
-|    R1i         - Imaginary portion of Root 1
-|    R2r         - Real portion of Root 2
-|    R2i         - Imaginary portion of Root 2
-|
-|  Locals        :
-|    Discrim     - Discriminate b2 - 4ac
-|
-|  Coupling      :
-|    None.
-|
-|  References    :
-|    Vallado       2001,
-|
- -----------------------------------------------------------------------------*/
-void Quadratic
-    (
-      Real a, Real b, Real c, 
-      Real& r1r, Real& r1i, Real& r2r, Real& r2i
-    )
-{
-  Real Discrim;
 
-  /* ----------------------   Initialize   ----------------------- */
-  r1r = 0.0;
-  r1i = 0.0;
-  r2r = 0.0;
-  r2i = 0.0;
 
-  Discrim = b * b - 4.0 * a * c;
 
-  /* ----------------------  Real Roots  ------------------------- */
-  if (Discrim > 0.0)
-  {
-    r1r = (-b + sqrt(Discrim)) / (2.0 * a);
-    r2r = (-b - sqrt(Discrim)) / (2.0 * a);
-  }
-  else
-  {
-    r1r = -b / (2.0 * a);
-    r2r =  r1r;
-    r1i =  sqrt(-Discrim) / (2.0 * a);
-    r2i = -sqrt(-Discrim) / (2.0 * a);
-  }
-}
-
-/*------------------------------------------------------------------------------
-|
-|                           PROCEDURE QUARTIC
-|
-|  This PROCEDURE solves for the four Roots of a QUARTIC equation.  There are
-|    no restrictions on the coefficients, and imaginary results are passed
-|    out as separate values.  The general form is y = ax4 + bx3 + cx2 + dx + e.
-|
-|  Author        : David Vallado                  303-344-6037    1 Mar 2001
-|
-|  Inputs          Description                    Range / Units
-|    a           - Coeficient of x fourth term
-|    b           - Coefficient of x cubed term
-|    c           - Coefficient of x squared term
-|    d           - Coefficient of x term
-|    e           - Constant
-|
-|  OutPuts       :
-|    R1r         - Real portion of Root 1
-|    R1i         - Imaginary portion of Root 1
-|    R2r         - Real portion of Root 2
-|    R2i         - Imaginary portion of Root 2
-|    R3r         - Real portion of Root 3
-|    R3i         - Imaginary portion of Root 3
-|    R4r         - Real portion of Root 4
-|    R4i         - Imaginary portion of Root 4
-|
-|  Locals        :
-|    Temp1       - Temporary value
-|    Temp2       - Temporary value
-|    Root1       - Temporary value of the Root
-|    Root2       - Temporary value of the Root
-|    Root3       - Temporary value of the Root
-|    s           - alternate variable
-|    h           - Temporary value
-|    hSqr        - h squared
-|    hCube       - h Cubed
-|    P           - Term in auxillary equation
-|    Q           - Term in auxillary equation
-|    R           - Term in auxillary equation
-|    Delta       - Discriminator for use with Cardans formula
-|    E0          - ANGLE holder for trigonometric solution
-|    Phi         - ANGLE used in trigonometric solution
-|    CosPhi      - Cosine of Phi
-|    SinPhi      - Sine of Phi
-|    RPrime      - Values of Roots before final work
-|    Temp        - Temporary variable in finding MAX RPrime
-|    Eta         - Constant coefficient in QUADRATIC solutions
-|    Beta        - Constant coefficient in QUADRATIC solutions
-|
-|  Coupling      :
-|    ATAN2         Arctangent including check for 180-360 deg
-|    POWER         Raise a base to an exponent
-|    QUADRATIC     Find roots of a QUADRATIC polynomial
-|
-|  References    :
-|    Vallado       2001,
-|
- -----------------------------------------------------------------------------*/
-void Quartic
-    (
-      Real  a,   Real  b,   Real  c,   Real  d, Real e,
-      Real& R1r, Real& R1i, Real& R2r, Real& R2i, 
-      Real& R3r, Real& R3i, Real& R4r, Real& R4i
-    )
-{
-  const Real Rad      = 180.0 / PI;
-  const Real OneThird = 1.0 / 3.0;
-  const Real Small    = 0.000001;
-
-  Real Temp1, Temp2, Root1, Root2, Root3, s, h, P, Q, R, Delta, E0,
-       CosPhi, SinPhi, Phi, RPrime, hSqr, hCube, Eta, Beta, Temp;
-
-  /* ----------------------   Initialize   ----------------------- */
-  R1r   = 0.0;
-  R1i   = 0.0;
-  R2r   = 0.0;
-  R2i   = 0.0;
-  R3r   = 0.0;
-  R3i   = 0.0;
-  R4r   = 0.0;
-  R4i   = 0.0;
-  Root1 = 0.0;
-  Root2 = 0.0;
-  Root3 = 0.0;
-
-  /* ------------ Force coefficients into std form --------------- */
-  b = b / a;
-  c = c / a;
-  d = d / a;
-  e = e / a;
-
-  h     = -b / 4;
-  hSqr  = h * h;
-  hCube = hSqr * h;
-
-  P =                              6.0 * hSqr   + 3.0 * b * h + c;
-  Q =            4.0 * hCube + 3.0 * b * hSqr + 2.0 * c * h + d;
-  R = h * hCube +  b * hCube +       c * hSqr   +     d * h + e;
-
-  a =  OneThird * (-P * P -12.0 * R);
-  b =  (1.0 / 27.0) * (-2.0 * P * P * P + 72.0 * P * R - 27.0 * Q * Q);
-  s = -2.0 * OneThird * P;
-
-  Delta = (a * a * a / 27.0) + (b * b * 0.25);
-
-  if (fabs(Q) > Small)
-  {
-    /* ------------------- Use Cardans formula --------------------- */
-    if (Delta > Small)
-    {
-      Temp1 = (-b* 0.5) + sqrt(Delta);
-      Temp2 = (-b* 0.5) - sqrt(Delta);
-      if (fabs(Temp1) > Small)
-        Temp1 = Power(Temp1, OneThird);
-      if (fabs(Temp2) > Small)
-        Temp2 = Power(Temp2, OneThird);
-      Root1 = Temp1 + Temp2;
-      Root2 = -0.5*(Temp1 + Temp2);
-      Root3 = -0.5*(Temp1 + Temp2);
-      R2i   = -0.5 * sqrt(3.0) * (Temp1 - Temp2);
-      R3i   = -R2i;
-    }
-    else
-    {
-      /* ---------------- Evaluate zero point ------------------------ */
-      if (fabs(Delta) < Small)
-      {
-        if (fabs(b) > Small)
-        {
-          Root1 = -2.0 * Power(0.25 * b, OneThird);
-          Root2 = Power(0.25 * b, OneThird);
-          Root3 = Root2;
-        }
-      }
-      else
-      {
-        /* ---------------- Use trigonometric identities --------------- */
-        E0     = 2.0 * sqrt(-a * OneThird);
-        CosPhi = (-b / (2.0 * sqrt(-a * a * a / 27.0)));
-        SinPhi = sqrt(1.0 - CosPhi * CosPhi);
-        Phi    = Atan2(SinPhi, CosPhi);
-        Root1  = E0 * cos(Phi * OneThird);
-        Root2  = E0 * cos(Phi * OneThird + 120.0 / Rad);
-        Root3  = E0 * cos(Phi * OneThird + 240.0 / Rad);
-      }
-    }
-
-    /* ---------------- Find largest value of Root ----------------- */
-    RPrime = Root1 + s;
-    if ((RPrime < Root2 + s) && (fabs(R2i) < 0.0001))
-      RPrime = Root2 + s;
-    if ((RPrime < Root3 + s) && (fabs(R3i) < 0.0001))
-      RPrime = Root3 + s;
-
-    /* ------ Evaluate coefficients of two resulting Quadratics ---- */
-    if (RPrime > Small)
-    {
-      Eta  = 0.5 * (P + RPrime - Q / sqrt(RPrime));
-      Beta = 0.5 * (P + RPrime + Q / sqrt(RPrime));
-    }
-    else
-    {
-      Eta  = 0.5 * P;
-      Beta = 0.5 * P;
-      if (RPrime < 0.0)
-        RPrime = -RPrime;
-    }
-
-    Quadratic(1.0,  sqrt(RPrime), Eta,     R1r, R1i, R2r, R2i);
-    Quadratic(1.0, -sqrt(RPrime), Beta,    R3r, R3i, R4r, R4i);
-  }
-  else
-  {
-    /* ------- Case where solution reduces to a QUADRATIC ---------- */
-    Quadratic(1.0, P, R,   R1r, R1i, R3r, R3i);
-    R = sqrt(R1r * R1r + R1i * R1i);
-    if (fabs(R) > Small)
-      Phi = Atan2(R1i / R, R1r / R);
-    else
-      Phi = 0.0;
-    R1r = sqrt(R) * cos(Phi * 0.5);
-    R1i = sqrt(R) * sin(Phi * 0.5);
-    if (fabs(R1i) > Small)
-      R2r = R1r;
-    else
-      R2r = -R1r;
-    R2i = -R1i;
-
-    R  = sqrt( R3r * R3r + R3i * R3i );
-    if (fabs(R) > Small)
-      Phi = Atan2(R3i / R, R3r / R );
-    else
-      Phi = 0.0;
-    R3r = sqrt(R) * cos(Phi * 0.5);
-    R3i = sqrt(R) * sin(Phi * 0.5);
-    if (fabs(R3i) > Small)
-      R4r = R3r;
-    else
-      R4r = -R3r;
-    R4i = -R3i;
-  }
-  R1r = R1r + h;
-  R2r = R2r + h;
-  R3r = R3r + h;
-  R4r = R4r + h;
-}
-
-Real Round(Real n)
-{
-  if (n < 0)
-    return ((Real)((LINT)(n - 0.5)));
-  else
-    return ((Real)((LINT)(n + 0.5)));
-}
-
-/*------------------------------------------------------------------------------
-|
-|                           FUNCTION SEC
-|
-|  This FUNCTION finds the secant of an ANGLE in radians.
-|
-|  Author        : David Vallado                  303-344-6037    1 Mar 2001
-|
-|  Inputs          Description                    Range / Units
-|    XVal        - ANGLE to take secant of                      rad
-|
-|  OutPuts       :
-|    SEC         - Result
-|
-|  Locals        :
-|    Temp        - Temporary Real variable
-|
- -----------------------------------------------------------------------------*/
-Real Sec(Real v)
-{
-  Real t;
-
-  t = cos(v);
-  if (fabs(t) < 0.000001)
-    return 999999.9;
-  else
-    return (1.0 / t);
-}
-
-LINT SignFix(LINT n)
-{
-  if (ODD(n))
-    return -1;
-  else
-    return 1;
-}
-
-/*------------------------------------------------------------------------------
-|
-|                           FUNCTION SGN
-|
-|  This FUNCTION determines the sign of a number.
-|
-|  Author        : David Vallado                  303-344-6037    1 Mar 2001
-|
-|  Inputs          Description                    Range / Units
-|    XVal        - Value to determine sign of
-|
-|  OutPuts       :
-|    SGN         - Result                         +1 or -1
-|
-|  Locals        :
-|    None.
-|
-|  Coupling      :
-|    None.
-|
- -----------------------------------------------------------------------------*/
-Real Sgn(Real v)
-{
-  if (v > 0.0)
-    return (1.0);
-  else
-    return (-1.0);
-}
-
-/*****************************************************************************
- *                    General Utilities
-*****************************************************************************/
-void FilePrint(Vector& v, char *title, Integer precision, FILE *fp)
-{
-  Integer dec = precision;
-
-  if (precision > 11)
-    dec = 10;
-  fprintf(fp, "%s\n", title);
-  for (UINT i = 1; i <= v.Dim(); i++)
-    fprintf(fp, " %0.*f ", dec, v.Get(i));
-  fprintf(fp, "\n");
-}
-
-void Print(Vector& v, char* title, Integer precision)
-{
-  Integer dec = precision;
-
-  if (precision > 11)
-    dec = 10;
-  printf("%s\n", title);
-  for (UINT i = 1; i <= v.Dim(); i++)
-    printf(" %0.*f ", dec, v.Get(i));
-  printf("\n");
-}
-
-void FilePrint(Matrix& m, char *title, Integer precision, FILE *fp)
-{
-  Integer dec = precision;
-
-  if (precision > 11)
-    dec = 10;
-  fprintf(fp, "%s\n", title);
-  for (UINT r = 1; r <= m.DimR(); r++)
-  {
-    for (UINT c = 1; c <= m.DimC(); c++)
-      fprintf(fp, " %0.*f ", dec, m.Get(r, c));
-    fprintf(fp, "\n");
-  }
-}
-
-void Print(Matrix& m, char *title, Integer precision)
-{
-  Integer dec = precision;
-
-  if (precision > 11)
-    dec = 10;
-  printf("%s\n", title);
-  for (UINT r = 1; r <= m.DimR(); r++)
-  {
-    for (UINT c = 1; c <= m.DimC(); c++)
-      printf(" %0.*f ", dec, m.Get(r, c));
-    printf("\n");
-  }
-}

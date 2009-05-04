@@ -1,275 +1,232 @@
-#ifndef _ASTMATH_H_
-#define _ASTMATH_H_
+#ifndef _astmath_h_
+#define _astmath_h_
 
-/*   *****************************************************************
-
-                           Module - AstMATH.H
-
-  This file contains most of the math procedures and functions.
-
-                          Companion code for
-             Fundamentals of Astrodyanmics and Applications
-                                   2001
-                            by David Vallado
-
-     (H)               email valladodl@worldnet.att.net
-     (W) 303-344-6037, email davallado@west.raytheon.com
-
-     *****************************************************************
-
-  Current :
-            14 May 01  David Vallado
-                         2nd edition baseline
-  Changes :
-            23 Nov 87  David Vallado
-                         Original baseline
-
-     ***************************************************************** */
+/* --------------------------------------------------------------------
+*
+*                                astmath.h
+*
+*    this file contains miscallaneous math functions. vectors use the usual 0-1-2
+*    indexing scheme.
+*
+*    current :
+*              11 dec 07  david vallado
+*                           fixes to matrix operations
+*    changes :
+*              10 aug 06  david vallado
+*                           use fmod
+*              20 jul 05  david vallado
+*                           2nd printing baseline
+*              14 may 01  david vallado
+*                           2nd edition baseline
+*              23 nov 87  david vallado
+*                           original baseline
+* ----------------------------------------------------------------------      */
 
 #include <math.h>
 #include <stdio.h>
-
-/* General object definitions */
-typedef char          Byte;
-typedef double        Real; 
-typedef int           Integer;
-typedef long int      LINT;
-typedef int           SINT;
-typedef unsigned int  UINT;
-typedef unsigned long ULINT;
-
-extern char Show;
-extern FILE *FileOut;
-
-class Matrix;
-
-/* error codes for vector accessing */
-typedef enum {VOK, EMPTY_VECTOR, BAD_INDEX} VStatus;
+#include <vector>
 
 /*
- * Class Definitions
- */
+*  because c++ has no multi-dimensioned, dynamic allocated matrix, I built one.
+*  the matrix type uses the standard vector to allow dynamic re-sizing during runtime.
+*  the first time a variable is defined, you define it as follows
+*       matrix(4,3);
+*  afterwards, you can just pass the variable.
+*       matrix mat3;
+*  anytime you create a new matrix inside a procedure or function, you must re-size
+*  the matrix. use the following statements to re-size!!
+*       mat3.resize(rows);  // set the # of rows
+*       for (std::vector< std::vector<double> >::iterator it=mat3.begin(); it != mat3.end();++it)*           it->resize(cols);  // set the # of cols
+*  the type definition has no size so you can use any size you like ... and then change it :-)
+*/
+///typedef matrix (std::vector< std::vector<double> >);
 
-/*****************************************************************************
- *                    Define the Vector Class
-*****************************************************************************/
-class Vector
-{
-  private:
-    #define VDIM 3
-    Real vec[VDIM];
-    UINT  dim;
-    Real  mag;
 
-  protected:
-    void xmag(void);
-  public:
-    /* Constructor/Destructor */
-    Vector(void);
-    Vector(UINT d);
-   ~Vector(void);
+//global interfaces
+#define pi 3.14159265358979323846
+#define infinite  999999.9
+#define undefined 999999.1
 
-    /* Overloaded Operators */
-    Real&   operator()(UINT);
-    Vector& operator=(Vector&);
-    Vector& operator+(Vector&);
-    Vector& operator-(Vector&);
-    Real    operator*(Vector&);
-    Vector& operator*(Real);
-    Vector& operator*(Matrix&);
-    Vector& operator/(Real);
+double  sgn
+        (
+          double x
+        );
 
-    /* User Functions */
-    Vector& Add(Vector&);
-    VStatus Add(Vector&, Vector&);
-    Real    Angle(Vector&);
-    VStatus Angle(Vector&, Real&);
-    void    Clear(void);
-    Vector& Cross(Vector&);
-    VStatus Cross(Vector&, Vector&);
-    UINT    Dim(void);
-    void    Display(char*, UINT);
-    Real    Dot(Vector&);
-    Real    Get(UINT);
-    VStatus Get(Real&, UINT);
-    Real    Mag(void);
-    void    Mag(Real);
-    Vector& Norm(void);
-    VStatus Norm(Vector&);
-    Vector& Rot1(Real);
-    VStatus Rot1(Real, Vector&);
-    Vector& Rot2(Real);
-    VStatus Rot2(Real, Vector&);
-    Vector& Rot3(Real);
-    VStatus Rot3(Real, Vector&);
-    VStatus Set(Real, UINT);
+double round
+        (
+          double x
+        );
 
-    /* Friend Functions */
-    friend Vector& operator*(Real, Vector&);
-    friend VStatus Mult(Vector&, Matrix&);
-};
+double  acosh
+        (
+          double xval
+        );
 
-/* error codes for matrix accessing */
-typedef enum {MOK, EMPTY_MATRIX, BAD_INDEX1, BAD_INDEX2, NOT_SQUARE} MStatus;
+double  asinh
+        (
+          double xval
+        );
 
-/*****************************************************************************
- *                    Define the Matrix Class
-*****************************************************************************/
-class Matrix
-{
-  private:
-    typedef Real *mvtype;
-    #define MDIMR 3
-    #define MDIMC 3
-    Real  mat[MDIMR][MDIMC];
-    UINT   rdim;
-    UINT   cdim;
-  public:
-    Matrix(void);
-    Matrix(UINT, UINT);
-   ~Matrix(void);
+double  cot
+        (
+          double xval
+        );
 
-    /* Overloaded Operators */
-    Real&   operator()(UINT, UINT);
-    Matrix& operator+(Real);
-    Matrix& operator+(Matrix&);
-    Matrix& operator-(Real);
-    Matrix& operator-(Matrix&);
-    Matrix& operator*(Real);
-    Matrix& operator*(Matrix&);
-    Vector& operator*(Vector&);
-    Matrix& operator/(Real);
+double  dot
+        (
+          double x[3], double y[3]
+        );
 
-    /* User Functions */
-    void Clear(void);
-    Real Determinant(void);
-    MStatus Determinant(Real&);
-    UINT DimC(void);
-    UINT DimR(void);
-    MStatus Display(char*, Integer);
-    Real Get(UINT, UINT);
-    MStatus Get(Real&, UINT, UINT);
-    MStatus LUBkSubstitute(Matrix&, Integer*);
-    MStatus LUDeCompose(Matrix&, Integer*);
-    Matrix& Identity(void);
-    MStatus Identity(Matrix&);
-    MStatus Inverse(Matrix&);
-    Matrix& Inverse(void);
-    Matrix& Scale(Real);
-    MStatus Scale(Matrix&, Real);
-    MStatus Set(Real, UINT, UINT);
-    bool    Square(void);
-    Matrix& Transpose(void);
-};
+double  mag
+        (
+          double x[3]
+        );
 
-/* error codes for complex accessing */
-typedef enum {COK, EMPTY_COMPLEX} CStatus;
+void    cross
+        (
+          double vec1[3], double vec2[3], double outvec[3]
+        );
 
-/*****************************************************************************
- *                    Define the Complex Class
-*****************************************************************************/
-class Complex
-{
-  private:
-    Real val[2];
-    Real mag;
-  protected:
-    void xmag(void);
-  public:
-    Complex(void);
-    Complex(Real, Real);
-   ~Complex(void);
 
-    /* Overloaded Operators */
-    Complex& operator=(Complex&);
-    Complex& operator+(Complex&);
-    Complex& operator+(Real);
-    Complex& operator-(Complex&);
-    Complex& operator-(Real);
-    Complex& operator*(Complex&);
-    Complex& operator*(Real);
-    Complex& operator/(Complex&);
-    Complex& operator/(Real);
+void    norm
+        (
+          double vec[3],
+          double outvec[3]
+        );
 
-    /* User Functions */
-    Complex& Add(Complex&);
-    CStatus  Add(Complex&, Complex&);
-    Real     Angle(Complex&);
-    CStatus  Angle(Complex&, Real&);
-    void     Clear(void);
-    void     Display(void);
-    Complex& Div(Complex&);
-    Complex& Div(Real);
-    Complex& Dot(Complex&);
-    Real     GetI(void);
-    CStatus  GetI(Real&);
-    Real     GetR(void);
-    CStatus  GetR(Real&);
-    Real     Mag(void);
-    void     Mag(Real&);
-    Complex& Mult(Complex&);
-    Complex& Mult(Real);
-    CStatus  Set(Real, Real);
-    CStatus  SetI(Real);
-    CStatus  SetR(Real);
-    Real     Sqrt(void);
-    CStatus  Sqrt(Real&);
-    Complex& Sub(Complex&);
-    CStatus  Sub(Complex&, Complex&);
+void    rot1
+        (
+          double vec[3],
+          double xval,
+          double outvec[3]
+        );
 
-    /* Friend Functions */
-    friend Complex& operator+(Real, Complex&);
-    friend Complex& operator-(Real, Complex&);
-    friend Complex& operator*(Real, Complex&);
-    friend Complex& Div(Real, Complex&);
-    friend Complex& Mult(Real, Complex&);
-};
+void    rot2
+        (
+          double vec[3],
+          double xval,
+          double outvec[3]
+        );
 
-/*****************************************************************************
- *                    Non Class Mathematics
-*****************************************************************************/
-Real Arccosh(Real);
-Real Arcsinh(Real);
-Real Arctanh(Real);
-Real Atan2(Real, Real);
-Real Binomial(ULINT, ULINT);
-Real ComplexSqrt(Real);
-Real Cot(Real);
-void Cubic(Real, Real, Real, Real, Real&, Real&, Real&, Real&, Real&, Real&);
-Real Csc(Real);
-#define EVEN(a) (((abs(a)%2) == 0) ? true : false)
-void Factor(Real *, UINT, Real **);
-Real Factorial(ULINT);
-Real Fraction(Real);
-bool IsInt(Real);
+void    rot3
+        (
+          double vec[3],
+          double xval,
+          double outvec[3]
+        );
 
-#define LOG(a) (log10(a))
-Real Max(Real, Real);
-#define MaxLongInt 2^64-1
-Real Min(Real, Real);
-#define ODD(a) (((abs(a)%2) == 1) ? true : false)
-Real Mod(Real, Real);
-#define PI M_PI
-void Plane(Real, Real, Real, Real, Real, Real, Real, Real, Real,
-           Real&, Real&, Real&,  Real&);
-void Polyfit(UINT, UINT, Matrix, Matrix, Real&, Real&);
-Real Power(Real, Real);
-void Quadratic(Real, Real, Real, Real&, Real&, Real&, Real&);
-void Quartic
-    (
-      Real, Real, Real, Real, Real, 
-      Real&, Real&, Real&, Real&, Real&, Real&, Real&, Real&
-    );
-Real Round(Real);
-Real Sec(Real);
-Real Sgn(Real);
+void    rot1mat
+        (
+          double xval,
+          std::vector< std::vector<double> > &outmat
+        );
 
-/*****************************************************************************
- *                    General Utilities
-*****************************************************************************/
-void FilePrint(Vector&, char*, Integer, FILE*);
-void Print(Vector&, char*, Integer);
-void FilePrint(Matrix&, char*, Integer, FILE*);
-void Print(Matrix&, char*, Integer);
+void    rot2mat
+        (
+          double xval,
+          std::vector< std::vector<double> > &outmat
+        );
+
+void    rot3mat
+        (
+          double xval,
+          std::vector< std::vector<double> > &outmat
+        );
+
+void    addvec
+        (
+          double a1, double vec1[3],
+          double a2, double vec2[3],
+          double vec3[3]
+        );
+
+void    addvec3
+        (
+          double a1, double vec1[3],
+          double a2, double vec2[3],
+          double a3, double vec3[3],
+          double vec4[3]
+        );
+
+double  angle
+        (
+          double vec1[3],
+          double vec2[3]
+        );
+
+void    writevec
+        (
+          char[],
+          double[], double[], double[]
+        );
+
+void matinverse
+     ( std::vector< std::vector<double> > mat,
+       int  order,
+       std::vector< std::vector<double> > &matinv
+     );
+
+void    matvecmult
+        (
+          std::vector< std::vector<double> > mat,
+          double vec[3],
+          double vecout[3]
+        );
+
+void    matmult
+        (
+          std::vector< std::vector<double> > mat1,
+          std::vector< std::vector<double> > mat2,
+          std::vector< std::vector<double> > &mat3,
+          int mat1r, int mat1c, int mat2c
+        );
+
+void    mattrans
+        (
+          std::vector< std::vector<double> > mat1,
+          std::vector< std::vector<double> > &mat2,
+          int mat1r, int mat1c
+        );
+
+void writemat
+     (
+       char matname[30],
+       std::vector< std::vector<double> > mat,
+       int row, int col
+     );
+
+void writeexpmat
+     (
+       char matname[30],
+       std::vector< std::vector<double> > mat,
+       int row, int col
+     );
+
+void cubicspl
+     (
+       double p1, double p2, double p3, double p4,
+       double& acu0, double& acu1, double& acu2, double& acu3
+     );
+
+void cubic
+     (
+       double a3, double b2, double c1, double d0, char opt,
+       double& r1r, double& r1i, double& r2r, double& r2i, double& r3r, double& r3i
+     );
+
+double cubicinterp
+       (
+         double p1a, double p1b, double p1c, double p1d, double p2a, double p2b,
+         double p2c, double p2d, double valuein
+       );
+
+void quadric
+     (
+       double a, double b, double c, char opt,
+       double& r1r, double& r1i, double& r2r, double& r2i
+     );
+
 
 #endif
+
+

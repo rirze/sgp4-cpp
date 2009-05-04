@@ -1,75 +1,126 @@
-#ifndef _ASTTIME_H_
-#define _ASTTIME_H_
+#ifndef _asttime_h_
+#define _asttime_h_
+/* --------------------------------------------------------------------
+*
+*                                asttime.h
+*
+*    this file contains miscallaneous time functions.
+*
+*    current :
+*               4 may 09  david vallado
+*                           misc updates
+*    changes :
+*              13 feb 08  david vallado
+*                           add getmon
+*              15 mar 07  david vallado
+*                           3rd edition baseline
+*              20 jul 05  david vallado
+*                           2nd printing baseline
+*              14 may 01  david vallado
+*                           2nd edition baseline
+*              23 nov 87  david vallado
+*                           original baseline
+  ---------------------------------------------------------------------- */
 
-/*     ----------------------------------------------------------------      
-                                                                             
-
-                               UNIT ASTTIME;
-
-                                                                             
-    This file contains fundamental Astrodynamic procedures and functions     
-    relating to the time functions. These routines are discussed in Ch       
-    3 and Ch 5.                                                              
-                                                                             
-                            Companion code for                               
-               Fundamentals of Astrodyanmics and Applications                
-                                     2001                                    
-                              by David Vallado                               
-                                                                             
-       (H)               email valladodl@worldnet.att.net                    
-       (W) 303-344-6037, email davallado@west.raytheon.com                   
-                                                                             
-       *****************************************************************     
-                                                                             
-    Current :                                                                
-              14 May 01  David Vallado                                       
-                           2nd edition baseline                              
-    Changes :                                                                
-              23 Nov 87  David Vallado                                       
-                           Original baseline                                 
-                                                                             
-       ----------------------------------------------------------------      
-
-                                  INTERFACE
-
-       ----------------------------------------------------------------      */
 #include "astmath.h"
-#include "astutil.h"
 
-/*
- * Object Definitions
-*/
-typedef char * Str3;
-typedef char * Str10;
-typedef char * Str11;
-typedef char * Str12;
+// object definitions
+typedef enum
+        {
+          eTo, eFrom
+        } edirection;
 
-typedef enum {FROM, TOO} Direction;
 
-/*
- * Global Interfaces
-*/
-void    DayLightSt(Integer, Real, Integer&, Integer&, Real&, Real&);
-Integer DayOfWeek(Real);
-void    Days2MDHMS(Integer, Real, 
-                   Integer&, Integer&, Integer&, Integer&, Real&);
-void    DMS_Rad(Integer&, Integer&, Real&, Direction, Real&);
-void    FindDays(Integer, Integer, Integer, Integer, Integer, Real, Real&);
-Byte    GetIntDay(Str3);
-Byte    GetIntMon(Str3);
-Real    GSTime(Real);
-Real    GSTim0(Integer);
-void    HMS_Rad(Integer&, Integer&, Real&, Direction, Real&);
-void    HMS_Sec(Integer&, Integer&, Real&, Direction, Real&);
-void    HMS_UT(Integer&, Integer&, Real&, Direction, Real&);
-void    InitTime(void);
-void    InvJulianDay(Real, Integer&, Integer&, Integer&, Integer&, Integer&,
-                     Real&);
-void    JulianDay(Integer, Integer, Integer, Integer, Integer, Real, Real&);
-void    JulianDayAll(Integer, Integer, Integer, Integer, Integer, Real, char, 
-                     Real&);
-void    LSTime(Real, Real, Real&, Real&);
-void    MoonRiseSet(Real, Real, Real, Real&, Real&, Real&, char*);
-void    SunRiseSet(Real, Real, Real, char, Real&, Real&, char*);
+
+int getmon
+    (
+      char instr[3]
+    );
+
+int getday
+    (
+      char instr[3]
+    );
+
+int dayofweek
+    (
+      double jd
+    );
+    
+void    jday
+        (
+          int year, int mon, int day, int hr, int minute, double sec,
+          double& jd
+        );
+
+void    jdayall
+        (
+          int year, int mon, int day, int hr, int minute, double sec,
+          char whichtype, double& jd
+        );
+
+void    days2mdhms
+        (
+          int year, double days,
+          int& mon, int& day, int& hr, int& minute, double& sec
+        );
+
+void    invjday
+        (
+          double jd,
+          int& year, int& mon, int& day,
+          int& hr, int& minute, double& sec
+        );
+
+void    finddays
+        (
+          int year, int month, int day, int hr, int minute,
+          double sec, double& days
+        );
+
+double  gstime
+        (
+          double jdut1
+        );
+
+void    lstime
+        (
+         double lon, double jdut1, double& lst, double& gst
+        );
+
+void    hms_sec
+        (
+          int& hr, int& min, double& sec, edirection direct, double& utsec
+        );
+
+void    hms_ut
+        (
+          int& hr, int& min, double& sec, edirection direct,  double& ut
+        );
+
+void    hms_rad
+        (
+          int& hr, int& min, double& sec, edirection direct, double& hms
+        );
+
+void    dms_rad
+        (
+          int& deg, int& min, double& sec, edirection direct, double& dms
+        );
+
+double jd2sse
+        (
+          double jd
+        );
+
+void    convtime
+        (
+          int year, int mon, int day, int hr, int min, double sec, int timezone,
+          double dut1,  int dat,
+          double& ut1,  double& tut1,  double& jdut1, double& utc, double& tai,
+          double& tt,   double& ttt,   double& jdtt,  double& tcg, double& tdb,
+          double& ttdb, double& jdtdb, double& tcb
+        );
 
 #endif
+
