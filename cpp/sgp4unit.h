@@ -18,9 +18,14 @@
 *       (w) 719-573-2600, email dvallado@agi.com
 *
 *    current :
+*              30 Dec 11  david vallado
+*                           consolidate updated code version
+*              30 Aug 10  david vallado
+*                           delete unused variables in initl
+*                           replace pow inetger 2, 3 with multiplies for speed
+*    changes :
 *               3 Nov 08  david vallado
 *                           put returns in for error codes
-*    changes :
 *              29 sep 08  david vallado
 *                           fix atime for faster operation in dspace
 *                           add operationmode for afspc (a) or improved (i)
@@ -46,7 +51,7 @@
 
 #include <math.h>
 #include <stdio.h>
-#define SGP4Version  "SGP4 Version 2008-11-03"
+#define SGP4Version  "SGP4 Version 2011-12-30"
 
 #define pi 3.14159265358979323846
 

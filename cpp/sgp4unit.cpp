@@ -16,9 +16,12 @@
 *       (w) 719-573-2600, email dvallado@agi.com
 *
 *    current :
+*              30 Aug 10  david vallado
+*                           delete unused variables in initl
+*                           replace pow inetger 2, 3 with multiplies for speed
+*    changes :
 *               3 Nov 08  david vallado
 *                           put returns in for error codes
-*    changes :
 *              29 sep 08  david vallado
 *                           fix atime for faster operation in dspace
 *                           add operationmode for afspc (a) or improved (i)
@@ -1190,7 +1193,7 @@ static void initl
 
      // sgp4fix use old way of finding gst
      double ds70;
-     double ts70, tfrac, c1, thgr70, fk5r, c1p2p, thgr, thgro;
+     double ts70, tfrac, c1, thgr70, fk5r, c1p2p;
      const double twopi = 2.0 * pi;
 
      /* ----------------------- earth constants ---------------------- */
@@ -1353,7 +1356,7 @@ bool sgp4init
           xhdot1, z1    , z2    , z3    , z11   , z12   , z13   ,
           z21   , z22   , z23   , z31   , z32   , z33,
           qzms2t, ss, j2, j3oj2, j4, x2o3, r[3], v[3],
-          tumin, mu, radiusearthkm, xke, j3;
+          tumin, mu, radiusearthkm, xke, j3, delmotemp, qzms2ttemp, qzms24temp;
 
      /* ------------------------ initialization --------------------- */
      // sgp4fix divisor for divide by zero check on inclination
@@ -1412,7 +1415,9 @@ bool sgp4init
      // sgp4fix identify constants and allow alternate values
      getgravconst( whichconst, tumin, mu, radiusearthkm, xke, j2, j3, j4, j3oj2 );
      ss     = 78.0 / radiusearthkm + 1.0;
-     qzms2t = pow(((120.0 - 78.0) / radiusearthkm), 4);
+     // sgp4fix use multiply for speed instead of pow
+     qzms2ttemp = (120.0 - 78.0) / radiusearthkm;
+     qzms2t = qzms2ttemp * qzms2ttemp * qzms2ttemp * qzms2ttemp;
      x2o3   =  2.0 / 3.0;
 
      satrec.init = 'y';
@@ -1450,7 +1455,9 @@ bool sgp4init
              sfour = perige - 78.0;
              if (perige < 98.0)
                  sfour = 20.0;
-             qzms24 = pow(((120.0 - sfour) / radiusearthkm), 4.0);
+             // sgp4fix use multiply for speed instead of pow
+             qzms24temp =  (120.0 - sfour) / radiusearthkm;
+             qzms24 = qzms24temp * qzms24temp * qzms24temp * qzms24temp;
              sfour  = sfour / radiusearthkm + 1.0;
            }
          pinvsq = 1.0 / posq;
@@ -1503,7 +1510,9 @@ bool sgp4init
            else
              satrec.xlcof = -0.25 * j3oj2 * sinio * (3.0 + 5.0 * cosio) / temp4;
          satrec.aycof   = -0.5 * j3oj2 * sinio;
-         satrec.delmo   = pow((1.0 + satrec.eta * cos(satrec.mo)), 3);
+         // sgp4fix use multiply for speed instead of pow
+         delmotemp = 1.0 + satrec.eta * cos(satrec.mo);
+         satrec.delmo   = delmotemp * delmotemp * delmotemp;
          satrec.sinmao  = sin(satrec.mo);
          satrec.x7thm1  = 7.0 * cosio2 - 1.0;
 
@@ -1705,7 +1714,7 @@ bool sgp4
          nm   , nodem, xinc , xincp ,  xl    , xlm   , mp  ,
          xmdf , xmx   , xmy  , nodedf, xnode , nodep, tc  , dndt,
          twopi, x2o3  , j2   , j3    , tumin, j4 , xke   , j3oj2, radiusearthkm,
-         mu, vkmpersec;
+         mu, vkmpersec, delmtemp;
      int ktr;
 
      /* ------------------ set mathematical constants --------------- */
@@ -1738,8 +1747,10 @@ bool sgp4
      if (satrec.isimp != 1)
        {
          delomg = satrec.omgcof * satrec.t;
+         // sgp4fix use mutliply for speed instead of pow
+         delmtemp =  1.0 + satrec.eta * cos(xmdf);
          delm   = satrec.xmcof *
-                  (pow((1.0 + satrec.eta * cos(xmdf)), 3) -
+                  (delmtemp * delmtemp * delmtemp -
                   satrec.delmo);
          temp   = delomg + delm;
          mm     = xmdf + temp;
@@ -2019,6 +2030,7 @@ double  gstime
 
      return temp;
    }  // end gstime
+
 
 /* -----------------------------------------------------------------------------
 *

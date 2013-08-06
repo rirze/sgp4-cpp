@@ -12,8 +12,8 @@
 *       (w) 719-573-2600, email dvallado@agi.com
 *
 *    current :
-*              11 jul 08  david vallado
-*                           misc updates
+*              22 may 09  david vallado
+*                           add all transformation
 *    changes :
 *              21 jan 08  david vallado
 *                           fix matrix operations
@@ -290,6 +290,192 @@ void iau76fk5_itrf_gcrf
            matvecmult( pmp, apef, aitrf);
          }
      }  // procedure iau76fk5_itrf_gcrf
+
+
+/* ----------------------------------------------------------------------------
+*
+*                           function iau76fk5all_itrf_gcrf
+*
+*  this function transforms a vector between the earth fixed (itrf) frame, and
+*    the gcrf mean equator mean equinox. this is the preferrred method to
+*    accomplish the new iau 2000 resolutions and uses the eop corrections
+*
+*  author        : david vallado                  719-573-2600   23 nov 2005
+*
+*  revisions
+*
+*  inputs          description                    range / units
+*    ritrf       - position vector earth fixed    km
+*    vitrf       - velocity vector earth fixed    km/s
+*    aitrf       - acceleration vector earth fixedkm/s2
+*    direct      - direction of transfer          eFrom, eTo
+*    iau80rec    - record containing the iau80 constants rad
+*    ttt         - julian centuries of tt         centuries
+*    jdut1       - julian date of ut1             days from 4713 bc
+*    lod         - excess length of day           sec
+*    xp          - polar motion coefficient       rad
+*    yp          - polar motion coefficient       rad
+*    eqeterms    - terms for ast calculation      0,2
+*    ddpsi       - delta psi correction to gcrf   rad
+*    ddeps       - delta eps correction to gcrf   rad
+*    nutopt      - nutation option                calc 'c', read 'r'
+*    deltapsi    - nutation angle                 rad
+*    deltaeps    - nutation angle                 rad
+*
+*  outputs       :
+*    rgcrf       - position vector gcrf            km
+*    vgcrf       - velocity vector gcrf            km/s
+*    agcrf       - acceleration vector gcrf        km/s2
+*    trans       - matrix for pef - gcrf
+*
+*  locals        :
+*    trueeps     - true obliquity of the ecliptic rad
+*    meaneps     - mean obliquity of the ecliptic rad
+*    omega       -                                rad
+*    prec        - matrix for mod - gcrf
+*    nut         - matrix for tod - mod
+*    st          - matrix for pef - tod
+*    stdot       - matrix for pef - tod rate
+*    pm          - matrix for itrf - pef
+*
+*  coupling      :
+*   precess      - rotation for precession
+*   nutation     - rotation for nutation
+*   sidereal     - rotation for sidereal time
+*   polarm       - rotation for polar motion
+*
+*  references    :
+*    vallado       2007, 228
+*
+* --------------------------------------------------------------------------- */
+
+void iau76fk5all_itrf_gcrf
+     (
+       double ritrf[3], double vitrf[3], double aitrf[3],
+       edirection direct,
+       double rgcrf[3], double vgcrf[3], double agcrf[3],
+       double rpef[3], double vpef[3], double apef[3],
+       double rtod[3], double vtod[3], double atod[3],
+       double rmod[3], double vmod[3], double amod[3],
+       iau80data& iau80rec,
+       char   nutopt,
+       double ttt,      double jdut1,    double lod,    double xp,
+       double yp,       int eqeterms,    double ddpsi,  double ddeps,
+       double deltapsi, double deltaeps,
+       std::vector< std::vector<double> > trans
+     )
+     {
+       trans.resize(3);  // rows
+       for (std::vector< std::vector<double> >::iterator it=trans.begin(); it != trans.end();++it)
+            it->resize(3);
+       std::vector< std::vector<double> > prec, nut(3,3), st, stdot, pm, pmp,
+              stp, nutp, precp, temp;
+       double psia, wa, epsa, chia,
+              trueeps, meaneps, omega, thetasa, omegaearth[3], omgxr[3], omgxomgxr[3],
+              rpef[3], vpef[3], apef[3], omgxv[3], tempvec1[3], tempvec[3];
+       double cospsi, sinpsi, coseps, sineps,costrueeps, sintrueeps, deg2rad;
+
+       deg2rad = pi/180.0;
+
+       // ---- find matrices
+       precess ( ttt, e80,  psia,wa,epsa,chia, prec );
+
+       if (nutopt == 'c')
+           nutation( ttt,ddpsi,ddeps,iau80rec,nutopt,  deltapsi,deltaeps, trueeps,meaneps,omega,nut);
+         else
+         {
+           meaneps = ((0.001813  * ttt - 0.00059 ) * ttt -46.8150 ) * ttt + 84381.448;
+           meaneps = fmod( meaneps/3600.0 ,360.0  );
+           meaneps = meaneps * deg2rad;
+           trueeps = meaneps + deltaeps;
+
+           cospsi  = cos(deltapsi);
+           sinpsi  = sin(deltapsi);
+           coseps  = cos(meaneps);
+           sineps  = sin(meaneps);
+           costrueeps = cos(trueeps);
+           sintrueeps = sin(trueeps);
+
+           nut[0][0] =  cospsi;
+           nut[0][1] =  costrueeps * sinpsi;
+           nut[0][2] =  sintrueeps * sinpsi;
+           nut[1][0] = -coseps * sinpsi;
+           nut[1][1] =  costrueeps * coseps * cospsi + sintrueeps * sineps;
+           nut[1][2] =  sintrueeps * coseps * cospsi - sineps * costrueeps;
+           nut[2][0] = -sineps * sinpsi;
+           nut[2][1] =  costrueeps * sineps * cospsi - sintrueeps * coseps;
+           nut[2][2] =  sintrueeps * sineps * cospsi + costrueeps * coseps;
+         }
+
+       sidereal( jdut1,deltapsi,meaneps,omega,lod,eqeterms,  st,stdot );
+       polarm  ( xp,yp,ttt,e80,  pm);
+
+       // ---- perform transformations
+       thetasa= 7.29211514670698e-05 * (1.0  - lod/86400.0 );
+       omegaearth[0] = 0.0;
+       omegaearth[1] = 0.0;
+       omegaearth[2] = thetasa;
+
+       if (direct == eTo)
+         {
+           matvecmult(pm,   ritrf,  rpef);
+           matvecmult(st,   rpef,   rtod);
+           matvecmult(nut,  rtod,   rmod);
+           matvecmult(prec, rmod,   rgcrf);
+
+           matvecmult(pm, vitrf,  vpef);
+           cross( omegaearth, rpef, omgxr);
+           addvec( 1.0, vpef, 1.0, omgxr, tempvec);
+           matvecmult(st,   tempvec,   vtod);
+           matvecmult(nut,  vtod,   vmod);
+           matvecmult(prec, vmod,   vgcrf);
+
+           matvecmult(pm, aitrf,  apef);
+           cross(omegaearth,omgxr, omgxomgxr);
+           cross( omegaearth, vpef, omgxv);
+           addvec( 1.0, apef, 1.0, omgxomgxr, tempvec);
+           addvec( 1.0, tempvec, 2.0, omgxv, tempvec1);
+           matvecmult(st,   tempvec1,   atod);
+           matvecmult(nut,  atod,   amod);
+           matvecmult(prec, amod,   agcrf);
+         }
+         else
+         {
+           mattrans(pm, pmp, 3,3 );
+           mattrans(st, stp, 3,3 );
+           mattrans(nut, nutp, 3,3 );
+           mattrans(prec, precp, 3,3 );
+
+           matvecmult(precp, rgcrf, rmod);
+           matvecmult(nutp,  rmod,  rtod);
+           matvecmult(stp,   rtod,  rpef);
+           matvecmult(pmp,   rpef,  ritrf);
+
+           cross( omegaearth, rpef, omgxr);
+           matmult( stp, nutp, temp, 3,3,3 );
+           matmult( temp, precp, trans, 3,3,3 );
+           matvecmult(trans, vgcrf,  tempvec1);
+           addvec( 1.0, tempvec1, -1.0, omgxr, vpef);
+           addvec( 1.0, vpef, 1.0, omgxr, tempvec);
+           matmult( st, nut, trans, 3,3,3 );
+           matvecmult(trans, tempvec,  vmod);
+           matvecmult(st, tempvec,  vtod);
+           matvecmult(pmp,   vpef, vitrf);
+
+           cross( omegaearth, vpef, omgxv);
+           cross(omegaearth,omgxr, omgxomgxr);
+           matvecmult( trans, agcrf, tempvec1);
+           addvec( 1.0, tempvec1, -1.0, omgxomgxr, tempvec);
+           addvec( 1.0, tempvec, -2.0, omgxv, apef);
+           addvec( 1.0, vpef, 1.0, omgxr, tempvec);
+
+           addvec( 1.0, tempvec1, 1.0, omgxomgxr, tempvec);
+           matmult( st, nut, trans, 3,3,3 );
+           matvecmult(trans, tempvec,  amod);
+           matvecmult(st, tempvec,  atod);
+           matvecmult( pmp, apef, aitrf);
+         }
+     }  // procedure iau76fk5all_itrf_gcrf
 
 
 /* ----------------------------------------------------------------------------

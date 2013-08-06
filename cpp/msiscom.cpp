@@ -34,7 +34,7 @@
 *     http://uap-www.nrl.navy.mil/models_web/msis/msis_home.htm
 *     *****************************************************************       */
 
-      #include "msiscom.h"
+      #include "MSIS_MSIScom.h"
 
 /*    *****************************************************************
 *        set up routines that are common to all the msis models
@@ -740,4 +740,5 @@ i=1;
         return vtst1;
 
         }
+
 

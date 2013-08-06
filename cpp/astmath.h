@@ -36,14 +36,15 @@
 *  anytime you create a new matrix inside a procedure or function, you must re-size
 *  the matrix. use the following statements to re-size!!
 *       mat3.resize(rows);  // set the # of rows
-*       for (std::vector< std::vector<double> >::iterator it=mat3.begin(); it != mat3.end();++it)*           it->resize(cols);  // set the # of cols
+*       for (std::vector< std::vector<double> >::iterator it=mat3.begin(); it != mat3.end();++it)
+*           it->resize(cols);  // set the # of cols
 *  the type definition has no size so you can use any size you like ... and then change it :-)
 */
 ///typedef matrix (std::vector< std::vector<double> >);
 
 
 //global interfaces
-#define pi 3.14159265358979323846
+#define Pi 3.14159265358979323846
 #define infinite  999999.9
 #define undefined 999999.1
 

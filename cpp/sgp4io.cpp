@@ -14,9 +14,11 @@
 *       (w) 719-573-2600, email dvallado@agi.com
 *
 *    current :
+*              27 Aug 10  david vallado
+*                           fix input format and delete unused variables in twoline2rv
+*    changes :
 *               3 sep 08  david vallado
 *                           add operationmode for afspc (a) or improved (i)
-*    changes :
 *               9 may 07  david vallado
 *                           fix year correction to 57
 *              27 mar 07  david vallado
@@ -85,7 +87,7 @@ void twoline2rv
            starthr, stophr, startmin, stopmin;
        int cardnumb, numb, j;
        long revnum = 0, elnum = 0;
-       char classification, intldesg[11], tmpstr[80];
+       char classification, intldesg[11];
        int year = 0;
        int mon, day, hr, minute, nexp, ibexp;
 
@@ -217,9 +219,9 @@ void twoline2rv
            if (typeinput == 'd')
              {
                printf("input start year dayofyr \n");
-               scanf( "%li %lf",&startyear, &startdayofyr );
+               scanf( "%i %lf",&startyear, &startdayofyr );
                printf("input stop year dayofyr \n");
-               scanf( "%li %lf",&stopyear, &stopdayofyr );
+               scanf( "%i %lf",&stopyear, &stopdayofyr );
 
                days2mdhms ( startyear,startdayofyr, mon,day,hr,minute,sec );
                jday( startyear,mon,day,hr,minute,sec, jdstart );

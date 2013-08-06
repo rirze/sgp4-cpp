@@ -596,7 +596,7 @@ void    addvec3
 *    vec2        - vector number 2
 *
 *  outputs       :
-*    theta       - angle between the two vectors  -pi to pi
+*    theta       - angle between the two vectors  -Pi to Pi
 *
 *  locals        :
 *    temp        - temporary real variable
@@ -1243,7 +1243,7 @@ void cubic
                 sinphi = sqrt( 1.0 -cosphi*cosphi );
                 phi    = atan2( sinphi,cosphi );
                 if (phi < 0.0)
-                    phi = phi + 2.0*pi;
+                    phi = phi + 2.0*Pi;
                 r1r= e0*cos( phi*onethird ) - p*onethird;
                 r2r= e0*cos( phi*onethird + 120.0 /rad ) - p*onethird;
                 r3r= e0*cos( phi*onethird + 240.0 /rad ) - p*onethird;

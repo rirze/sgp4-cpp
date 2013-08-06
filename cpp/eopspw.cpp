@@ -46,6 +46,7 @@
 *                -
 *
 *  coupling      :
+*    jday        - julian date
 *
 *  references    :
 *
@@ -64,7 +65,7 @@ void initspw
 
        // ---- open files
 //       infile = fopen( "sw19571001.txt", "r");
-       infile = fopen( "sw20020101.txt", "r"); // need from 2002 for jb2006 test case
+       infile = fopen( "c:/dataorig/indicies/sw20060101.txt", "r");
 
        // find beginning of data
        i = 0;
@@ -180,10 +181,10 @@ void initeop
 
        // ---- open files select compatible files!!
 //       infile = fopen( "eop20030101.txt", "r");
-       infile  = fopen( "eop19620101.txt", "r");
+       infile  = fopen( "c:/dataorig/indicies/eop20060101.txt", "r");
        // comment these, then run testcoord option 7 to create file. then
        // uncomment these to read the two files and put in the record.
-       infile1 = fopen( "eoppn1.txt", "r");
+//       infile1 = fopen( "eoppn1.txt", "r");
 //       infile1 = fopen( "eoppn00arc.txt", "r");
 //       infile1 = fopen( "eoppn00rad.txt", "r");
 //       infile1 = fopen( "eoppn62arc.txt", "r");
@@ -216,9 +217,9 @@ void initeop
                   &eoparr[i].xp, &eoparr[i].yp, &eoparr[i].dut1, &eoparr[i].lod,
                   &eoparr[i].ddpsi, &eoparr[i].ddeps, &eoparr[i].dx, &eoparr[i].dy, &eoparr[i].dat );
        // uncomment these to read the xys parameters also
-       fgets( longstr,140,infile1);
-       sscanf(longstr," %lf  %lf  %lf  %lf %lf  %lf \n", &eoparr[i].x, &eoparr[i].y,
-                  &eoparr[i].s, &eoparr[i].deltapsi, &eoparr[i].deltaeps, &mjd);
+//       fgets( longstr,140,infile1);
+//       sscanf(longstr," %lf  %lf  %lf  %lf %lf  %lf \n", &eoparr[i].x, &eoparr[i].y,
+//                  &eoparr[i].s, &eoparr[i].deltapsi, &eoparr[i].deltaeps, &mjd);
 
        // ---- process observed records
        for (i = 1; i <= numrecsobs-1; i++)
@@ -230,8 +231,8 @@ void initeop
                   &eoparr[i].ddpsi, &eoparr[i].ddeps, &eoparr[i].dx, &eoparr[i].dy, &eoparr[i].dat );
 
            // uncomment these to read the xys parameters also
-           fscanf(infile1," %21lf  %20lf  %20lf  %16lf %16lf  %11lf \n", &eoparr[i].x, &eoparr[i].y,
-                  &eoparr[i].s, &eoparr[i].deltapsi, &eoparr[i].deltaeps, &mjd );
+//           fscanf(infile1," %21lf  %20lf  %20lf  %16lf %16lf  %11lf \n", &eoparr[i].x, &eoparr[i].y,
+//                 &eoparr[i].s, &eoparr[i].deltapsi, &eoparr[i].deltaeps, &mjd );
          }
 
        fgets( longstr,140,infile);
@@ -250,8 +251,8 @@ void initeop
                   &eoparr[i].ddpsi, &eoparr[i].ddeps, &eoparr[i].dx, &eoparr[i].dy, &eoparr[i].dat );
 
            // uncomment these to read the xys parameters also
-           fscanf(infile1," %21lf  %20lf  %20lf   %16lf %16lf  %11lf \n", &eoparr[i].x, &eoparr[i].y,
-                  &eoparr[i].s, &eoparr[i].deltapsi, &eoparr[i].deltaeps, &mjd );
+//           fscanf(infile1," %21lf  %20lf  %20lf   %16lf %16lf  %11lf \n", &eoparr[i].x, &eoparr[i].y,
+//                  &eoparr[i].s, &eoparr[i].deltapsi, &eoparr[i].deltaeps, &mjd );
          }
        fclose( infile );
      }   // procedure initeop
@@ -438,6 +439,8 @@ void findeopparam
          }
    }  // procedure findeopparam
 
+
+   
 /* -----------------------------------------------------------------------------
 *
 *                           function findatmosparam
@@ -631,10 +634,11 @@ void findatmosparam
                  }
 
                // avgap is effective each 1200, sumkp is effective at 2400 hrs
-// sumkp is probably not right - ie, centered on 0hrs instead of 24. really need next day??               
+               // sumkp is probably not right - ie, centered on 0hrs instead of 24. really need next day??               
+
                if ((interp == 'a') | (interp == 'b'))
                  {
-                   fixa = (720 - mfme) / 1440.0;
+                   fixa = (720 - mfme) / 1440.0;  
                    if (mfme > 720)
                      {
                        avgap = avgap - (nextspwrec.avgap - avgap) * fixa;
@@ -856,6 +860,416 @@ double ap2kp
    }
 
 
+double  sgn
+        (
+          double x
+        )
+   {
+     if (x < 0.0)
+       {
+          return -1.0;
+       }
+       else
+       {
+          return 1.0;
+       }
+
+   }  // end sgn
+
+
+/* -----------------------------------------------------------------------------
+*
+*                           procedure jday
+*
+*  this procedure finds the julian date given the year, month, day, and time.
+*    the julian date is defined by each elapsed day since noon, jan 1, 4713 bc.
+*
+*  algorithm     : calculate the answer in one step for efficiency
+*
+*  author        : david vallado                  719-573-2600    1 mar 2001
+*
+*  inputs          description                    range / units
+*    year        - year                           1900 .. 2100
+*    mon         - month                          1 .. 12
+*    day         - day                            1 .. 28,29,30,31
+*    hr          - universal time hour            0 .. 23
+*    min         - universal time min             0 .. 59
+*    sec         - universal time sec             0.0 .. 59.999
+*
+*  outputs       :
+*    jd          - julian date                    days from 4713 bc
+*
+*  locals        :
+*    none.
+*
+*  coupling      :
+*    none.
+*
+*  references    :
+*    vallado       2007, 189, alg 14, ex 3-14
+*
+* --------------------------------------------------------------------------- */
+
+void jday
+     (
+       int year, int mon, int day, int hr, int minute, double sec,
+       double& jd
+     )
+   {
+     jd = 367.0 * year -
+          floor((7 * (year + floor((mon + 9) / 12.0))) * 0.25) +
+          floor( 275 * mon / 9.0 ) +
+          day + 1721013.5 +
+          ((sec / 60.0 + minute) / 60.0 + hr) / 24.0;  // ut in days
+          // - 0.5*sgn(100.0*year + mon - 190002.5) + 0.5;
+   }
+
+
+/* -----------------------------------------------------------------------------
+*
+*                           function cubicspl
+*
+*  this function performs cubic splining of an input zero crossing
+*  function in order to find function values.
+*
+*  author        : david vallado                  719-573-2600     7 aug 2005
+*
+*  revisions
+*                -
+*  inputs          description                    range / units
+*    p0,p1,p2,p3 - function values used for splining
+*    t0,t1,t2,t3 - time values used for splining
+*
+*  outputs       :
+*    acu0..acu3  - splined polynomial coefficients. acu3 t^3, etc
+*
+*  locals        : none
+*
+*  coupling      :
+*    none
+*
+*  references    :
+*    vallado       2007, 556
+* --------------------------------------------------------------------------- */
+
+void cubicspl
+     (
+       double p1, double p2, double p3, double p4,
+       double& acu0, double& acu1, double& acu2, double& acu3
+     )
+     {
+        acu0 = p2;
+        acu1 = -p1/3.0 - 0.5*p2 + p3 -p4/6.0;
+        acu2 = 0.5*p1 - p2 + 0.5*p3;
+        acu3 = -p1/6.0 + 0.5*p2 - 0.5*p3 + p4/6.0;
+     }
+
+/* -----------------------------------------------------------------------------
+*
+*                           function cubic
+*
+*  this function solves for the three roots of a cubic equation.  there are
+*    no restrictions on the coefficients, and imaginary results are passed
+*    out as separate values.  the general form is y = a3x3 + b2x2 + c1x + d0.  note
+*    that r1i will always be zero since there is always at least one real root.
+*
+*  author        : david vallado                  719-573-2600    1 mar 2001
+*
+*  revisions
+*    vallado     - convert to matlab              719-573-2600   18 dec 2002
+*
+*  inputs          description                    range / units
+*    a3          - coefficient of x cubed term
+*    b2          - coefficient of x squared term
+*    c1          - coefficient of x term
+*    d0          - constant
+*    opt         - option for output              I all roots including imaginary
+*                                                 R only real roots
+*                                                 U only unique real roots (no repeated)
+*
+*  outputs       :
+*    r1r         - real portion of root 1
+*    r1i         - imaginary portion of root 1
+*    r2r         - real portion of root 2
+*    r2i         - imaginary portion of root 2
+*    r3r         - real portion of root 3
+*    r3i         - imaginary portion of root 3
+*
+*  locals        :
+*    temp1       - temporary value
+*    temp2       - temporary value
+*    p           - coefficient of x squared term where x cubed term is 1.0
+*    q           - coefficient of x term where x cubed term is 1.0
+*    r           - coefficient of constant term where x cubed term is 1.0
+*    delta       - discriminator for use with cardans formula
+*    e0          - angle holder for trigonometric solution
+*    phi         - angle used in trigonometric solution
+*    cosphi      - cosine of phi
+*    sinphi      - sine of phi
+*
+*  coupling      :
+*    quadric     - quadratic roots
+*
+*  references    :
+*    vallado       2007, 975
+*
+* --------------------------------------------------------------------------- */
+
+void cubic
+         (
+           double a3, double b2, double c1, double d0, char opt,
+           double& r1r, double& r1i, double& r2r, double& r2i, double& r3r, double& r3i
+         )
+   {
+        const double rad      = 57.29577951308230;
+        const double pi       = 3.1415926535879;
+        const double onethird = 1.0/3.0;
+        const double small    = 0.00000001;
+        double temp1, temp2, p, q, r, delta, e0, cosphi, sinphi, phi;
+        // ------------------------  implementation   --------------------------
+        r1r  = 0.0;
+        r1i  = 0.0;
+        r2r  = 0.0;
+        r2i  = 0.0;
+        r3r  = 0.0;
+        r3i  = 0.0;
+
+        if (fabs(a3) > small)
+          {
+           // ------------- force coefficients into std form -------------------
+            p= b2/a3;
+            q= c1/a3;
+            r= d0/a3;
+
+            a3= onethird*( 3.0 *q - p*p );
+            b2= (1.0 /27.0 )*( 2.0 *p*p*p - 9.0 *p*q + 27.0 *r );
+
+            delta= (a3*a3*a3/27.0 ) + (b2*b2*0.25 );
+
+            // -------------------- use cardans formula ------------------------
+            if ( delta > small )
+              {
+                temp1= (-b2*0.5 )+sqrt(delta);
+                temp2= (-b2*0.5 )-sqrt(delta);
+                temp1= sgn(temp1)*pow( fabs(temp1),onethird );
+                temp2= sgn(temp2)*pow( fabs(temp2),onethird );
+                r1r= temp1 + temp2 - p*onethird;
+
+                if (opt=='I')
+                  {
+                    r2r= -0.5 *(temp1 + temp2) - p*onethird;
+                    r2i= -0.5 *sqrt( 3.0  )*(temp1 - temp2);
+                    r3r= -0.5 *(temp1 + temp2) - p*onethird;
+                    r3i= -r2i;
+                  }
+                  else
+                  {
+                    r2r= 99999.9;
+                    r3r= 99999.9;
+                  }
+               }
+              else
+               {
+            // -------------------- evaluate zero point ------------------------
+            if ( fabs( delta ) < small  )
+              {
+                r1r= -2.0*sgn(b2)*pow(fabs(b2*0.5),onethird) - p*onethird;
+                r2r=      sgn(b2)*pow(fabs(b2*0.5),onethird) - p*onethird;
+                if (opt=='U')
+                    r3r= 99999.9;
+                  else
+                    r3r= r2r;
+              }
+              else
+              {
+                // --------------- use trigonometric identities ----------------
+                e0     = 2.0 *sqrt(-a3*onethird);
+                cosphi = (-b2/(2.0 *sqrt(-a3*a3*a3/27.0 )) );
+                sinphi = sqrt( 1.0 -cosphi*cosphi );
+                phi    = atan2( sinphi,cosphi );
+                if (phi < 0.0)
+                    phi = phi + 2.0*pi;
+                r1r= e0*cos( phi*onethird ) - p*onethird;
+                r2r= e0*cos( phi*onethird + 120.0 /rad ) - p*onethird;
+                r3r= e0*cos( phi*onethird + 240.0 /rad ) - p*onethird;
+              } // if fabs(delta)...
+             }  // if delta > small
+          }  // if fabs > small
+        else
+        {
+          quadric( b2, c1, d0, opt, r1r, r1i, r2r, r2i );
+          r3r  = 99999.9;
+          r3i  = 99999.9;
+        }
+   }
+
+
+/* -----------------------------------------------------------------------------
+*
+*                           function cubicinterp
+*
+*  this function performs a cubic spline. four points are needed.
+*
+*  author        : david vallado                  719-573-2600   1 dec  2005
+*
+*  revisions
+*
+*  inputs          description                    range / units
+*    valuein     - kp
+*
+*  outputs       :
+*    out         - ap
+*
+*  locals        :
+*                -
+*
+*  coupling      :
+*    cubicspl
+*
+*  references    :
+*    vallado       2007, 556
+* --------------------------------------------------------------------------- */
+
+double  cubicinterp
+        (
+          double p1a, double p1b, double p1c, double p1d, double p2a, double p2b,
+          double p2c, double p2d, double valuein
+        )
+   {
+        double kc0, kc1, kc2, kc3, ac0, ac1, ac2, ac3,
+               r1r, r1i, r2r, r2i, r3r, r3i, value;
+
+           // -------- assign function points ---------
+           cubicspl(p1a, p1b, p1c, p1d, ac0, ac1, ac2, ac3);
+           cubicspl(p2a, p2b, p2c, p2d, kc0, kc1, kc2, kc3);
+
+           // recover the original function values
+           // use the normalized time first, but at an arbitrary interval
+           cubic(kc3, kc2, kc1, kc0-valuein, 'R', r1r, r1i, r2r, r2i, r3r, r3i);
+
+           if ((r1r >= -0.000001) && (r1r <= 1.001))
+             {
+               value = r1r;
+             }
+             else
+             {
+               if ((r2r >= -0.000001) && (r2r <= 1.001))
+                 {
+                   value = r2r;
+                 }
+                 else
+                 {
+                   if ((r3r >= -0.000001) && (r3r <= 1.001))
+                     {
+                       value = r3r;
+                     }
+                     else
+                     {
+                       value = 0.0;
+                       printf("error in cubicinterp root %17.14f %11.7f %11.7f %11.7f \n",
+                               valuein,r1r,r2r,r3r);
+                     }
+                 }
+             }
+           return (ac3*pow(value,3)  + ac2*value*value  + ac1*value + ac0);
+
+   } // cubicinterp   
+
+
+/* -----------------------------------------------------------------------------
+*
+*                           function quadric
+*
+*  this function solves for the two roots of a quadric equation.  there are
+*    no restrictions on the coefficients, and imaginary results are passed
+*    out as separate values.  the general form is y = ax2 + bx + c.
+*
+*  author        : david vallado                  719-573-2600    1 mar 2001
+*
+*  revisions
+*    vallado     - convert to matlab              719-573-2600    3 dec 2002
+*
+*  inputs          description                    range / units
+*    a           - coefficient of x squared term
+*    b           - coefficient of x term
+*    c           - constant
+*    opt         - option for output              I all roots including imaginary
+*                                                 R only real roots
+*                                                 U only unique real roots (no repeated)
+*
+*  outputs       :
+*    r1r         - real portion of root 1
+*    r1i         - imaginary portion of root 1
+*    r2r         - real portion of root 2
+*    r2i         - imaginary portion of root 2
+*
+*  locals        :
+*    discrim     - discriminate b2 - 4ac
+*
+*  coupling      :
+*    none.
+*
+*  references    :
+*    vallado       2007, 974
+*
+* ----------------------------------------------------------------------------*/
+
+void quadric
+     (
+       double a, double b, double c, char opt,
+       double& r1r, double& r1i, double& r2r, double& r2i
+     )
+   {
+        const double small    = 0.0000001;
+        double delta, discrim;
+        // --------------------  implementation   ----------------------
+        r1r = 0.0;
+        r1i = 0.0;
+        r2r = 0.0;
+        r2i = 0.0;
+
+        discrim = b*b - 4.0 *a*c;
+
+        // ---------------------  real roots  --------------------------
+        if ( fabs(discrim) < small  )
+          {
+            r1r = -b / ( 2.0 *a );
+            r2r = r1r;
+            if (opt=='U')
+                r2r = 99999.9;
+          }
+          else
+           {
+            if (fabs(a) < small)
+                 r1r = -c/b;
+              else
+               {
+                if ( discrim > 0.0  )
+                  {
+                    r1r = ( -b + sqrt(discrim) ) / ( 2.0 *a );
+                    r2r = ( -b - sqrt(discrim) ) / ( 2.0 *a );
+                  }
+                  else
+                  {
+                    // ------------------ complex roots --------------------
+                    if (opt=='I')
+                      {
+                        r1r = -b / ( 2.0 *a );
+                        r2r = r1r;
+                        r1i =  sqrt(-discrim) / ( 2.0 *a );
+                        r2i = -sqrt(-discrim) / ( 2.0 *a );
+                      }
+                      else
+                      {
+                        r1r = 99999.9;
+                        r2r = 99999.9;
+                      }
+                  }
+                }
+             }
+   }
+
+
 /* -----------------------------------------------------------------------------
 *
 *                           function interfaceatmos
@@ -890,6 +1304,7 @@ double ap2kp
 *
 * --------------------------------------------------------------------------- */
 
+/*
 void interfaceatmos
      (
        double jde, double mfme, double recef[3],
@@ -1026,5 +1441,7 @@ printf(" msis in data %12.5f %6.2f %6.2f kp %6.2f \n avgap %6.2f msisap %6.2f %6
                      t[1],t[2],d[1],d[2],d[3],d[4],d[5],d[6],d[7],d[8]);
 	printf("\n");
    }
+
+*/
 
    

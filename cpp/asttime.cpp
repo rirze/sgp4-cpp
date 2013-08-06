@@ -284,7 +284,7 @@ void    days2mdhms
    {
      int i, inttemp, dayofyr;
      double    temp;
-     int lmonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+     int lmonth[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
      dayofyr = (int)floor(days);
      /* ----------------- find month and day of month ---------------- */
@@ -303,9 +303,9 @@ void    days2mdhms
 
      /* ----------------- find hours minutes and seconds ------------- */
      temp = (days - dayofyr) * 24.0;
-     hr   = (int)floor(temp);
+     hr   = floor(temp);
      temp = (temp - hr) * 60.0;
-     minute  = (int)floor(temp);
+     minute  = floor(temp);
      sec  = (temp - minute) * 60.0;
    }
 
@@ -474,8 +474,8 @@ double  gstime
           double jdut1
         )
    {
-     const double twopi = 2.0 * pi;
-     const double deg2rad = pi / 180.0;
+     const double twopi = 2.0 * Pi;
+     const double deg2rad = Pi / 180.0;
      double       temp, tut1;
 
      tut1 = (jdut1 - 2451545.0) / 36525.0;
@@ -521,7 +521,7 @@ void    lstime
          double lon, double jdut1, double& lst, double& gst
         )
    {
-     const double twopi = 2.0 * pi;
+     const double twopi = 2.0 * Pi;
 
      gst = gstime(jdut1);
      lst = lon + gst;
@@ -829,7 +829,7 @@ void    convtime
      double deg2rad, jd, sectemp, me;
      int localhr, hrtemp, mintemp;
 
-     deg2rad = pi/180.0;
+     deg2rad = Pi/180.0;
 
      // ------------------------  implementation   ------------------
      jday( year,mon,day,0,0,0.0, jd );

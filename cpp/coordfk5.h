@@ -16,8 +16,8 @@
 *     *****************************************************************
 *
 *    current :
-*              11 jul 08  david vallado
-*                           misc updates
+*              22 may 09  david vallado
+*                           add all transformation
 *    changes :
 *              21 jan 08  david vallado
 *                           fix matrix operations
@@ -77,6 +77,22 @@ void iau76fk5_itrf_gcrf
        double ritrf[3], double vitrf[3], double aitrf[3],
        edirection direct,
        double rgcrf[3], double vgcrf[3], double agcrf[3],
+       iau80data& iau80rec,
+       char   nutopt,
+       double ttt,      double jdut1,    double lod,    double xp,
+       double yp,       int eqeterms,    double ddpsi,  double ddeps,
+       double deltapsi, double deltaeps,
+       std::vector< std::vector<double> > trans
+     );
+
+void iau76fk5all_itrf_gcrf
+     (
+       double ritrf[3], double vitrf[3], double aitrf[3],
+       edirection direct,
+       double rgcrf[3], double vgcrf[3], double agcrf[3],
+       double rpef[3], double vpef[3], double apef[3],
+       double rtod[3], double vtod[3], double atod[3],
+       double rmod[3], double vmod[3], double amod[3],
        iau80data& iau80rec,
        char   nutopt,
        double ttt,      double jdut1,    double lod,    double xp,

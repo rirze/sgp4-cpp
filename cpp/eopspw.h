@@ -32,11 +32,11 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "astmath.h"
-#include "ast2body.h"
-#include "asttime.h"
-#include "msiscom.h"
-#include "msis00.h"
+//#include "astmath.h"
+//#include "ast2body.h"
+//#include "asttime.h"
+//#include "msiscom.h"
+//#include "msis00.h"
 
 /*    *****************************************************************
 *     type definitions
@@ -59,8 +59,8 @@ typedef struct spwdata
               isn,     q,         aparr[8],  kparr[8], sumkp;
   } spwdata;
 
-const int eopsize = 25000; // 25000 if from 62
-const int spwsize = 2200; // 25000 if from 62
+const int eopsize = 2500; // 25000 if from 62
+const int spwsize = 2500; // 25000 if from 62
 
 
 
@@ -110,14 +110,49 @@ double ap2kp
          double apin
        );
 
-// this routine will probably move elsewhere, but fits here ok for now
-void interfaceatmos
+double  sgn
+        (
+          double x
+        );
+       
+void jday
      (
-       double jde, double mfme, double recef[3],
-       char interp, char fluxtype, char f81type, char inputtype,
-       msistype& msis00r,
-       spwdata spwarr[spwsize], double jdspwstart
+       int year, int mon, int day, int hr, int minute, double sec,
+       double& jd
      );
+
+void cubic
+     (
+       double a3, double b2, double c1, double d0, char opt,
+       double& r1r, double& r1i, double& r2r, double& r2i, double& r3r, double& r3i
+     );
+     
+void cubicspl
+     (
+       double p1, double p2, double p3, double p4,
+       double& acu0, double& acu1, double& acu2, double& acu3
+     );
+
+double cubicinterp
+       (
+         double p1a, double p1b, double p1c, double p1d, double p2a, double p2b,
+         double p2c, double p2d, double valuein
+       );
+     
+void quadric
+     (
+       double a, double b, double c, char opt,
+       double& r1r, double& r1i, double& r2r, double& r2i
+     );
+     
+// this routine will probably move elsewhere, but fits here ok for now
+//void interfaceatmos
+//    (
+//       double jde, double mfme, double recef[3],
+//       char interp, char fluxtype, char f81type, char inputtype,
+//       msistype& msis00r,
+//       spwdata spwarr[spwsize], double jdspwstart
+//     );
 
 #endif
 

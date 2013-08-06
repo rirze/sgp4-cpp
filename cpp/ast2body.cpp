@@ -52,7 +52,7 @@
 *    p           - semilatus rectum               km
 *    a           - semimajor axis                 km
 *    ecc         - eccentricity
-*    incl        - inclination                    0.0  to pi rad
+*    incl        - inclination                    0.0  to Pi rad
 *    omega       - longitude of ascending node    0.0  to 2pi rad
 *    argp        - argument of perigee            0.0  to 2pi rad
 *    nu          - true anomaly                   0.0  to 2pi rad
@@ -97,8 +97,8 @@ void rv2coe
        int i;
        char typeorbit[3];
 
-     twopi  = 2.0 * pi;
-     halfpi = 0.5 * pi;
+     twopi  = 2.0 * Pi;
+     halfpi = 0.5 * Pi;
      small  = 0.00000001;
      mu     = 398600.4418;
 
@@ -139,7 +139,7 @@ void rv2coe
          if ( ecc < small )
            {
              // ----------------  circular equatorial ---------------
-             if  ((incl<small) | (fabs(incl-pi)<small))
+             if  ((incl<small) | (fabs(incl-Pi)<small))
                  strcpy(typeorbit,"ce");
                else
                  // --------------  circular inclined ---------------
@@ -148,7 +148,7 @@ void rv2coe
            else
            {
              // - elliptical, parabolic, hyperbolic equatorial --
-             if  ((incl<small) | (fabs(incl-pi)<small))
+             if  ((incl<small) | (fabs(incl-Pi)<small))
                  strcpy(typeorbit,"ee");
            }
 
@@ -259,7 +259,7 @@ void rv2coe
 *  inputs          description                    range / units
 *    p           - semilatus rectum               km
 *    ecc         - eccentricity
-*    incl        - inclination                    0.0 to pi rad
+*    incl        - inclination                    0.0 to Pi rad
 *    omega       - longitude of ascending node    0.0 to 2pi rad
 *    argp        - argument of perigee            0.0 to 2pi rad
 *    nu          - true anomaly                   0.0 to 2pi rad
@@ -307,7 +307,7 @@ void coe2rv
       if ( ecc < small ) 
         {
           // ----------------  circular equatorial  ------------------
-          if ( (incl < small) | ( fabs(incl-pi) < small ) )
+          if ( (incl < small) | ( fabs(incl-Pi) < small ) )
             { 
               argp = 0.0;
               omega= 0.0;
@@ -323,7 +323,7 @@ void coe2rv
         else
         {
           // ---------------  elliptical equatorial  -----------------
-          if ( ( incl < small) | (fabs(incl-pi) < small) ) 
+          if ( ( incl < small) | (fabs(incl-Pi) < small) ) 
             { 
               argp = lonper;
               omega= 0.0; 
@@ -491,8 +491,8 @@ void kepler
        velkmps = 7.905365719014;
        mu = 398600.4418;
        small = 0.00000001;
-       twopi = 2.0 * pi;
-       halfpi = pi * 0.5;
+       twopi = 2.0 * Pi;
+       halfpi = Pi * 0.5;
 
         // -------------------------  implementation   -----------------
         // set constants and intermediate printouts
@@ -877,12 +877,12 @@ void newtonm
      {
        /* ------------  initial guess ------------- */
        if (ecc < 1.6)
-         if (((m < 0.0) && (m > -pi)) || (m > pi))
+         if (((m < 0.0) && (m > -Pi)) || (m > Pi))
            e0 = m - ecc;
          else
            e0 = m + ecc;
        else
-         if ((ecc < 3.6) && (fabs(m) > pi)) // just edges)
+         if ((ecc < 3.6) && (fabs(m) > Pi)) // just edges)
            e0 = m - sgn(m) * ecc;
          else
            e0 = m / (ecc - 1.0); // best over 1.8 in middle
@@ -923,7 +923,7 @@ void newtonm
          if (ecc > small)
          {
            /* ------------  initial guess ------------- */
-           if (((m < 0.0) && (m > -pi)) || (m > pi))
+           if (((m < 0.0) && (m > -Pi)) || (m > Pi))
              e0 = m - ecc;
            else
              e0 = m + ecc;
@@ -1022,7 +1022,7 @@ void newtonnu
              // -------------------- hyperbolic  --------------------
              if ( ecc > 1.0 + small  )
                {
-                 if ((ecc > 1.0 ) && (fabs(nu)+0.00001 < pi-acos(1.0 /ecc)))
+                 if ((ecc > 1.0 ) && (fabs(nu)+0.00001 < Pi-acos(1.0 /ecc)))
                    {
                      sine= ( sqrt( ecc*ecc-1.0  ) * sin(nu) ) / ( 1.0  + ecc*cos(nu) );
                      e0  = asinh( sine );
@@ -1031,7 +1031,7 @@ void newtonnu
                 }
                else
                  // ----------------- parabolic ---------------------
-                 if ( fabs(nu) < 168.0*pi/180.0  )
+                 if ( fabs(nu) < 168.0*Pi/180.0  )
                    {
                      e0= tan( nu*0.5  );
                      m = e0 + (e0*e0*e0)/3.0;
@@ -1039,10 +1039,10 @@ void newtonnu
 
      if ( ecc < 1.0  )
        {
-         m = fmod( m,2.0 *pi );
+         m = fmod( m,2.0 *Pi );
          if ( m < 0.0  )
-             m= m + 2.0 *pi;
-         e0 = fmod( e0,2.0 *pi );
+             m= m + 2.0 *Pi;
+         e0 = fmod( e0,2.0 *Pi );
        }
    }  // procedure newtonnu
 
@@ -1059,10 +1059,10 @@ void newtonnu
 *  revisions
 *
 *  inputs          description                    range / units
-*    latgd       - geodetic latitude              -pi to pi rad
+*    latgd       - geodetic latitude              -Pi to Pi rad
 *
 *  outputs       :
-*    latgc       - geocentric latitude            -pi to pi rad
+*    latgc       - geocentric latitude            -Pi to Pi rad
 *
 *  locals        :
 *    none.
@@ -1107,8 +1107,8 @@ void gc_gd
 *    jdut1       - julian date (ut1)              days from 4713 bc
 *
 *  outputs       :
-*    latgc       - geocentric latitude            -pi to pi rad
-*    latgd       - geodetic latitude              -pi to pi rad
+*    latgc       - geocentric latitude            -Pi to Pi rad
+*    latgd       - geodetic latitude              -Pi to Pi rad
 *    lon         - longitude (west -)             -2pi to 2pi rad
 *    hellp       - height above the ellipsoid     km
 *
@@ -1137,11 +1137,11 @@ void ijk2ll
        double& latgc, double& latgd, double& lon, double& hellp
      )
      {
-       const double twopi      =    2.0*pi;
+       const double twopi      =    2.0*Pi;
        const double small      =    0.00000001;         // small value for tolerances
        const double re         = 6378.137;
        const double eesqrd     =    0.006694385000;     // eccentricity of earth sqrd
-       double magr, gst, decl, rtasc, olddelta, temp, sintemp, c = 0.0;
+       double magr, gst, decl, rtasc, olddelta, temp, sintemp, s, c = 0.0;
        int i;
 
         // ---------------------------  implementation   -----------------------
@@ -1150,13 +1150,13 @@ void ijk2ll
         // ---------------------- find longitude value  ------------------------
         temp = sqrt( recef[0]*recef[0] + recef[1]*recef[1] );
         if ( fabs( temp ) < small )
-            rtasc= sgn(recef[2])*pi*0.5;
+            rtasc= sgn(recef[2])*Pi*0.5;
           else
             rtasc= atan2( recef[1], recef[0] );
 
         gst  = gstime( jdut1 );
         lon  = rtasc - gst;
-        if ( fabs(lon) >= pi )   // mod it ?
+        if ( fabs(lon) >= Pi )   // mod it ?
           {
             if ( lon < 0.0  )
                 lon= twopi + lon;
@@ -1180,7 +1180,13 @@ void ijk2ll
             i = i + 1;
           }
 
-        hellp   = (temp/cos(latgd)) - c;
+        if ((Pi*0.5 - fabs(latgd)) > Pi/180.0)  // 1 deg
+           hellp   = (temp/cos(latgd)) - c;
+         else
+         {
+           s = c * (1.0 - eesqrd);
+           hellp   = recef[2]/sin(latgd) - s;
+         }
 
         gc_gd(latgc, eFrom, latgd);
    }   // procedure ijk2ll
@@ -1241,8 +1247,8 @@ void sun
         double twopi, deg2rad;
         double tut1, meanlong, ttdb, meananomaly, eclplong, obliquity, magr;
 
-        twopi      =     2.0 * pi;
-        deg2rad    =     pi/180.0;
+        twopi      =     2.0 * Pi;
+        deg2rad    =     Pi/180.0;
 
         // -------------------------  implementation   -----------------
         // -------------------  initialize values   --------------------
@@ -1284,9 +1290,9 @@ void sun
           {
             eclplong= eclplong + twopi;    // make sure it's in 0 to 2pi range
           }
-        if ( abs( eclplong-rtasc ) > pi * 0.5  )
+        if ( abs( eclplong-rtasc ) > Pi * 0.5  )
           {
-            rtasc= rtasc + 0.5 * pi * round( (eclplong - rtasc)/(0.5 * pi) );  
+            rtasc= rtasc + 0.5 * Pi * round( (eclplong - rtasc)/(0.5 * Pi) );  
           }
         decl = asin( sin(obliquity) * sin(eclplong) );
    }  // sun
@@ -1341,8 +1347,8 @@ void moon
         double twopi, deg2rad, magr;
         double tut1, ttdb, l, m, n, temp, eclplong, eclplat, hzparal, obliquity;
 
-        twopi      =     2.0 * pi;
-        deg2rad    =     pi/180.0;
+        twopi      =     2.0 * Pi;
+        deg2rad    =     Pi/180.0;
 
         // -------------------------  implementation   -----------------
         ttdb = ( jd - 2451545.0  ) / 36525.0;
