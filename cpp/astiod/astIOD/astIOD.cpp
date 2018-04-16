@@ -35,12 +35,8 @@
 
 #include "astIOD.h"
 
-namespace astIOD {
-
-/* utility functions for lambertbattin, etc */
-static double k(double v);
-
-static double see(double v);
+namespace astIOD 
+{
 
 /*---------------------------------------------------------------------------
 *
@@ -103,7 +99,7 @@ double rsecef[3], double vsecef[3]
 	vsecef[0] = 0.0;
 	vsecef[1] = 0.0;
 	vsecef[2] = 0.0;
-}  // procedure site
+}  // site
 
 
 
@@ -132,8 +128,8 @@ double rsecef[3], double vsecef[3]
 *    rsijk        - ijk site position vector      er
 *
 *  outputs        :
-*    r            - ijk position vector at t2     er
-*    v            - ijk velocity vector at t2     er / tu
+*    r2            - ijk position vector at t2     er
+*    v2            - ijk velocity vector at t2     er / tu
 *
 *  locals         :
 *    l1           - line of sight vector for 1st
@@ -206,8 +202,8 @@ double rs1[3], double rs2[3], double rs3[3], double r2[3], double v2[3]
 	std::vector< std::vector<double> > rsmat = std::vector< std::vector<double> >(3, std::vector<double>(3));
 	std::vector< std::vector<double> > lir = std::vector< std::vector<double> >(3, std::vector<double>(3));
 
-	double rdot, tau1, tau3, u, udot, p, f1, g1, f3, g3, a, ecc, incl, omega, argp,
-		nu, m, l, argper, bigr2, a1, a1u, a3, a3u, d, d1, d2, c1, c3, l2dotrs,
+	double rdot, tau1, tau3, u, udot, p, f1, g1, f3, g3, a, ecc, incl, raan, argp,
+		nu, m, eccanom, l, argper, bigr2, a1, a1u, a3, a3u, d, d1, d2, c1, c3, l2dotrs, magr1, magr2,
 		rhoold1, rhoold2, rhoold3, temproot, theta, theta1, copa, tausqr;
 
 	/* ----------------------   initialize   ------------------------ */
@@ -233,28 +229,28 @@ double rs1[3], double rs2[3], double rs3[3], double r2[3], double v2[3]
 
 	/* -------------- find l matrix and determinant ----------------- */
 	/* -------- called lmati since it is only used for determ ------- */
-	for (i = 1; i <= 3; i++)
+	for (i = 0; i < 3; i++)
 	{
-		l1[0] = lmatii[i][1];
-		l2[1] = lmatii[i][2];
-		l3[2] = lmatii[i][3];
-		rs1[0] = rsmat[i][1];
-		rs2[1] = rsmat[i][2];
-		rs3[2] = rsmat[i][3];
+		l1[0] = lmatii[i][0];
+		l2[1] = lmatii[i][1];
+		l3[2] = lmatii[i][2];
+		rs1[0] = rsmat[i][0];
+		rs2[1] = rsmat[i][1];
+		rs3[2] = rsmat[i][2];
 	}
 
 	d = astMath::determinant(lmatii, 3);
 
 	/* ------------------- now assign the inverse ------------------- */
-	lmati[0][0] = (l2[2] * l3[3] - l2[3] * l3[2]) / d;
-	lmati[1][1] = (-l1[2] * l3[3] + l1[3] * l3[2]) / d;
-	lmati[2][2] = (l1[2] * l2[3] - l1[3] * l2[2]) / d;
-	lmati[0][0] = (-l2[1] * l3[3] + l2[3] * l3[1]) / d;
-	lmati[1][1] = (l1[1] * l3[3] - l1[3] * l3[1]) / d;
-	lmati[2][2] = (-l1[1] * l2[3] + l1[3] * l2[1]) / d;
 	lmati[0][0] = (l2[1] * l3[2] - l2[2] * l3[1]) / d;
 	lmati[1][1] = (-l1[1] * l3[2] + l1[2] * l3[1]) / d;
 	lmati[2][2] = (l1[1] * l2[2] - l1[2] * l2[1]) / d;
+	lmati[0][0] = (-l2[0] * l3[2] + l2[2] * l3[0]) / d;
+	lmati[1][1] = (l1[0] * l3[2] - l1[2] * l3[0]) / d;
+	lmati[2][2] = (-l1[0] * l2[2] + l1[2] * l2[0]) / d;
+	lmati[0][0] = (l2[0] * l3[1] - l2[1] * l3[0]) / d;
+	lmati[1][1] = (-l1[0] * l3[1] + l1[1] * l3[0]) / d;
+	lmati[2][2] = (l1[0] * l2[1] - l1[1] * l2[0]) / d;
 
 	astMath::matmult(lmati, rsmat, lir, 3, 3, 3);
 
@@ -270,8 +266,8 @@ double rs1[3], double rs2[3], double rs3[3], double r2[3], double v2[3]
 		(6.0 * (tau3 - tau1));
 
 	/* ---- form initial guess of r2 ---- */
-	d1 = lir[2][1] * a1 - lir[2][2] + lir[2][3] * a3;
-	d2 = lir[2][1] * a1u + lir[2][3] * a3u;
+	d1 = lir[1][0] * a1 - lir[1][1] + lir[1][2] * a3;
+	d2 = lir[1][0] * a1u + lir[1][2] * a3u;
 
 	/* -------- solve eighth order poly not same as laplace --------- */
 	l2dotrs = astMath::dot(l2, rs2);
@@ -323,30 +319,30 @@ double rs1[3], double rs2[3], double rs3[3], double r2[3], double v2[3]
 
 	c1 = a1 + a1u * u;
 	c3 = a3 + a3u * u;
-	cmat[1][1] = -c1;
-	cmat[2][1] = 1.0;
-	cmat[3][1] = -c3;
+	cmat[0][0] = -c1;
+	cmat[1][0] = 1.0;
+	cmat[2][0] = -c3;
 	/// fixxxxxxx
 	///  matmult(lir, cmat, rhomat);
 
-	rhoold1 = rhomat[1][1] / c1;
-	rhoold2 = -rhomat[2][1];
-	rhoold3 = rhomat[3][1] / c3;
+	rhoold1 = rhomat[0][0] / c1;
+	rhoold2 = -rhomat[1][0];
+	rhoold3 = rhomat[2][0] / c3;
 
 	//  if (fileout != null)
 	//    fprintf(fileout, " now start refining the guess\n");
 
 	/* --------- loop through the refining process ------------ */
-	for (ll = 1; ll <= 3; ll++)
+	for (ll = 0; ll < 3; ll++)
 	{
 		//    if (fileout != null)
 		//      fprintf(fileout, " iteration # %2d\n", ll);
 		/* ---- now form the three position vectors ----- */
-		for (i = 1; i <= 3; i++)
+		for (i = 0; i < 3; i++)
 		{
-			r1[0] = rhomat[1][1] * l1[i] / c1 + rs1[i];
-			r2[1] = -rhomat[2][1] * l2[i] + rs2[i];
-			r3[2] = rhomat[3][1] * l3[i] / c3 + rs3[i];
+			r1[0] = rhomat[0][0] * l1[i] / c1 + rs1[i];
+			r2[1] = -rhomat[1][0] * l2[i] + rs2[i];
+			r3[2] = rhomat[2][0] * l3[i] / c3 + rs3[i];
 		}
 
 		gibbs(r1, r2, r3, v2, theta, theta1, copa, error);
@@ -364,7 +360,7 @@ double rs1[3], double rs2[3], double rs3[3], double r2[3], double v2[3]
 			//        fprintf(fileout, "hgibbs\n");
 		}
 
-		ast2Body::rv2coe(r2, v2, mu, p, a, ecc, incl, omega, argp, nu, m, u, l, argper);
+		ast2Body::rv2coe(r2, v2, mu, p, a, ecc, incl, raan, argp, nu, m, eccanom, u, l, argper);
 
 		//    if (fileout != null)
 		//    {
@@ -414,18 +410,21 @@ double rs1[3], double rs2[3], double rs3[3], double r2[3], double v2[3]
 		fprintf(fileout, "%12.6 %12.6 %12.6\n", v2[1), v2[2], v2[3]);
 		fprintf(fileout, "p=%11.7f  a%11.7f  e %11.7f i %11.7f omeg %10.6f \
 		argp %10.6f\n",
-		p, a, ecc, incl * rad, omega * rad, argp * rad);
+		p, a, ecc, incl * rad, raan * rad, argp * rad);
 		printf("p=%11.7f  a%11.7f  e %11.7f i %11.7f w%10.6f w%10.6f\n",
-		p, a, ecc, incl * rad, omega * rad, argp * rad);
+		p, a, ecc, incl * rad, raan * rad, argp * rad);
 		}
 		*/
+		magr1 = astMath::mag(r1);
+		magr2 = astMath::mag(r2);
+
 		if (ll <= 2)
 		{
 			/* ---- now get an improved estimate of the f and g series ---- */
 			/* or can the analytic functions be found now??                 */
-			u = mu / (astMath::mag(r2) * astMath::mag(r2) * astMath::mag(r2));
-			rdot = astMath::dot(r2, v2) / astMath::mag(r2);
-			udot = (-3.0 * mu * rdot) / (pow(astMath::mag(r2), 4));
+			u = mu / (magr2 * magr2 * magr2);
+			rdot = astMath::dot(r2, v2) / magr2;
+			udot = (-3.0 * mu * rdot) / (pow(magr2, 4));
 
 			tausqr = tau1 * tau1;
 			f1 = 1.0 - 0.5 * u * tausqr -
@@ -455,19 +454,19 @@ double rs1[3], double rs2[3], double rs3[3], double r2[3], double v2[3]
 			theta = astMath::angle(r1, r2);
 			theta1 = astMath::angle(r2, r3);
 
-			f1 = 1.0 - ((astMath::mag(r1) * (1.0 - cos(theta)) / p));
-			g1 = (astMath::mag(r1)*astMath::mag(r2) * sin(-theta)) / sqrt(p); // - angle because backwards!!
+			f1 = 1.0 - ((magr1 * (1.0 - cos(theta)) / p));
+			g1 = (magr1*magr2 * sin(-theta)) / sqrt(p); // - angle because backwards!!
 			f3 = 1.0 - ((astMath::mag(r3) * cos(1.0 - cos(theta1)) / p));
-			g3 = (astMath::mag(r3)*astMath::mag(r2) * sin(theta1)) / sqrt(p);
+			g3 = (astMath::mag(r3)*magr2 * sin(theta1)) / sqrt(p);
 			//    if (fileout != null)
 			//      fprintf(fileout, "f1n%11.7f %11.7f f3 %11.7f %11.7f\n", f1, g1, f3, g3);
 			c1 = g3 / (f1 * g3 - f3 * g1);
 			c3 = -g1 / (f1 * g3 - f3 * g1);
 		}
 		/* ---- solve for all three ranges via matrix equation ---- */
-		cmat[1][1] = -c1;
-		cmat[2][1] = 1.0;
-		cmat[3][1] = -c3;
+		cmat[0][0] = -c1;
+		cmat[1][0] = 1.0;
+		cmat[2][0] = -c3;
 		/// fixxxxxxx
 		///  matmult(lir, cmat, rhomat);
 
@@ -479,11 +478,11 @@ double rs1[3], double rs2[3], double rs3[3], double r2[3], double v2[3]
 		/* ---- check for convergence ---- */
 	}
 	/* ---- find all three vectors ri ---- */
-	for (i = 1; i <= 3; i++)
+	for (i = 0; i < 3; i++)
 	{
-		r1[0] = (rhomat[1][1] * l1[i] / c1 + rs1[i]);
-		r2[1] = (-rhomat[2][1] * l2[i] + rs2[i]);
-		r3[2] = (rhomat[3][1] * l3[i] / c3 + rs3[i]);
+		r1[0] = (rhomat[0][0] * l1[i] / c1 + rs1[i]);
+		r2[1] = (-rhomat[1][0] * l2[i] + rs2[i]);
+		r3[2] = (rhomat[2][0] * l3[i] / c3 + rs3[i]);
 	}
 	//  if (fileout != null)
 	//  {
@@ -494,7 +493,7 @@ double rs1[3], double rs2[3], double rs3[3], double r2[3], double v2[3]
 	//    fprintf(fileout, "r3 %11.7f %11.7f %11.7f %11.7f",
 	//                      r3[1), r3[2], r3[3], r3.astMath::mag());
 	//  }
-}    // procedure anglsegauss
+}    // anglsegauss
 
 /*------------------------------------------------------------------------------
 *
@@ -520,8 +519,8 @@ double rs1[3], double rs2[3], double rs3[3], double r2[3], double v2[3]
 *    rs3          - ijk site position vector #3   er
 *
 *  outputs        :
-*    r            - ijk position vector           er
-*    v            - ijk velocity vector           er / tu
+*    r2            - ijk position vector           er
+*    v2            - ijk velocity vector           er / tu
 *
 *  locals         :
 *    l1           - line of sight vector for 1st
@@ -540,7 +539,7 @@ double rs1[3], double rs2[3], double rs3[3], double r2[3], double v2[3]
 *    d2           -
 *    d3           -
 *    d4           -
-*    oldr         - previous iteration on r
+*    oldr         - previous iteration on r2
 *    rho          - range from site to satellite at t2
 *    rhodot       -
 *    dmat         -
@@ -579,7 +578,7 @@ double jd1, double jd2, double jd3,
 vector rs1, vector rs2, vector rs3, vector& r2, vector& v2
 )
 {
-const double omegaearth = 0.05883359980154919;
+const double raanearth = 0.05883359980154919;
 const double tuday      = 0.00933809017716;   // tuday:= 58.132440906;
 const double mu         = 1.0;
 const double small      = 0.0000001;
@@ -597,7 +596,7 @@ byte   schi;
 // ----------------------   initialize   ------------------------
 earthrate[0] = 0.0;
 earthrate[1] = 0.0;
-earthrate[2] = omegaearth;
+earthrate[2] = raanearth;
 
 jd1 = jd1 / tuday;   // days to tu
 jd2 = jd2 / tuday;   // days to tu
@@ -703,20 +702,20 @@ d4 = dmat4.determinant();
 
 // --------------  iterate to find rho astMath::magnitude ---------------
 /*
-*     r[4]:= 1.5;  { first guess }
-*     writeln( 'input initial guess for r[4] ' );
-*     readln( r[4] );
+*     r2[4]:= 1.5;  { first guess }
+*     writeln( 'input initial guess for r2[4] ' );
+*     readln( r2[4] );
 *     i:= 1;
 *     repeat
-*         oldr:= r[4];
-*         rho:= -2.0*d1/d - 2.0*d2/(r[4]*r[4]*r[4]*d);
-*         r[4]:= sqrt( rho*rho + 2.0*rho*l2dotrs + rs2[4]*rs2[4] );
+*         oldr:= r2[4];
+*         rho:= -2.0*d1/d - 2.0*d2/(r2[4]*r2[4]*r2[4]*d);
+*         r2[4]:= sqrt( rho*rho + 2.0*rho*l2dotrs + rs2[4]*rs2[4] );
 *         inc(i);
-*         r[4]:= (oldr - r[4] ) / 2.0;            // simple bissection }
-*         writeln( fileout,'rho guesses ',i:2,'rho ',rho:14:7,' r[4] ',r[4]:14:7,oldr:14:7 );
+*         r2[4]:= (oldr - r2[4] ) / 2.0;            // simple bissection }
+*         writeln( fileout,'rho guesses ',i:2,'rho ',rho:14:7,' r2[4] ',r2[4]:14:7,oldr:14:7 );
 *  // seems to converge, but wrong numbers
 *         inc(i);
-*     until ( abs( oldr-r[4] ) < small ) or ( i >= 30 );
+*     until ( abs( oldr-r2[4] ) < small ) or ( i >= 30 );
 
 
 if (fabs(d) > 0.000001)
@@ -956,7 +955,7 @@ double& ecllat, double& ecllon
 		cosv = cos(decl) * cos(rtasc) / cos(ecllat);
 		ecllon = atan2(sinv, cosv);
 	}
-}  // procedure radec_elatlon
+}  // radec_elatlon
 
 
 /*------------------------------------------------------------------------------
@@ -1147,7 +1146,7 @@ double& rr, double& rtasc, double& decl, double& drr, double& drtasc, double& dd
 		else
 			ddecl = 0.0;
 	}
-}  // procedure rv_radec
+}  // rv_radec
 
 
 /*------------------------------------------------------------------------------
@@ -1194,7 +1193,7 @@ double& rr, double& rtasc, double& decl, double& drr, double& drtasc, double& dd
 *    rot2        - rotation about the 2nd axis
 *    atan2       - arc tangent function which also resloves quadrants
 *    dot         - dot product of two vectors
-*    rvsez_razel - find r and v from site in topocentric horizon (sez) system
+*    rvsez_razel - find r2 and v2 from site in topocentric horizon (sez) system
 *    lncom2      - combine two vectors and constants
 *    arcsin      - arc sine function
 *    sgn         - returns the sign of a variable
@@ -1283,7 +1282,7 @@ double& rho, double& az, double& el, double& drho, double& daz, double& del
 		else
 			del = 0.0;
 	}
-}  // procedure rv_razel
+}  // rv_razel
 
 
 /*------------------------------------------------------------------------------
@@ -1338,15 +1337,15 @@ double& drho, double& dtrtasc, double& dtdecl
 )
 {
 	const double small = 0.00000001;
-	const double omegaearth = 0.05883359221938136;  // earth rot rad/tu
+	const double raanearth = 0.05883359221938136;  // earth rot rad/tu
 
 	double earthrate[3], rhov[3], drhov[3], vsijk[3];
 	double   latgc, temp, temp1;
 
-	latgc = asin(rsijk[3] / astMath::mag(rsijk));
+	latgc = asin(rsijk[2] / astMath::mag(rsijk));
 	earthrate[0] = 0.0;
 	earthrate[1] = 0.0;
-	earthrate[2] = omegaearth;
+	earthrate[2] = raanearth;
 	astMath::cross(earthrate, rsijk, vsijk);
 
 	if (direct == eFrom)
@@ -1418,7 +1417,7 @@ double& drho, double& dtrtasc, double& dtdecl
 		}
 		*/
 	}
-} // procedure rv_tradec
+} // rv_tradec
 
 
 /*------------------------------------------------------------------------------
@@ -1531,7 +1530,7 @@ double& rho, double& az, double& el, double& drho, double& daz, double& del
 		else
 			del = 0.0;
 	}
-}   // procedure rvsez_razel
+}   // rvsez_razel
 
 
 /* ------------------------- three vector techniques ------------------------ */
@@ -1597,7 +1596,7 @@ double v2[3], double& theta, double& theta1, double& copa, char error[12]
 )
 {
 	const double small = 0.000001;
-	double tover2, l, r1mr2, r3mr1, r2mr3, mu;
+	double tover2, l, r1mr2, r3mr1, r2mr3, mu, magr1, magr2;
 	double p[3], q[3], w[3], d[3], n[3], s[3], b[3], pn[3], r1n[3], dn[3], nn[3];
 
 	/* --------------------  initialize values   -------------------- */
@@ -1607,7 +1606,9 @@ double v2[3], double& theta, double& theta1, double& copa, char error[12]
 #else
 	strcpy(error, "ok");
 #endif
-	
+	magr1 = astMath::mag(r1);
+	magr2 = astMath::mag(r2);
+
 	theta = 0.0;
 	theta1 = 0.0;
 	copa = 0.0;
@@ -1633,7 +1634,7 @@ double v2[3], double& theta, double& theta1, double& copa, char error[12]
 
 	/* ---------------- or don't continue processing ---------------- */
 	astMath::addvec3(1.0, p, 1.0, q, 1.0, w, d);
-	astMath::addvec3(astMath::mag(r1), p, astMath::mag(r2), q, astMath::mag(r3), w, n);
+	astMath::addvec3(magr1, p, magr2, q, astMath::mag(r3), w, n);
 	astMath::norm(n, nn);
 	astMath::norm(d, dn);
 
@@ -1656,13 +1657,13 @@ double v2[3], double& theta, double& theta1, double& copa, char error[12]
 		theta1 = astMath::angle(r2, r3);
 
 		/* ------------ perform gibbs method to find v2 ----------- */
-		r1mr2 = astMath::mag(r1) - astMath::mag(r2);
-		r3mr1 = astMath::mag(r3) - astMath::mag(r1);
-		r2mr3 = astMath::mag(r2) - astMath::mag(r3);
+		r1mr2 = magr1 - magr2;
+		r3mr1 = astMath::mag(r3) - magr1;
+		r2mr3 = magr2 - astMath::mag(r3);
 		astMath::addvec3(r1mr2, r3, r3mr1, r2, r2mr3, r1, s);
 		astMath::cross(d, r2, b);
 		l = sqrt(mu / (astMath::mag(d) * astMath::mag(n)));
-		tover2 = l / astMath::mag(r2);
+		tover2 = l / magr2;
 		astMath::addvec(tover2, b, l, s, v2);
 	}
 	/*
@@ -1685,7 +1686,7 @@ double v2[3], double& theta, double& theta1, double& copa, char error[12]
 	"b vector = ", b[1], b[2], b[3]);
 	}
 	*/
-}  // procedure gibbs
+}  // gibbs
 
 
 /*------------------------------------------------------------------------------
@@ -1745,11 +1746,14 @@ double v2[3], double& theta, double& theta1, double& copa, char error[12]
 )
 {
 	double p[3], pn[3], r1n[3], mu;
-	double   dt21, dt31, dt32, term1, term2, term3, tolangle;
+	double   dt21, dt31, dt32, term1, term2, term3, tolangle, magr1, magr2;
 
 	/* --------------------  initialize values   -------------------- */
 	mu = 3.986004418e5;
 	tolangle = 0.017452406;  // (1.0 deg in rad)
+
+	magr1 = astMath::mag(r1);
+	magr2 = astMath::mag(r2);
 
 #ifdef _MSC_VER
 		strcpy_s(error, sizeof(error), "ok");
@@ -1798,16 +1802,229 @@ double v2[3], double& theta, double& theta1, double& copa, char error[12]
 
 	/* ------------ perform herrick-gibbs method to find v2 --------- */
 	term1 = -dt32 *
-		(1.0 / (dt21 * dt31) + mu / (12.0 * astMath::mag(r1) * astMath::mag(r1) * astMath::mag(r1)));
+		(1.0 / (dt21 * dt31) + mu / (12.0 * magr1 * magr1 * magr1));
 	term2 = (dt32 - dt21) *
-		(1.0 / (dt21 * dt32) + mu / (12.0 * astMath::mag(r2) * astMath::mag(r2) * astMath::mag(r2)));
+		(1.0 / (dt21 * dt32) + mu / (12.0 * magr2 * magr2 * magr2));
 	term3 = dt21 *
 		(1.0 / (dt32 * dt31) + mu / (12.0 * astMath::mag(r3) * astMath::mag(r3) * astMath::mag(r3)));
 	astMath::addvec3(term1, r1, term2, r2, term3, r3, v2);
-}  // procedure herrgibbs
+}  // herrgibbs
 
 
 /* ----------------------- lambert techniques -------------------- */
+
+/* utility functions for lambertbattin, etc */
+/* -------------------------------------------------------------------------- */
+// ------------------------------------------------------------------------------
+//                           function lambhodograph
+//
+// this function accomplishes 180 deg transfer(and 360 deg) for lambert problem.
+//
+//  author        : david vallado                  719 - 573 - 2600   22 may 2017
+//
+//  inputs          description                    range / units
+//    r1 - ijk position vector 1          km
+//    r2 - ijk position vector 2          km
+//    dtsec - time between r1 and r2         s
+//    dnu - true anomaly change            rad
+//
+//  outputs       :
+//    v1t - ijk transfer velocity vector   km / s
+//    v2t - ijk transfer velocity vector   km / s
+//
+//  references :
+//    Thompson JGCD 2013 v34 n6 1925
+// Thompson AAS GNC 2018
+// [v1t, v2t] = lambhodograph(r1, v1, r2, p, a, ecc, dnu, dtsec)
+// ------------------------------------------------------------------------------
+
+void lambhodograph
+(
+double r1[3], double v1[3], double r2[3], double p, double ecc, double dnu, double dtsec, double v1t[3], double v2t[3]
+)
+{
+	double mu, eps, magr1, magr2, a, b, x1, x2, nvec[3], y2a, y2b, ptx, rcrv[3], rcrr[3];
+	int i;
+
+	mu = 3.986004418e5;   // e14 m3 / s2
+	eps = 1.0e-8;  // -14
+
+	magr1 = astMath::mag(r1);
+	magr2 = astMath::mag(r2);
+
+	a = mu*(1.0 / magr1 - 1.0 / p);  // not the semi - major axis
+	b = pow(mu*ecc / p, 2) - a * a;
+	if (b <= 0.0)
+		x1 = 0.0;
+	else
+		x1 = -sqrt(b);
+
+	// 180 deg, and multiple 180 deg transfers
+	if (fabs(sin(dnu)) < eps)
+	{
+		astMath::cross(r1, v1, rcrv);
+		for (i = 0; i < 3; i++)
+			nvec[i] = rcrv[i] / astMath::mag(rcrv);
+		if (ecc < 1.0)
+		{
+			ptx = twopi * sqrt(p * p * p / pow(mu * (1.0 - ecc * ecc), 3));
+			if (fmod(dtsec, ptx) > ptx * 0.5)
+				x1 = -x1;
+		}
+	}
+	else
+	{
+		y2a = mu / p - x1 * sin(dnu) + a * cos(dnu);
+		y2b = mu / p + x1 * sin(dnu) + a * cos(dnu);
+		if (fabs(mu / magr2 - y2b) < fabs(mu / magr2 - y2a))
+			x1 = -x1;
+
+		// depending on the cross product, this will be normal or in plane,
+		// or could even be a fan
+		astMath::cross(r1, r2, rcrr);
+		for (i = 0; i < 3; i++)
+			nvec[i] = rcrr[i] / astMath::mag(rcrr); // if this is r1, v1, the transfer is coplanar!
+		if (fmod(dnu, twopi) > pi)
+		{
+			for (i = 0; i < 3; i++)
+				nvec[i] = -nvec[i];
+		}
+	}
+
+	astMath::cross(nvec, r1, rcrv);
+	astMath::cross(nvec, r2, rcrr);
+	x2 = x1 * cos(dnu) + a * sin(dnu);
+	for (i = 0; i < 3; i++)
+	{
+		v1t[i] = (sqrt(mu * p) / magr1) * ((x1 / mu)*r1[i] + rcrv[i]) / magr1;
+		v2t[i] = (sqrt(mu * p) / magr2) * ((x2 / mu)*r2[i] + rcrr[i]) / magr2;
+	}
+}  // lambhodograph
+
+
+static double kbattin
+(
+double v
+)
+{
+	double d[21] = 
+	{
+		1.0 / 3.0, 4.0 / 27.0,
+			8.0 / 27.0, 2.0 / 9.0,
+			22.0 / 81.0, 208.0 / 891.0,
+			340.0 / 1287.0, 418.0 / 1755.0,
+			598.0 / 2295.0, 700.0 / 2907.0,
+			928.0 / 3591.0, 1054.0 / 4347.0,
+			1330.0 / 5175.0, 1480.0 / 6075.0,
+			1804.0 / 7047.0, 1978.0 / 8091.0,
+			2350.0 / 9207.0, 2548.0 / 10395.0,
+			2968.0 / 11655.0, 3190.0 / 12987.0,
+			3658.0 / 14391.0
+	};
+	double del, delold, term, termold, sum1;
+	int i;
+
+	/* ---- process forwards ---- */
+	sum1 = d[0];
+	delold = 1.0;
+	termold = d[0];
+	i = 1;
+	while ((i <= 20) && (fabs(termold) > 0.00000001))
+	{
+		del = 1.0 / (1.0 - d[i] * v * delold);
+		term = termold * (del - 1.0);
+		sum1 = sum1 + term;
+		i++;
+		delold = del;
+		termold = term;
+	}
+	//return sum1;
+
+	int ktr = 20;
+	double sum2 = 0.0;
+	double term2 = 1.0 + d[ktr] * v;
+	for (i = 1; i <= ktr - 1; i++)
+	{
+		sum2 = d[ktr - i] * v / term2;
+		term2 = 1.0 + sum2;
+	}
+
+	return (d[0] / term2);
+}  // double kbattin
+
+
+/* -------------------------------------------------------------------------- */
+
+static double seebattin(double v2)
+{
+	double c[21]
+	{
+		0.2,
+			9.0 / 35.0, 16.0 / 63.0,
+			25.0 / 99.0, 36.0 / 143.0,
+			49.0 / 195.0, 64.0 / 255.0,
+			81.0 / 323.0, 100.0 / 399.0,
+			121.0 / 483.0, 144.0 / 575.0,
+			169.0 / 675.0, 196.0 / 783.0,
+			225.0 / 899.0, 256.0 / 1023.0,
+			289.0 / 1155.0, 324.0 / 1295.0,
+			361.0 / 1443.0, 400.0 / 1599.0,
+			441.0 / 1763.0, 484.0 / 1935.0
+	};
+	// first term is diff, indices are offset too
+	double c1[20]
+	{
+		9.0 / 7.0, 16.0 / 63.0,
+			25.0 / 99.0, 36.0 / 143.0,
+			49.0 / 195.0, 64.0 / 255.0,
+			81.0 / 323.0, 100.0 / 399.0,
+			121.0 / 483.0, 144.0 / 575.0,
+			169.0 / 675.0, 196.0 / 783.0,
+			225.0 / 899.0, 256.0 / 1023.0,
+			289.0 / 1155.0, 324.0 / 1295.0,
+			361.0 / 1443.0, 400.0 / 1599.0,
+			441.0 / 1763.0, 484.0 / 1935.0
+	};
+
+	double term, termold, del, delold, sum1, eta, sqrtopv;
+	int i;
+
+	sqrtopv = sqrt(1.0 + v2);
+	eta = v2 / pow(1.0 + sqrtopv, 2);
+
+	/* ---- process forwards ---- */
+	delold = 1.0;
+	termold = c[0];  // * eta
+	sum1 = termold;
+	i = 1;
+	while ((i <= 20) && (fabs(termold) > 0.000001))
+	{
+		del = 1.0 / (1.0 + c[i] * eta * delold);
+		term = termold * (del - 1.0);
+		sum1 = sum1 + term;
+		i++;
+		delold = del;
+		termold = term;
+	}
+
+	//   return ((1.0 / (8.0 * (1.0 + sqrtopv))) * (3.0 + sum1 / (1.0 + eta * sum1)));
+	double seebatt = 1.0 / ((1.0 / (8.0*(1.0 + sqrtopv))) * (3.0 + sum1 / (1.0 + eta*sum1)));
+
+	int ktr = 19;
+	double sum2 = 0.0;
+	double term2 = 1.0 + c1[ktr] * eta;
+	for (i = 0; i <= ktr - 1; i++)
+	{
+		sum2 = c1[ktr - i] * eta / term2;
+		term2 = 1.0 + sum2;
+	}
+
+	return (8.0*(1.0 + sqrtopv) /
+		(3.0 +
+		(1.0 /
+		(5.0 + eta + ((9.0 / 7.0)*eta / term2)))));
+}  // double seebattin
+
 
 /*------------------------------------------------------------------------------
 *
@@ -1819,14 +2036,14 @@ double v2[3], double& theta, double& theta1, double& copa, char error[12]
 *  author        : david vallado                  719-573-2600   22 jun 2002
 *
 *  inputs          description                    range / units
-*    ro          - ijk position vector 1          km
-*    r           - ijk position vector 2          km
+*    r1          - ijk position vector 1          km
+*    r2           - ijk position vector 2          km
 *   dm          - direction of motion            'l','s'
 *    dtsec        - time between r1 and r2         sec
 *
 *  outputs       :
-*    vo          - ijk velocity vector            er / tu
-*    v           - ijk velocity vector            er / tu
+*    v1          - ijk velocity vector            er / tu
+*    v2           - ijk velocity vector            er / tu
 *    error       - error flag                     1, 2, 3, ... use numbers since c++ is so horrible at strings
 *        error = 1;   // a = 0.0
 *
@@ -1857,23 +2074,6 @@ double v2[3], double& theta, double& theta1, double& copa, char error[12]
 *    chord       -
 *    k2          -
 *    s           -
-*    f           -
-*    g           -
-*    fdot        -
-*    am          -
-*    ae          -
-*    be          -
-*    tm          -
-*    gdot        -
-*    arg1        -
-*    arg2        -
-*    tc          -
-*    alpe        -
-*    bete        -
-*    alph        -
-*    beth        -
-*    de          -
-*    dh          -
 *
 *  coupling      :
 *    arcsin      - arc sine function
@@ -1891,147 +2091,176 @@ double v2[3], double& theta, double& theta1, double& copa, char error[12]
 
 void lambertbattin
 (
-double ro[3], double r[3], char dm, int overrev, double dtsec,
-double vo[3], double v[3], int& error
+double r1[3], double r2[3], double v1[3], char dm, char df, int nrev, double dtsec,
+double v1t[3], double v2t[3], int& error, FILE *outfile
 )
 {
 	const double small = 0.000001;
 	const double mu = 398600.4418;  // m3s2
 	double rcrossr[3];
 	int   i, loops;
-	double   u, b, sinv, cosv, rp, x, xn, y, l, m, cosdeltanu, sindeltanu, dnu, a,
-		tan2w, ror, h1, h2, tempx, eps, denom, chord, k2, s, f, g, fdot, am,
-		ae, be, tm, gdot, arg1, arg2, alpe, bete, alph, beth, de, dh,
-		testamt, bigt;
+	double   u, b, x, xn, y, L, m, cosdeltanu, sindeltanu, dnu, a,
+		ror, h1, h2, tempx, eps, denom, chord, k2, s,
+	    p, ecc, f, A, y1, bigt;
+	double magr1, magr2, magrcrossr, lam, temp, temp1, temp2, v1dvl[3], v2dvl[3], v2[3];
 
 	error = 0;
-	cosdeltanu = astMath::dot(ro, r) / (astMath::mag(ro) * astMath::mag(r));
-	astMath::cross(ro, r, rcrossr);
-	sindeltanu = astMath::mag(rcrossr) / (astMath::mag(ro) * astMath::mag(r));
+	magr1 = astMath::mag(r1);
+	magr2 = astMath::mag(r2);
+
+	cosdeltanu = astMath::dot(r1, r2) / (magr1 * magr2);
+	// make sure it's not more than 1.0
+	if (abs(cosdeltanu) > 1.0)
+		cosdeltanu = 1.0 * astMath::sgn(cosdeltanu);
+
+	astMath::cross(r1, r2, rcrossr);
+	magrcrossr = astMath::mag(rcrossr);
+	if (dm == 's')
+		sindeltanu = magrcrossr / (magr1*magr2);
+	else
+		sindeltanu = -magrcrossr / (magr1*magr2);
+
 	dnu = atan2(sindeltanu, cosdeltanu);
+	// the angle needs to be positive to work for the long way
+	if (dnu < 0.0)
+		dnu = 2.0*pi + dnu;
 
-	ror = astMath::mag(r) / astMath::mag(ro);
+	// these are the same
+	chord = sqrt(magr1*magr1 + magr2*magr2 - 2.0*magr1*magr2*cosdeltanu);
+	//chord = mag(r2 - r1);
+
+	s = (magr1 + magr2 + chord)*0.5;
+	ror = magr2 / magr1;
 	eps = ror - 1.0;
-	tan2w = 0.25 * eps * eps / (sqrt(ror) + ror *(2.0 + sqrt(ror)));
-	rp = sqrt(astMath::mag(ro)*astMath::mag(r)) * ((cos(dnu * 0.25) * cos(dnu * 0.25)) + tan2w);
 
-	  if (dnu < pi)
-	    l = (pow(sin(dnu * 0.25), 2) + tan2w ) /
-	        (pow(sin(dnu * 0.25), 2) + tan2w + cos(dnu * 0.5));
-	  else
-	    l = (pow(cos(dnu * 0.25), 2) + tan2w - cos(dnu * 0.5)) /
-	        (pow(cos(dnu * 0.25), 2) + tan2w);
+	lam = 1.0 / s * sqrt(magr1*magr2) * cos(dnu*0.5);
+	L = pow((1.0 - lam) / (1.0 + lam), 2);
+	m = 8.0*mu*dtsec*dtsec / (s * s * s * pow(1.0 + lam, 6));
 
-	m = mu * dtsec * dtsec / (8.0 * rp * rp * rp);
-	xn = 0.0;   // 0 for par and hyp
-	chord = sqrt(astMath::mag(ro) * astMath::mag(ro) + astMath::mag(r) * astMath::mag(r) -
-		2.0 * astMath::mag(ro) * astMath::mag(r) * cos(dnu));
-	s = (astMath::mag(ro) + astMath::mag(r) + chord) * 0.5;
-
-	loops = 1;
-	while (1 == 1)
-	{
-		x = xn;
-		tempx = see(x);
-		denom = 1.0 / ((1.0 + 2.0 * x + l) * (3.0 + x * (1.0 + 4.0 * tempx)));
-		h1    = pow(l + x, 2) * ( 1.0 + (1.0 + 3.0 * x) * tempx) * denom;
-		h2 = m * (1.0 + (x - l) * tempx) * denom;
-
-		/* ------------------------ evaluate cubic ------------------ */
-		b  = 0.25 * 27.0 * h2 / pow(1.0 + h1, 3);
-		u = -0.5 * b / (1.0 + sqrt(1.0 + b));
-		k2 = k(u);
-
-		y = ((1.0 + h1) / 3.0) * (2.0 + sqrt(1.0 + b) /
-			(1.0 - 2.0 * u * k2 * k2));
-		xn = sqrt(pow((1.0 - l) * 0.5, 2) + m / (y * y)) - (1.0 + l) * 0.5;
-
-		loops++;
-
-		if ((fabs(xn - x) < small) || (loops > 30))
-			break;
-	}
-
-	a = mu * dtsec * dtsec / (16.0 * rp * rp * xn * y * y);
-
-	/* -------------------- find eccentric anomalies ---------------- */
-	/* -------------------------- hyperbolic ------------------------ */
-	if (a < -small)
-	{
-		arg1 = sqrt(s / (-2.0 * a));
-		arg2 = sqrt((s - chord) / (-2.0 * a));
-		/* -------- evaluate f and g functions -------- */
-		alph = 2.0 * astMath::asinh(arg1);
-		beth = 2.0 * astMath::asinh(arg2);
-		dh = alph - beth;
-		f = 1.0 - (a / astMath::mag(ro)) * (1.0 - cosh(dh));
-		gdot = 1.0 - (a / astMath::mag(r)) * (1.0 - cosh(dh));
-        g    = dtsec - sqrt(-a*a*a/mu)*(sinh(dh)-dh);
-		fdot = -sqrt(-a) * sinh(dh) / (astMath::mag(ro) * astMath::mag(r));
-	}
+	// initial guess
+	if (nrev > 0)
+		xn = 1.0 + 4.0*L;
 	else
+		xn = L;   //l    // 0.0 for par and hyp, l for ell
+
+	// alt approach for high energy(long way, retro multi - rev) case
+	if ((df == 'r') && (nrev > 0))
 	{
-		/* ------------------------- elliptical --------------------- */
-		if (a > small)
+		xn = 1e-20;  // be sure to reset this here!!
+		x = 10.0;  // starting value
+		loops = 1;
+		while ((abs(xn - x) >= small) && (loops <= 20))
 		{
-			arg1 = sqrt(s / (2.0 * a));
-			arg2 = sqrt((s - chord) / (2.0 * a));
-			sinv = arg2;
-			cosv = sqrt(1.0 - (astMath::mag(ro) + astMath::mag(r) - chord) / (4.0 * a));
-			bete = 2.0 * acos(cosv);
-			bete = 2.0 * asin(sinv);
-			if (dnu > pi)
-				bete = -bete;
+			x = xn;
+			temp = 1.0 / (2.0*(L - x*x));
+			temp1 = sqrt(x);
+			temp2 = (nrev*pi*0.5 + atan(temp1)) / temp1;
+			h1 = temp * (L + x) * (1.0 + 2.0*x + L);
+			h2 = temp * m * temp1 * ((L - x*x) * temp2 - (L + x));
 
-			cosv = sqrt(1.0 - s / (2.0 * a));
-			sinv = arg1;
-
-			am = s * 0.5;
-			ae = pi;
-			be = 2.0 * asin(sqrt((s - chord) / s));
-			tm = sqrt(am * am * am/mu) * (ae - (be - sin(be)));
-			if (dtsec > tm)
-				alpe = 2.0 * pi - 2.0 * asin(sinv);
+			b = 0.25*27.0*h2 / (pow(temp1*(1.0 + h1), 3));
+			if (b < -1.0) // reset the initial condition
+				f = 2.0 * cos(1.0 / 3.0 * acos(sqrt(b + 1.0)));
 			else
-				alpe = 2.0 * asin(sinv);
-			de = alpe - bete;
-			f = 1.0 - (a / astMath::mag(ro)) * (1.0 - cos(de));
-			gdot = 1.0 - (a / astMath::mag(r)) * (1.0 - cos(de));
-			g = dtsec - sqrt(a * a * a/mu) * (de - sin(de));
-			fdot = -sqrt(a) * sin(de) / (astMath::mag(ro) * astMath::mag(r));
-		}
-		else
-		{
-			/* ------------------------- parabolic -------------------- */
-			arg1 = 0.0;
-			arg2 = 0.0;
-            f = 0.0;
-            g = 0.0;
-            gdot = 0.0;
-            fdot = 0.0;
-			error = 1; // a = 0.0
-			//      if (fileout != null)
-			//        fprintf(fileout, " a parabolic orbit \n");
-		}
-	}
+			{
+				A = pow(sqrt(b) + sqrt(b + 1.0), (1.0 / 3.0));
+				f = A + 1.0 / A;
+			}
 
-	for (i = 1; i <= 3; i++)
-	{
-		vo[i] = ((r[i] - f * ro[i]) / g);
-		v[i] = ((gdot * r[i] - ro[i]) / g);
+			y = 2.0 / 3.0 * temp1 * (1.0 + h1) *(sqrt(b + 1.0) / f + 1.0);
+			xn = 0.5 * ((m / (y*y) - (1.0 + L)) - sqrt(pow(m / (y*y) - (1.0 + L), 2) - 4.0*L));
+			fprintf(outfile," %3i yh %11.6f x %11.6f h1 %11.6f h2 %11.6f b %11.6f f %11.7f \n", loops, y, x, h1, h2, b, f);
+			loops = loops + 1;
+		}  // while
+		x = xn;
+		a = s * pow(1.0 + lam, 2) * (1.0 + x)*(L + x) / (8.0 * x);
+		p = (2.0 * magr1 * magr2 * (1.0 + x) * pow(sin(dnu * 0.5), 2)) / (s * pow(1.0 + lam, 2) * (L + x));  // thompson
+		ecc = sqrt(1.0 - p / a);
+		lambhodograph(r1, v1, r2, p, ecc, dnu, dtsec, v1t, v2t);
+		fprintf(outfile,"high v1t %16.8f %16.8f %16.8f %16.8f\n", v1t, astMath::mag(v1t));
 	}
-
-	if (error == 0)
-		testamt = f * gdot - fdot * g;
 	else
-		testamt = 2.0;
+	{
+		// standard processing
+		// note that the dr nrev = 0 case is not represented
+		loops = 1;
+		y1 = 0.0;
+		x = 10.0;  // starting value
+		while ((abs(xn - x) >= small) && (loops <= 30))
+		{
+			if (nrev > 0)
+			{
+				x = xn;
+				temp = 1.0 / ((1.0 + 2.0*x + L) * (4.0*x));
+				temp1 = (nrev*pi*0.5 + atan(sqrt(x))) / sqrt(x);
+				h1 = temp * pow(L + x, 2) * (3.0 * pow(1.0 + x, 2) * temp1 - (3.0 + 5.0*x));
+				h2 = temp * m * ((x*x - x*(1.0 + L) - 3.0*L) * temp1 + (3.0*L + x));
+			}
+			else
+			{
+				x = xn;
+				tempx = seebattin(x);
+				denom = 1.0 / ((1.0 + 2.0*x + L) * (4.0*x + tempx*(3.0 + x)));
+				h1 = pow(L + x, 2) * (1.0 + 3.0*x + tempx)*denom;
+				h2 = m*(x - L + tempx)*denom;
+			}
+
+			// ---------------------- - evaluate cubic------------------
+			b = 0.25*27.0*h2 / (pow(1.0 + h1, 3));
+
+			u = 0.5*b / (1.0 + sqrt(1.0 + b));
+			k2 = kbattin(u);
+			y = ((1.0 + h1) / 3.0)*(2.0 + sqrt(1.0 + b) / (1.0 + 2.0*u*k2*k2));
+			xn = sqrt(pow((1.0 - L)*0.5, 2) + m / (y*y)) - (1.0 + L)*0.5;
+
+			y1 = sqrt(m / ((L + x)*(1.0 + x)));
+			loops = loops + 1;
+			//        fprintf(1, ' %3i yb %11.6f x %11.6f k2 %11.6f b %11.6f u %11.6f y1 %11.7f \n', loops, y, x, k2, b, u, y1);
+		}  // while
+
+	}
+
+	if (loops < 30)
+	{
+		// blair approach use y from solution
+		//       lam = 1.0 / s * sqrt(magr1*magr2) * cos(dnu*0.5);
+		//       m = 8.0*mu*dtsec*dtsec / (s ^ 3 * (1.0 + lam) ^ 6);
+		//       L = ((1.0 - lam) / (1.0 + lam)) ^ 2;
+		//a = s*(1.0 + lam) ^ 2 * (1.0 + x)*(lam + x) / (8.0*x);
+		// p = (2.0*magr1*magr2*(1.0 + x)*sin(dnu*0.5) ^ 2) ^ 2 / (s*(1 + lam) ^ 2 * (lam + x));  % loechler, not right ?
+		p = (2.0 * magr1 * magr2 * y * y * pow(1.0 + x, 2) * pow(sin(dnu*0.5), 2)) / (m*s*pow(1.0 + lam, 2));  // thompson
+		ecc = sqrt((eps * eps + 4.0*magr2 / magr1*pow(sin(dnu * 0.5), 2) * pow((L - x) / (L + x), 2)) / (eps * eps + 4.0*magr2 / magr1*pow(sin(dnu * 0.5), 2)));
+		lambhodograph(r1, v1, r2, p, ecc, dnu, dtsec, v1t, v2t);
+		//            fprintf(1, 'oldb v1t %16.8f %16.8f %16.8f %16.8f\n', v1dv, mag(v1dv));
+
+		// Battin solution to orbital parameters(and velocities)
+		// thompson 2011, loechler 1988
+		if (dnu > pi)
+			lam = -sqrt((s - chord) / s);
+		else
+			lam = sqrt((s - chord) / s);
+
+		// loechler pg 21 seems correct!
+		for (i = 0; i < 3; i++)
+		{
+			v1dvl[i] = 1.0 / (lam*(1.0 + lam))*sqrt(mu*(1.0 + x) / (2.0* s * s * s * (L + x)))*((r2[i] - r1[i]) + s*pow(1.0 + lam, 2) * (L + x) / (magr1*(1.0 + x))*r1[i]);
+			// added v2
+			v2dvl[i] = 1.0 / (lam*(1.0 + lam))*sqrt(mu*(1.0 + x) / (2.0* s *s *s * (L + x)))*((r2[i] - r1[i]) - s*pow(1.0 + lam, 2) * (L + x) / (magr2*(1.0 + x))*r2[i]);
+		}
+		//fprintf(1, 'loe v1t %16.8f %16.8f %16.8f %16.8f\n', v1dvl, mag(v1dvl));
+		//fprintf(1, 'loe v2t %16.8f %16.8f %16.8f %16.8f\n', v2dvl, mag(v2dvl));
+	}  // if loops converged < 30
 
 	//  if (fileout != null)
 	//    fprintf(fileout, "%8.5f %3d\n", testamt, loops);
+	if (dtsec < 0.001)
+		fprintf(outfile, " \n");
+	else
+		fprintf(outfile, "x %3i %c %5i %12.5f %12.5f %16.8f %16.8f %16.8f %16.8f %12.9f %12.9f %12.9f %12.9f \n",
+		nrev, dm, loops, dtsec, dtsec, y, f, v1[0], v1[1], v1[2], v2[0], v2[1], v2[2]);
 
 	bigt = sqrt(8.0 / (s * s * s)) * dtsec;
-}  // procedure lambertbattin
-
+}  // lambertbattin
 
 
 
@@ -2098,22 +2327,30 @@ double vo[3], double v[3], int& error
 
 void lambertuniv
 (
-double ro[3], double r[3], char dm, int nrev, double dtsec,
-double vo[3], double v[3], int& error, FILE *outfile
+double r1[3], double r2[3], char dm, char df, int nrev, double dtsec,
+double v1[3], double v2[3], int& error, FILE *outfile
 )
 {
-	const double twopi = 2.0 * pi;
 	const double small = 0.0000001;
 	const int numiter = 40;
 	const double mu = 398600.4418;  // m3s2
 
 	int loops, ynegktr;
-	double vara, y, upper, lower, cosdeltanu, f, g, gdot, xold, xoldcubed, 
+	double vara, y, upper, lower, cosdeltanu, f, g, gdot, xold, xoldcubed, magr1, magr2,
 		psiold, psinew, c2new, c3new, dtnew, c2dot, c3dot, dtdpsi, psiold2;
 
 	/* --------------------  initialize values   -------------------- */
 	error = 0;
 	psinew = 0.0;
+
+	magr1 = astMath::mag(r1);
+	magr2 = astMath::mag(r2);
+
+	cosdeltanu = astMath::dot(r1, r2) / (magr1 * magr2);
+	if (dm == 'l')
+		vara = -sqrt(magr1 * magr2 * (1.0 + cosdeltanu));
+	else
+		vara = sqrt(magr1 * magr2 * (1.0 + cosdeltanu));
 
 	/* -------- set up initial bounds for the bissection ------------ */
 	if (nrev == 0)
@@ -2131,53 +2368,54 @@ double vo[3], double v[3], int& error, FILE *outfile
 	psinew = 0.0;
 	xold = 0.0;
 	if (nrev == 0)
-		psiold = (log(dtsec / 806.811874) - 1.2357) / 0.118;
+	{
+		// use log to get initial guess
+		// empirical relation here from 10000 random draws
+		// 10000 cases up to 85000 dtsec  0.11604050x + 9.69546575
+		psiold = (log(dtsec) - 9.61202327) / 0.10918231;
+		if (psiold > upper)
+			psiold = upper - pi;
+	}
 	else
 	{
-		if (dm == 's')
-			psiold = lower + (upper - lower)*0.75;
+		if (df == 'd')
+			psiold = lower + (upper - lower)*0.3;
 		else
-			psiold = lower + (upper - lower)*0.25;
+			psiold = lower + (upper - lower)*0.6;
 	}
 	ast2Body::findc2c3(psiold, c2new, c3new);
 
-	cosdeltanu = astMath::dot(ro, r) / (astMath::mag(ro) * astMath::mag(r));
-	if (dm == 'l')
-		vara = -sqrt(astMath::mag(ro) * astMath::mag(r) * (1.0 + cosdeltanu));
-	else
-		vara = sqrt(astMath::mag(ro) * astMath::mag(r) * (1.0 + cosdeltanu));
-
 
 	/* --------  determine if the orbit is possible at all ---------- */
-	if (fabs(vara) > small)
+	if (fabs(vara) > small)  // 0.2??
 	{
 		loops = 0;
 		ynegktr = 1; // y neg ktr
-		dtnew = -10.0; 
-		while ((fabs(dtnew-dtsec) >= small) && (loops < numiter) && (ynegktr <= 10))
+		dtnew = -10.0;
+		while ((fabs(dtnew - dtsec) >= small) && (loops < numiter) && (ynegktr <= 10))
 		{
 			if (fabs(c2new) > small)
-				y = astMath::mag(ro) + astMath::mag(r) - (vara * (1.0 - psiold * c3new) / sqrt(c2new));
+				y = magr1 + magr2 - (vara * (1.0 - psiold * c3new) / sqrt(c2new));
 			else
-				y = astMath::mag(ro) + astMath::mag(r);
+				y = magr1 + magr2;
 			/* ------- check for negative values of y ------- */
 			if ((vara > 0.0) && (y < 0.0))
 			{
 				ynegktr = 1;
-				while (( y < 0.0 ) && ( ynegktr < 10 ))
+				while ((y < 0.0) && (ynegktr < 10))
 				{
 					psinew = 0.8 * (1.0 / c3new) *
-						(1.0 - (astMath::mag(ro) + astMath::mag(r)) * sqrt(c2new) / vara);
+						(1.0 - (magr1 + magr2) * sqrt(c2new) / vara);
 
 					/* ------ find c2 and c3 functions ------ */
 					ast2Body::findc2c3(psinew, c2new, c3new);
 					psiold = psinew;
 					lower = psiold;
 					if (fabs(c2new) > small)
-						y = astMath::mag(ro) + astMath::mag(r) -
+						y = magr1 + magr2 -
 						(vara * (1.0 - psiold * c3new) / sqrt(c2new));
 					else
-						y = astMath::mag(ro) + astMath::mag(r);
+						y = magr1 + magr2;
 					//          if (show == 'y')
 					//            if (fileout != null)
 					//              fprintf(fileout, "%3d %10.5f %10.5f %10.5f %7.3f %9.5f %9.5f\n",
@@ -2200,30 +2438,36 @@ double vo[3], double v[3], int& error, FILE *outfile
 				if (fabs(psiold) > 1e-5)
 				{
 					c2dot = 0.5 / psiold * (1.0 - psiold * c3new - 2.0 * c2new);
-					c3dot = 0.5 / psiold * (c2new - 3.0 * c3new); 
+					c3dot = 0.5 / psiold * (c2new - 3.0 * c3new);
 				}
 				else
 				{
 					psiold2 = psiold * psiold;
 					c2dot = -1.0 / astMath::factorial(4) + 2.0 * psiold / astMath::factorial(6) - 3.0 * psiold2 / astMath::factorial(8) +
-					    	 4.0 * psiold2 * psiold / astMath::factorial(10) - 5.0 * psiold2*psiold2 / astMath::factorial(12);
+						4.0 * psiold2 * psiold / astMath::factorial(10) - 5.0 * psiold2*psiold2 / astMath::factorial(12);
 					c3dot = -1.0 / astMath::factorial(5) + 2.0 * psiold / astMath::factorial(7) - 3.0 * psiold2 / astMath::factorial(9) +
-					     	 4.0 * psiold2 * psiold / astMath::factorial(11) - 5.0 * psiold2*psiold2 / astMath::factorial(13);
+						4.0 * psiold2 * psiold / astMath::factorial(11) - 5.0 * psiold2*psiold2 / astMath::factorial(13);
 				}
 				dtdpsi = (xoldcubed * (c3dot - 3.0 * c3new * c2dot / (2.0 * c2new)) + vara / 8.0 * (3.0 * c3new * sqrt(y) / c2new + vara / xold)) / sqrt(mu);
 				psinew = psiold - (dtnew - dtsec) / dtdpsi;
 
 				// check if newton guess for psi is outside bounds(too steep a slope)
-				if (psinew > upper || psinew < lower)
+				if (abs(psinew) > upper || psinew < lower)
 				{
 					// --------readjust upper and lower bounds------ -
 					if (dtnew < dtsec)
-						lower = upper - pi;
+					{
+						if (psiold > lower)
+							lower = psiold;
+					}
 					if (dtnew > dtsec)
-						upper = psiold;
+					{
+						if (psiold < upper)
+							upper = psiold;
+					}
 					psinew = (upper + lower) * 0.5;
 				}
-					
+
 
 				/* -------------- find c2 and c3 functions ---------- */
 				ast2Body::findc2c3(psinew, c2new, c3new);
@@ -2249,32 +2493,32 @@ double vo[3], double v[3], int& error, FILE *outfile
 		else
 		{
 			/* ---- use f and g series to find velocity vectors ----- */
-			f = 1.0 - y / astMath::mag(ro);
-			gdot = 1.0 - y / astMath::mag(r);
-			g = 1.0 / (vara * sqrt(y/mu)); // 1 over g
-		//	fdot = sqrt(y) * (-astMath::mag(r) - astMath::mag(ro) + y) / (astMath::mag(r) * astMath::mag(ro) * vara);
-			for (int i = 0; i <= 3; i++)
+			f = 1.0 - y / magr1;
+			gdot = 1.0 - y / magr2;
+			g = 1.0 / (vara * sqrt(y / mu)); // 1 over g
+			//	fdot = sqrt(y) * (-magr2 - magr1 + y) / (magr2 * magr1 * vara);
+			for (int i = 0; i < 3; i++)
 			{
-				vo[i] = ((r[i] - f * ro[i]) * g);
-				v[i] = ((gdot * r[i] - ro[i]) * g);
+				v1[i] = ((r2[i] - f * r1[i]) * g);
+				v2[i] = ((gdot * r2[i] - r1[i]) * g);
 			}
 		}
 	}
 	else
 		error = 3;   // impossible 180 transfer
 
-		if (dtsec < 0.001)
-			fprintf(outfile, " \n");
-		else
-		    fprintf(outfile, "%5i %c %5i %12.5f %12.5f %16.8f %16.8f %16.8f %16.8f %12.9f %12.9f %12.9f %12.9f %12.9f %12.9f %12.9f \n",
-		                     nrev, dm, loops, dtsec, dtsec, y, xold, vo[0], vo[1], vo[2], v[0], v[1], v[2], lower, upper, psinew);
+//	if (dtsec < 0.001)
+//		fprintf(outfile, " \n");
+//	else
+//		fprintf(outfile, "%5i %c %5i %12.5f %12.5f %16.8f %16.8f %16.8f %16.8f %12.9f %12.9f %12.9f %12.9f %12.9f %12.9f %12.9f \n",
+//		nrev, dm, loops, dtsec, dtsec, y, f, v1[0], v1[1], v1[2], v2[0], v2[1], v2[2], lower, upper, psinew);
 
 	/*
 	---- for fig 6-14 dev with testgau.pas ----
 	if error = 'ok' then write( fileout,psinew:14:7,dtsec*13.44685:14:7 )
 	else write( fileout,' 9999.0 ':14,dtsec*13.44685:14:7 );
 	*/
-}  // procedure lambertuniv
+}  // lambertuniv
 
 
 /*------------------------------------------------------------------------------
@@ -2314,7 +2558,7 @@ double vo[3], double v[3], int& error, FILE *outfile
 *    i           - index
 *
 *  coupling      :
-*    kepler      - find r and v at future time
+*    kepler      - find r2 and v2 at future time
 *    lambertuniv - find velocity vectors at each end of transfer
 *    lncom2      - linear combination of two vectors and constants
 *
@@ -2325,12 +2569,14 @@ double vo[3], double v[3], int& error, FILE *outfile
 void target
 (
 double rint[3], double vint[3], double rtgt[3], double vtgt[3],
-char dm, char kind, double dtsec,
+char dm, char df, char kind, double dtsec,
 double v1t[3], double v2t[3], double dv1[3], double dv2[3], int error
 )
 {
 	double  r1tgt[3], v1tgt[3];
 	FILE *outfile;
+
+	int err = fopen_s(&outfile, "D:/Codes/LIBRARY/CPP/Libraries/astIOD/testastIOD.out", "w");
 
 	/* ----------- propagate target forward in time ----------------- */
 	switch (kind)
@@ -2346,10 +2592,10 @@ double v1t[3], double v2t[3], double dv1[3], double dv2[3], int error
 		break;
 	}
 
-	/* ----------- calculate transfer orbit between r's ------------- */
+	/* ----------- calculate transfer orbit between r2's ------------- */
 	if (error == 0)
 	{
-		lambertuniv(rint, r1tgt, dm, 'n', dtsec, v1t, v2t, error, outfile);
+		lambertuniv(rint, r1tgt, dm, df, 'n', dtsec, v1t, v2t, error, outfile);
 
 		if (error == 0)
 		{
@@ -2360,92 +2606,8 @@ double v1t[3], double v2t[3], double dv1[3], double dv2[3], int error
 		{
 		}
 	}
-}  // procedure target
+}  // target
 
 
-/* utility functions for lambertbattin, etc */
-/* -------------------------------------------------------------------------- */
-
-static double k
-(
-double v
-)
-{
-	double d[21] =
-	{
-		1.0 / 3.0, 4.0 / 27.0,
-		8.0 / 27.0, 2.0 / 9.0,
-		22.0 / 81.0, 208.0 / 891.0,
-		340.0 / 1287.0, 418.0 / 1755.0,
-		598.0 / 2295.0, 700.0 / 2907.0,
-		928.0 / 3591.0, 1054.0 / 4347.0,
-		1330.0 / 5175.0, 1480.0 / 6075.0,
-		1804.0 / 7047.0, 1978.0 / 8091.0,
-		2350.0 / 9207.0, 2548.0 / 10395.0,
-		2968.0 / 11655.0, 3190.0 / 12987.0,
-		3658.0 / 14391.0
-	};
-	double del, delold, term, termold, sum1;
-	int i;
-
-	/* ---- process forwards ---- */
-	sum1 = d[0];
-	delold = 1.0;
-	termold = d[0];
-	i = 1;
-	while ((i <= 20) && (fabs(termold) > 0.000001))
-	{
-		del = 1.0 / (1.0 - d[i] * v * delold);
-		term = termold * (del - 1.0);
-		sum1 = sum1 + term;
-		i++;
-		delold = del;
-		termold = term;
-	}
-	return sum1;
-}  // double k
-
-
-/* -------------------------------------------------------------------------- */
-
-static double see(double v)
-{
-	double c[21] =
-	{
-		0.2,
-		9.0 / 35.0, 16.0 / 63.0,
-		25.0 / 99.0, 36.0 / 143.0,
-		49.0 / 195.0, 64.0 / 255.0,
-		81.0 / 323.0, 100.0 / 399.0,
-		121.0 / 483.0, 144.0 / 575.0,
-		169.0 / 675.0, 196.0 / 783.0,
-		225.0 / 899.0, 256.0 / 1023.0,
-		289.0 / 1155.0, 324.0 / 1295.0,
-		361.0 / 1443.0, 400.0 / 1599.0,
-		441.0 / 1763.0, 484.0 / 1935.0
-	};
-	double term, termold, del, delold, sum1, eta, sqrtopv;
-	int i;
-
-	sqrtopv = sqrt(1.0 + v);
-	eta     = v / pow(1.0 + sqrtopv, 2);
-
-	/* ---- process forwards ---- */
-	delold = 1.0;
-	termold = c[0];  // * eta
-	sum1 = termold;
-	i = 1;
-	while ((i <= 20) && (fabs(termold) > 0.000001))
-	{
-		del = 1.0 / (1.0 + c[i] * eta * delold);
-		term = termold * (del - 1.0);
-		sum1 = sum1 + term;
-		i++;
-		delold = del;
-		termold = term;
-	}
-
-	return ((1.0 / (8.0 * (1.0 + sqrtopv))) * (3.0 + sum1 / (1.0 + eta * sum1)));
-}  // double see
 
 }   // namespace

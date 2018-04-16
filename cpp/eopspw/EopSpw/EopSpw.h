@@ -30,15 +30,10 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "astMath.h"
-#include "ast2Body.h"
-#include "astTime.h"
+#include "D:/Codes/LIBRARY/CPP/Libraries/astMath/astMath/astMath.h"  // pi, infinite, undefined
+#include "D:/Codes/LIBRARY/CPP/Libraries/astTime/astTime/astTime.h"  // pi, twopi, edirection
+#include "D:/Codes/LIBRARY/CPP/Libraries/ast2Body/ast2Body/ast2Body.h"
 
-
-//using namespace std;
-//
-//using namespace System;
-//
 
 /*    *****************************************************************
 *     type definitions
@@ -64,33 +59,26 @@ typedef struct spwdata
 const int eopsize = 25000; // 25000 if from 62
 const int spwsize = 25000; // 25000 if from 62
 
-namespace EopSpw {
-
-	//	public ref class EopSpwCl
-	//	{
-
-	// make sure they are all visible
-	//	public:
-
-
+namespace EopSpw 
+{
 	void initspw
 		(
-		std::vector<spwdata> spwarr,
+		std::vector<spwdata> &spwarr,
 		char infilename[140],
 		double& jdspwstart, double& jdspwstartFrac
 		);
 
 	void initeop
 		(
-		std::vector<eopdata> eoparr,
+		std::vector<eopdata> &eoparr,
 		char infilename[140],
 		double& jdeopstart, double& jdeopstartFrac
 		);
 
 	void findeopparam
 		(
-		double  jd, double mfme, char interp,
-		std::vector<eopdata> eoparr,
+		double  jd, double jdF, char interp, char whichm,
+		const std::vector<eopdata> &eoparr,
 		double jdeopstart,
 		double& dut1, int& dat,
 		double& lod, double& xp, double& yp,
@@ -101,8 +89,8 @@ namespace EopSpw {
 
 	void findatmosparam
 		(
-		double jd, double mfme, char interp, char fluxtype, char f81type, char inputtype,
-		std::vector<spwdata> spwarr,
+		double jd, double jdF, char interp, char fluxtype, char f81type, char inputtype,
+		const std::vector<spwdata> &spwarr,
 		double jdspwstart,
 		double& f107, double& f107bar,
 		double& ap, double& avgap, double aparr[8],
@@ -120,18 +108,14 @@ namespace EopSpw {
 		);
 
 
-
-
 	// this routine will probably move elsewhere, but fits here ok for now
 	//void interfaceatmos
 	//    (
 	//       double jde, double mfme, double recef[3],
 	//       char interp, char fluxtype, char f81type, char inputtype,
-	//       msistype& msis00r,
+	//       const msistype& msis00r,
 	//       spwdata spwarr[spwsize], double jdspwstart
 	//     );
-
-	//	}; // class
 
 };  // namespace
 

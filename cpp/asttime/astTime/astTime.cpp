@@ -38,7 +38,8 @@
 
 #include "astTime.h"
 
-namespace astTime {
+namespace astTime 
+{
 
 	int getmon
 		(
@@ -367,26 +368,28 @@ namespace astTime {
 
 	void    invjday
 		(
-		double jd, double jdFrac,
+		double jd, double jdfrac,
 		int& year, int& mon, int& day,
 		int& hr, int& minute, double& sec
 		)
 	{
 		int leapyrs;
-		double    days, tu, temp;
+		double dt, days, tu, temp;
 
 		// check jdfrac for multiple days
-		if (fabs(jdFrac) >= 1.000000)
+		if (fabs(jdfrac) >= 1.0)
 		{
-			double dtt = floor(jdFrac);
-			jd = jd + dtt;
-			jdFrac = jdFrac - dtt;
+			jd = jd + floor(jdfrac);
+			jdfrac = jdfrac - floor(jdfrac);
 		}
 
 		// check for fraction of a day included in the jd
-		double dt = jd - floor(jd);
-		if (fabs(dt) - 0.5 > 0.00000001)
-			jdFrac = jdFrac + dt - 0.5;
+		dt = jd - floor(jd) - 0.5;
+		if (fabs(dt) > 0.00000001)
+		{
+			jd = jd - dt;
+			jdfrac = jdfrac + dt;
+		}
 
 		/* --------------- find year and days of the year --------------- */
 		temp = jd - 2415019.5;
@@ -397,7 +400,7 @@ namespace astTime {
 		days = floor(temp - ((year - 1900) * 365.0 + leapyrs));
 
 		/* ------------ check for case of beginning of a year ----------- */
-		if (days < 1.0)
+		if (days + jdfrac < 1.0)
 		{
 			year = year - 1;
 			leapyrs = (int)floor((year - 1901) * 0.25);
@@ -406,7 +409,7 @@ namespace astTime {
 
 		/* ----------------- find remaing data  ------------------------- */
 		// now add the daily time in to preserve accuracy
-		days2mdhms(year, days + jdFrac, mon, day, hr, minute, sec);
+		days2mdhms(year, days + jdfrac, mon, day, hr, minute, sec);
 	}
 
 	/* -----------------------------------------------------------------------------
@@ -500,7 +503,6 @@ namespace astTime {
 		double jdut1
 		)
 	{
-		const double twopi = 2.0 * pi;
 		const double deg2rad = pi / 180.0;
 		double       temp, tut1;
 
@@ -511,7 +513,7 @@ namespace astTime {
 
 		// ------------------------ check quadrants ---------------------
 		if (temp < 0.0)
-			temp += twopi;
+			temp = temp + twopi;
 
 		return temp;
 	}
@@ -546,8 +548,6 @@ namespace astTime {
 		double lon, double jdut1, double& lst, double& gst
 		)
 	{
-		const double twopi = 2.0 * pi;
-
 		gst = gstime(jdut1);
 		lst = lon + gst;
 
@@ -854,25 +854,25 @@ namespace astTime {
 		deg2rad = pi / 180.0;
 
 		// ------------------------  implementation   ------------------
-		jday(year, mon, day, 0, 0, 0.0, jd, jdFrac);
+		astTime::jday(year, mon, day, 0, 0, 0.0, jd, jdFrac);
 		//     mjd  = jd - 2400000.5;
 		//     mfme = hr*60.0 + min + sec/60.0;
 
 		// ------------------ start if ( ut1 is known ------------------
 		localhr = timezone + hr;
 
-		hms_sec(localhr, min, sec, eTo, utc);
+		astTime::hms_sec(localhr, min, sec, eTo, utc);
 		ut1 = utc + dut1;
-		hms_sec(hrtemp, mintemp, sectemp, eFrom, ut1);
-		jday(year, mon, day, hrtemp, mintemp, sectemp, jdut1, jdut1Frac);
-		tut1 = (jdut1 - 2451545.0) / 36525.0;
+		astTime::hms_sec(hrtemp, mintemp, sectemp, eFrom, ut1);
+		astTime::jday(year, mon, day, hrtemp, mintemp, sectemp, jdut1, jdut1Frac);
+		tut1 = (jdut1 + jdut1Frac - 2451545.0) / 36525.0;
 
 		tai = utc + dat;
 
 		tt = tai + 32.184;   // sec
-		hms_sec(hrtemp, mintemp, sectemp, eFrom, tt);
-		jday(year, mon, day, hrtemp, mintemp, sectemp, jdtt, jdttFrac);
-		ttt = (jdtt - 2451545.0) / 36525.0;
+		astTime::hms_sec(hrtemp, mintemp, sectemp, eFrom, tt);
+		astTime::jday(year, mon, day, hrtemp, mintemp, sectemp, jdtt, jdttFrac);
+		ttt = (jdtt + jdttFrac - 2451545.0) / 36525.0;
 
 		tcg = tt + 6.969290134e-10*(jdut1 - 2443144.5)*86400.0; // sec
 
@@ -880,9 +880,9 @@ namespace astTime {
 		me = fmod(me, 360.0);
 		me = me * deg2rad;
 		tdb = tt + 0.001657  * sin(me) + 0.00001385 *sin(2.0 *me);
-		hms_sec(hrtemp, mintemp, sectemp, eFrom, tdb);
-		jday(year, mon, day, hrtemp, mintemp, sectemp, jdtdb, jdtdbFrac);
-		ttdb = (jdtdb - 2451545.0) / 36525.0;
+		astTime::hms_sec(hrtemp, mintemp, sectemp, eFrom, tdb);
+		astTime::jday(year, mon, day, hrtemp, mintemp, sectemp, jdtdb, jdtdbFrac);
+		ttdb = (jdtdb + jdtdbFrac - 2451545.0) / 36525.0;
 
 		tcb = tdb + 1.55051976772e-8*(jdtt - 2443144.5)*86400.0; // sec
 

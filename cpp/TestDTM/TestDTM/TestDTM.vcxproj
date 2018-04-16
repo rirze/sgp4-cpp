@@ -86,6 +86,7 @@
     <None Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\Libraries\EopSpw\EopSpw\EopSpw.h" />
     <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
@@ -95,9 +96,6 @@
     <ClCompile Include="TestDTM.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <Library Include="..\..\Libraries\ast2Body\Debug\ast2Body.lib" />
-    <Library Include="..\..\Libraries\astMath\Debug\astMath.lib" />
-    <Library Include="..\..\Libraries\astTime\Debug\astTime.lib" />
     <Library Include="..\..\Libraries\DTM_12\Debug\DTM_12.lib" />
     <Library Include="..\..\Libraries\EopSpw\Debug\EopSpw.lib" />
   </ItemGroup>

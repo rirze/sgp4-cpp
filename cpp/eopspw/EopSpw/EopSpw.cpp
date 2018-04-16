@@ -15,7 +15,7 @@
 *     *****************************************************************
 *    current :
 *              30 sep 15  david vallado
-*                           fix jd, jdfrac
+*                           fix jdutc, jdfrac
 *    changes :
 *               3 nov 14  david vallado
 *                           update to msvs2013 c++
@@ -27,11 +27,10 @@
 *                           original version
 *       ----------------------------------------------------------------      */
 
-//#include "stdafx.h"
-
 #include "EopSpw.h"
 
-namespace EopSpw {
+namespace EopSpw 
+{
 
 	/* -----------------------------------------------------------------------------
 	*
@@ -61,7 +60,7 @@ namespace EopSpw {
 
 	void initspw
 		(
-		std::vector<spwdata> spwarr,
+		std::vector<spwdata> &spwarr,
 		char infilename[140],
 		double& jdspwstart, double& jdspwstartFrac
 		)
@@ -220,6 +219,7 @@ namespace EopSpw {
 	*    jdeopstart  - julian date of the start of the eoparr data
 	*
 	*  locals        :
+	*    convrt      - conversion factor arcsec to radians
 	*                -
 	*
 	*  coupling      :
@@ -230,7 +230,7 @@ namespace EopSpw {
 
 	void initeop
 		(
-		std::vector<eopdata> eoparr,
+		std::vector<eopdata> &eoparr,  // pass by ref
 		char infilename[140],
 		double& jdeopstart, double& jdeopstartFrac
 		)
@@ -239,7 +239,11 @@ namespace EopSpw {
 		char longstr[140];
 		char str[9], blk[20];
 		int numrecsobs, numrecspred, year, mon, day;
+		double convrt;
 		long i;
+
+		// arcsec to rad
+		convrt = pi / (180.0 * 3600.0);
 		
 		eoparr.resize(eopsize);
 
@@ -305,6 +309,14 @@ namespace EopSpw {
 		//       sscanf_s(longstr," %lf  %lf  %lf  %lf %lf  %lf \n", &eoparr[i].x, &eoparr[i].y,
 		//                  &eoparr[i].s, &eoparr[i].deltapsi, &eoparr[i].deltaeps, &mjd);
 
+		// --------------- fix units ---------
+		eoparr[i].xp = eoparr[i].xp * convrt;
+		eoparr[i].yp = eoparr[i].yp * convrt;
+		eoparr[i].ddpsi = eoparr[i].ddpsi * convrt;
+		eoparr[i].ddeps = eoparr[i].ddeps * convrt;
+		eoparr[i].dx = eoparr[i].dx * convrt;
+		eoparr[i].dy = eoparr[i].dy * convrt;
+
 		// ---- process observed records
 		for (i = 1; i <= numrecsobs - 1; i++)
 		{
@@ -324,6 +336,14 @@ namespace EopSpw {
 			// uncomment these to read the xys parameters also
 			//           fscanf_s(infile1," %21lf  %20lf  %20lf  %16lf %16lf  %11lf \n", &eoparr[i].x, &eoparr[i].y,
 			//                 &eoparr[i].s, &eoparr[i].deltapsi, &eoparr[i].deltaeps, &mjd );
+
+			// --------------- fix units ---------
+			eoparr[i].xp = eoparr[i].xp * convrt;
+			eoparr[i].yp = eoparr[i].yp * convrt;
+			eoparr[i].ddpsi = eoparr[i].ddpsi * convrt;
+			eoparr[i].ddeps = eoparr[i].ddeps * convrt;
+			eoparr[i].dx = eoparr[i].dx * convrt;
+			eoparr[i].dy = eoparr[i].dy * convrt;
 		}
 
 		fgets(longstr, 140, infile);
@@ -354,6 +374,14 @@ namespace EopSpw {
 			// uncomment these to read the xys parameters also
 			//           fscanf_s(infile1," %21lf  %20lf  %20lf   %16lf %16lf  %11lf \n", &eoparr[i].x, &eoparr[i].y,
 			//                  &eoparr[i].s, &eoparr[i].deltapsi, &eoparr[i].deltaeps, &mjd );
+
+			// --------------- fix units ---------
+			eoparr[i].xp = eoparr[i].xp * convrt;
+			eoparr[i].yp = eoparr[i].yp * convrt;
+			eoparr[i].ddpsi = eoparr[i].ddpsi * convrt;
+			eoparr[i].ddeps = eoparr[i].ddeps * convrt;
+			eoparr[i].dx = eoparr[i].dx * convrt;
+			eoparr[i].dy = eoparr[i].dy * convrt;
 		}
 		fclose(infile);
 	}   //  initeop
@@ -370,9 +398,10 @@ namespace EopSpw {
 	*  author        : david vallado                      719-573-2600   12 dec 2005
 	*
 	*  inputs          description                          range / units
-	*    jde         - julian date of epoch (0 hrs utc)
-	*    mfme        - minutes from midnight epoch
+	*    jdutc          - julian date of epoch (0 hrs utc)
+	*    jdutcF         - fraction of a day from jdutc
 	*    interp      - interpolation                        n-none, l-linear, s-spline
+	*    whichm      - which method fk5 or iau2010, or both 'f', 'i', 'b'
 	*    eoparr      - array of eop data records
 	*    jdeopstart  - julian date of the start of the eoparr data (set in initeop)
 	*
@@ -384,11 +413,11 @@ namespace EopSpw {
 	*    yp          - y component of polar motion          rad
 	*    ddpsi       - correction to delta psi (iau-76 theory) rad
 	*    ddeps       - correction to delta eps (iau-76 theory) rad
-	*    dx          - correction to x (cio theory)         rad
-	*    dy          - correction to y (cio theory)         rad
 	*    x           - x component of cio                   rad
 	*    y           - y component of cio                   rad
 	*    s           -                                      rad
+	*    dx          - correction to x (cio theory)         rad
+	*    dy          - correction to y (cio theory)         rad
 	*    deltapsi    - nutation longitude angle             rad
 	*    deltaeps    - obliquity of the ecliptic correction rad
 	*
@@ -404,8 +433,8 @@ namespace EopSpw {
 
 	void findeopparam
 		(
-		double  jd, double mfme, char interp,
-		std::vector<eopdata> eoparr,
+		double  jdutc, double jdutcF, char interp, char whichm,
+		const std::vector<eopdata> &eoparr,
 		double jdeopstart,
 		double& dut1, int& dat,
 		double& lod, double& xp, double& yp,
@@ -419,9 +448,47 @@ namespace EopSpw {
 		eopdata eoprec, nexteoprec;
 		double  fixf, jdeopstarto;
 
+		// set default values
+		dut1 = 0.0;
+		dat = 33;
+		lod = 0.0;
+		xp = 0.0;
+		yp = 0.0;
+		ddpsi = 0.0;
+		ddeps = 0.0;
+		x = 0.0;
+		y = 0.0;
+		s = 0.0;
+		dx = 0.0;
+		dy = 0.0;
+		deltapsi = 0.0;
+		deltaeps = 0.0;
+
+		// since this requires the jdutcF to be just the fractional part of the day, do some checks
+		// check jdutcF for multiple days
+		if (fabs(jdutcF) >= 1.0)
+		{
+			jdutc = jdutc + floor(jdutcF);
+			jdutcF = jdutcF - floor(jdutcF);
+		}
+
+		// check for fraction of a day included in the jdutc
+		double dt = jdutc - floor(jdutc) - 0.5;
+		if (fabs(dt) > 0.00000001)
+		{
+			jdutc = jdutc - dt;
+			jdutcF = jdutcF + dt;
+		}
+		// make sure the jdutF is lined up (not negative) so rec finding and fixf are correct
+		if (jdutcF < 0.0)
+		{
+			jdutc = jdutc - 1.0;
+			jdutcF = 1.0 + jdutcF;
+		}
+
 		// ---- read data for day of interest
-		jd = jd + mfme / 1440.0;
-		jdeopstarto = floor(jd - jdeopstart);
+		jdutc = jdutc + jdutcF;
+		jdeopstarto = floor(jdutc - jdeopstart);
 		recnum = int(jdeopstarto);
 
 		// check for out of bound values
@@ -435,109 +502,109 @@ namespace EopSpw {
 			lod = eoprec.lod;
 			xp = eoprec.xp;
 			yp = eoprec.yp;
-			ddpsi = eoprec.ddpsi;
-			ddeps = eoprec.ddeps;
-			dx = eoprec.dx;
-			dy = eoprec.dy;
 
-			// ---- find nutation parameters for use in optimizing speed
-			x = eoprec.x;
-			y = eoprec.y;
-			s = eoprec.s;
-			deltapsi = eoprec.deltapsi;
-			deltaeps = eoprec.deltaeps;
+			if (whichm == 'f' || whichm == 'b')
+			{
+				// ---- find specific values for fk5
+				ddpsi = eoprec.ddpsi;
+				ddeps = eoprec.ddeps;
+			}
+			else
+			{
+				// ---- find nutation parameters for iau 2010
+				x = eoprec.x;
+				y = eoprec.y;
+				s = eoprec.s;
+				dx = eoprec.dx;
+				dy = eoprec.dy;
+				deltapsi = eoprec.deltapsi;
+				deltaeps = eoprec.deltaeps;
+			}
 
 			// ---- do linear interpolation
 			if (interp == 'l')
 			{
 				nexteoprec = eoparr[recnum + 1];
-				fixf = mfme / 1440.0;
+				fixf = jdutcF;
 
 				dut1 = eoprec.dut1 + (nexteoprec.dut1 - eoprec.dut1) * fixf;
 				dat = eoprec.dat + int((nexteoprec.dat - eoprec.dat) * fixf);
 				lod = eoprec.lod + (nexteoprec.lod - eoprec.lod) * fixf;
 				xp = eoprec.xp + (nexteoprec.xp - eoprec.xp) * fixf;
 				yp = eoprec.yp + (nexteoprec.yp - eoprec.yp) * fixf;
-				ddpsi = eoprec.ddpsi + (nexteoprec.ddpsi - eoprec.ddpsi) * fixf;
-				ddeps = eoprec.ddeps + (nexteoprec.ddeps - eoprec.ddeps) * fixf;
-				dx = eoprec.dx + (nexteoprec.dx - eoprec.dx) * fixf;
-				dy = eoprec.dy + (nexteoprec.dy - eoprec.dy) * fixf;
-				x = eoprec.x + (nexteoprec.x - eoprec.x) * fixf;
-				y = eoprec.y + (nexteoprec.y - eoprec.y) * fixf;
-				s = eoprec.s + (nexteoprec.s - eoprec.s) * fixf;
-				deltapsi = eoprec.deltapsi + (nexteoprec.deltapsi - eoprec.deltapsi) * fixf;
-				deltaeps = eoprec.deltaeps + (nexteoprec.deltaeps - eoprec.deltaeps) * fixf;
+
+				if (whichm == 'f' || whichm == 'b')
+				{
+					ddpsi = eoprec.ddpsi + (nexteoprec.ddpsi - eoprec.ddpsi) * fixf;
+					ddeps = eoprec.ddeps + (nexteoprec.ddeps - eoprec.ddeps) * fixf;
+				}
+				else
+				{
+					x = eoprec.x + (nexteoprec.x - eoprec.x) * fixf;
+					y = eoprec.y + (nexteoprec.y - eoprec.y) * fixf;
+					s = eoprec.s + (nexteoprec.s - eoprec.s) * fixf;
+					dx = eoprec.dx + (nexteoprec.dx - eoprec.dx) * fixf;
+					dy = eoprec.dy + (nexteoprec.dy - eoprec.dy) * fixf;
+					deltapsi = eoprec.deltapsi + (nexteoprec.deltapsi - eoprec.deltapsi) * fixf;
+					deltaeps = eoprec.deltaeps + (nexteoprec.deltaeps - eoprec.deltaeps) * fixf;
+				}
 			}
 
 			// ---- do spline interpolations
 			if (interp == 's')
 			{
-				off1 = 10;   // every 5 days data...
-				off2 = 5;
-				dut1 = astMath::cubicinterp(eoparr[recnum - off1].dut1, eoparr[recnum - off2].dut1, eoparr[recnum].dut1, eoparr[recnum + off2].dut1,
-					eoparr[recnum - off1].mjd, eoparr[recnum - off2].mjd, eoparr[recnum].mjd, eoparr[recnum + off2].mjd,
-					mfme);
-				dat = int(astMath::cubicinterp(eoparr[recnum - off1].dat, eoparr[recnum - off2].dat, eoparr[recnum].dat, eoparr[recnum + off2].dat,
-					eoparr[recnum - off1].mjd, eoparr[recnum - off2].mjd, eoparr[recnum].mjd, eoparr[recnum + off2].mjd,
-					mfme));
-				lod = astMath::cubicinterp(eoparr[recnum - off1].lod, eoparr[recnum - off2].lod, eoparr[recnum].lod, eoparr[recnum + off2].lod,
-					eoparr[recnum - off1].mjd, eoparr[recnum - off2].mjd, eoparr[recnum].mjd, eoparr[recnum + off2].mjd,
-					mfme);
-				xp = astMath::cubicinterp(eoparr[recnum - off1].xp, eoparr[recnum - off2].xp, eoparr[recnum].xp, eoparr[recnum + off2].xp,
-					eoparr[recnum - off1].mjd, eoparr[recnum - off2].mjd, eoparr[recnum].mjd, eoparr[recnum + off2].mjd,
-					mfme);
-				yp = astMath::cubicinterp(eoparr[recnum - off1].yp, eoparr[recnum - off2].yp, eoparr[recnum].yp, eoparr[recnum + off2].yp,
-					eoparr[recnum - off1].mjd, eoparr[recnum - off2].mjd, eoparr[recnum].mjd, eoparr[recnum + off2].mjd,
-					mfme);
-				ddpsi = astMath::cubicinterp(eoparr[recnum - off1].ddpsi, eoparr[recnum - off2].ddpsi, eoparr[recnum].ddpsi, eoparr[recnum + off2].ddpsi,
-					eoparr[recnum - off1].mjd, eoparr[recnum - off2].mjd, eoparr[recnum].mjd, eoparr[recnum + off2].mjd,
-					mfme);
-				ddeps = astMath::cubicinterp(eoparr[recnum - off1].ddeps, eoparr[recnum - off2].ddeps, eoparr[recnum].ddeps, eoparr[recnum + off2].ddeps,
-					eoparr[recnum - off1].mjd, eoparr[recnum - off2].mjd, eoparr[recnum].mjd, eoparr[recnum + off2].mjd,
-					mfme);
-				dx = astMath::cubicinterp(eoparr[recnum - off1].dx, eoparr[recnum - off2].dx, eoparr[recnum].dx, eoparr[recnum + off2].dx,
-					eoparr[recnum - off1].mjd, eoparr[recnum - off2].mjd, eoparr[recnum].mjd, eoparr[recnum + off2].mjd,
-					mfme);
-				dy = astMath::cubicinterp(eoparr[recnum - off1].dy, eoparr[recnum - off2].dy, eoparr[recnum].dy, eoparr[recnum + off2].dy,
-					eoparr[recnum - off1].mjd, eoparr[recnum - off2].mjd, eoparr[recnum].mjd, eoparr[recnum + off2].mjd,
-					mfme);
-				x = astMath::cubicinterp(eoparr[recnum - off1].x, eoparr[recnum - off2].x, eoparr[recnum].x, eoparr[recnum + off2].x,
-					eoparr[recnum - off1].mjd, eoparr[recnum - off2].mjd, eoparr[recnum].mjd, eoparr[recnum + off2].mjd,
-					mfme);
-				y = astMath::cubicinterp(eoparr[recnum - off1].y, eoparr[recnum - off2].y, eoparr[recnum].y, eoparr[recnum + off2].y,
-					eoparr[recnum - off1].mjd, eoparr[recnum - off2].mjd, eoparr[recnum].mjd, eoparr[recnum + off2].mjd,
-					mfme);
-				s = astMath::cubicinterp(eoparr[recnum - off1].s, eoparr[recnum - off2].s, eoparr[recnum].s, eoparr[recnum + off2].s,
-					eoparr[recnum - off1].mjd, eoparr[recnum - off2].mjd, eoparr[recnum].mjd, eoparr[recnum + off2].mjd,
-					mfme);
-				deltapsi = astMath::cubicinterp(eoparr[recnum - off1].deltapsi, eoparr[recnum - off2].deltapsi, eoparr[recnum].deltapsi, eoparr[recnum + off2].deltapsi,
-					eoparr[recnum - off1].mjd, eoparr[recnum - off2].mjd, eoparr[recnum].mjd, eoparr[recnum + off2].mjd,
-					mfme);
-				deltaeps = astMath::cubicinterp(eoparr[recnum - off1].deltaeps, eoparr[recnum - off2].deltaeps, eoparr[recnum].deltaeps, eoparr[recnum + off2].deltaeps,
-					eoparr[recnum - off1].mjd, eoparr[recnum - off2].mjd, eoparr[recnum].mjd, eoparr[recnum + off2].mjd,
-					mfme);
-			}
-		}
-		// set default values
-		else
-		{
-			dut1 = 0.0;
-			dat = 33;
-			lod = 0.0;
-			xp = 0.0;
-			yp = 0.0;
-			ddpsi = 0.0;
-			ddeps = 0.0;
-			dx = 0.0;
-			dy = 0.0;
+				off2 = 10;   // every 5 days data...
+				off1 = 5;
+				dut1 = astMath::cubicinterp(eoparr[recnum - off1].dut1, eoparr[recnum].dut1, eoparr[recnum + off1].dut1, eoparr[recnum + off2].dut1,
+					eoparr[recnum - off1].mjd, eoparr[recnum].mjd, eoparr[recnum + off1].mjd, eoparr[recnum + off2].mjd,
+					eoparr[recnum].mjd + jdutcF);
+				dat = int(astMath::cubicinterp(eoparr[recnum - off1].dat, eoparr[recnum].dat, eoparr[recnum + off1].dat, eoparr[recnum + off2].dat,
+					eoparr[recnum - off1].mjd, eoparr[recnum].mjd, eoparr[recnum + off1].mjd, eoparr[recnum + off2].mjd,
+					eoparr[recnum].mjd + jdutcF));
+				lod = astMath::cubicinterp(eoparr[recnum - off1].lod, eoparr[recnum].lod, eoparr[recnum + off1].lod, eoparr[recnum + off2].lod,
+					eoparr[recnum - off1].mjd, eoparr[recnum].mjd, eoparr[recnum + off1].mjd, eoparr[recnum + off2].mjd,
+					eoparr[recnum].mjd + jdutcF);
+				xp = astMath::cubicinterp(eoparr[recnum - off1].xp, eoparr[recnum].xp, eoparr[recnum + off1].xp, eoparr[recnum + off2].xp,
+					eoparr[recnum - off1].mjd, eoparr[recnum].mjd, eoparr[recnum + off1].mjd, eoparr[recnum + off2].mjd,
+					eoparr[recnum].mjd + jdutcF);
+				yp = astMath::cubicinterp(eoparr[recnum - off1].yp, eoparr[recnum].yp, eoparr[recnum + off1].yp, eoparr[recnum + off2].yp,
+					eoparr[recnum - off1].mjd, eoparr[recnum].mjd, eoparr[recnum + off1].mjd, eoparr[recnum + off2].mjd,
+					eoparr[recnum].mjd + jdutcF);
 
-			// ---- find nutation parameters for use in optimizing speed
-			// these could be set here, or in the program calling this...
-			//           x        = eoprec.x;
-			//           y        = eoprec.y;
-			//           s        = eoprec.s;
-			//           deltapsi = eoprec.deltapsi;
-			//           deltaeps = eoprec.deltaeps;
+				if (whichm == 'f' || whichm == 'b')
+				{
+					ddpsi = astMath::cubicinterp(eoparr[recnum - off1].ddpsi, eoparr[recnum].ddpsi, eoparr[recnum + off1].ddpsi, eoparr[recnum + off2].ddpsi,
+						eoparr[recnum - off1].mjd, eoparr[recnum].mjd, eoparr[recnum + off1].mjd, eoparr[recnum + off2].mjd,
+						eoparr[recnum].mjd + jdutcF);
+					ddeps = astMath::cubicinterp(eoparr[recnum - off1].ddeps, eoparr[recnum].ddeps, eoparr[recnum + off1].ddeps, eoparr[recnum + off2].ddeps,
+						eoparr[recnum - off1].mjd, eoparr[recnum].mjd, eoparr[recnum + off1].mjd, eoparr[recnum + off2].mjd,
+						eoparr[recnum].mjd + jdutcF);
+				}
+				else
+				{
+					x = astMath::cubicinterp(eoparr[recnum - off1].x, eoparr[recnum].x, eoparr[recnum + off1].x, eoparr[recnum + off2].x,
+						eoparr[recnum - off1].mjd, eoparr[recnum].mjd, eoparr[recnum + off1].mjd, eoparr[recnum + off2].mjd,
+						eoparr[recnum].mjd + jdutcF);
+					y = astMath::cubicinterp(eoparr[recnum - off1].y, eoparr[recnum].y, eoparr[recnum + off1].y, eoparr[recnum + off2].y,
+						eoparr[recnum - off1].mjd, eoparr[recnum].mjd, eoparr[recnum + off1].mjd, eoparr[recnum + off2].mjd,
+						eoparr[recnum].mjd + jdutcF);
+					s = astMath::cubicinterp(eoparr[recnum - off1].s, eoparr[recnum].s, eoparr[recnum + off1].s, eoparr[recnum + off2].s,
+						eoparr[recnum - off1].mjd, eoparr[recnum].mjd, eoparr[recnum + off1].mjd, eoparr[recnum + off2].mjd,
+						eoparr[recnum].mjd + jdutcF);
+					dx = astMath::cubicinterp(eoparr[recnum - off1].dx, eoparr[recnum].dx, eoparr[recnum + off1].dx, eoparr[recnum + off2].dx,
+						eoparr[recnum - off1].mjd, eoparr[recnum].mjd, eoparr[recnum + off1].mjd, eoparr[recnum + off2].mjd,
+						eoparr[recnum].mjd + jdutcF);
+					dy = astMath::cubicinterp(eoparr[recnum - off1].dy, eoparr[recnum].dy, eoparr[recnum + off1].dy, eoparr[recnum + off2].dy,
+						eoparr[recnum - off1].mjd, eoparr[recnum].mjd, eoparr[recnum + off1].mjd, eoparr[recnum + off2].mjd,
+						eoparr[recnum].mjd + jdutcF);
+					deltapsi = astMath::cubicinterp(eoparr[recnum - off1].deltapsi, eoparr[recnum].deltapsi, eoparr[recnum + off1].deltapsi, eoparr[recnum + off2].deltapsi,
+						eoparr[recnum - off1].mjd, eoparr[recnum].mjd, eoparr[recnum + off1].mjd, eoparr[recnum + off2].mjd,
+						eoparr[recnum].mjd + jdutcF);
+					deltaeps = astMath::cubicinterp(eoparr[recnum - off1].deltaeps, eoparr[recnum].deltaeps, eoparr[recnum + off1].deltaeps, eoparr[recnum + off2].deltaeps,
+						eoparr[recnum - off1].mjd, eoparr[recnum].mjd, eoparr[recnum + off1].mjd, eoparr[recnum + off2].mjd,
+						eoparr[recnum].mjd + jdutcF);
+				}
+			}
 		}
 	}  //  findeopparam
 
@@ -556,8 +623,8 @@ namespace EopSpw {
 	*  author        : david vallado                      719-573-2600    2 dec 2005
 	*
 	*  inputs          description                          range / units
-	*    jd          - julian date of epoch (0 hrs utc)     days from 4713 bc
-	*    mfme        - minutes from midnight epoch          mins
+	*    jdutc          - julian date of epoch (0 hrs utc)     days from 4713 bc
+	*    jdutcF         - fraction of a day from jdutc
 	*    interp      - interpolation           n-none, a-ap only, f-f10.7 only, b-both
 	*    fluxtype    - flux type               a-adjusted, o-observed
 	*    f81type     - flux 81-day avg type    l-last, c-centered
@@ -587,8 +654,8 @@ namespace EopSpw {
 
 	void findatmosparam
 		(
-		double jd, double mfme, char interp, char fluxtype, char f81type, char inputtype,
-		std::vector<spwdata> spwarr,
+		double jdutc, double jdutcF, char interp, char fluxtype, char f81type, char inputtype,
+		const std::vector<spwdata> &spwarr,  // pass by ref, not modify
 		double jdspwstart,
 		double& f107, double& f107bar,
 		double& ap, double& avgap, double aparr[8],
@@ -603,26 +670,48 @@ namespace EopSpw {
 		// --------------------  implementation   ----------------------
 		// ---- set flux time based on when measurments were taken
 		// ---- before may 31, 1991, use 1700 hrs (1020 minutes)
-		if (jd > 2448407.5)
-			fluxtime = 1200.0;
+		if (jdutc > 2448407.5)
+			fluxtime = 1200.0;  // min
 		else
 			fluxtime = 1020.0;
+
+		// since this requires the jdutcF to be just the fractional part of the day, do some checks
+		// check jdutcF for multiple days
+		if (fabs(jdutcF) >= 1.0)
+		{
+			jdutc = jdutc + floor(jdutcF);
+			jdutcF = jdutcF - floor(jdutcF);
+		}
+
+		// check for fraction of a day included in the jdutc
+		double dt = jdutc - floor(jdutc) - 0.5;
+		if (fabs(dt) > 0.00000001)
+		{
+			jdutc = jdutc - dt;
+			jdutcF = jdutcF + dt;
+		}
+		// make sure the jdutF is lined up (not negative) so rec finding and fixf are correct
+		if (jdutcF < 0.0)
+		{
+			jdutc = jdutc - 1.0;
+			jdutcF = 1.0 + jdutcF;
+		}
 
 		// ---- process actual data
 		if (inputtype == 'a')
 		{
 			// ---- read data for day of interest
-			jd = jd + mfme / 1440.0;
-			jdspwstarto = floor(jd - jdspwstart);
+			jdutc = jdutc + jdutcF;
+			jdspwstarto = floor(jdutc - jdspwstart);
 			recnum = int(jdspwstarto);
 
 			if (recnum < 1)
 			{
-				printf("%14.5lf before %14.5lf date in file, hit ctrl-c \n", jd, jdspwstart);
+				printf("%14.5lf before %14.5lf date in file, hit ctrl-c \n", jdutc, jdspwstart);
 #ifdef _MSC_VER
-				scanf_s("%lf", &jd);
+				scanf_s("%lf", &jdutc);
 #else
-				scanf("%lf", &jd);
+				scanf("%lf", &jdutc);
 #endif
 			}
 			// ---- set non-interpolated values
@@ -650,7 +739,7 @@ namespace EopSpw {
 			sumkp = spwrec.sumkp;
 
 			// ---- get last ap/kp array value from the current time value
-			idx = int(mfme / 180.0); // values change at 0, 3, 6, ... hrs
+			idx = int(jdutcF * 1440.0 / 180.0); // values change at 0, 3, 6, ... hrs
 			if (idx < 0) idx = 0;
 			if (idx > 7) idx = 7;
 
@@ -677,18 +766,18 @@ namespace EopSpw {
 			{
 				if ((interp == 'f') | (interp == 'b'))
 				{
-					if (mfme > fluxtime - 720.0) // go 12 hrs before...
+					if (jdutcF * 1440.0 > fluxtime - 720.0) // go 12 hrs before...
 					{
-						if (mfme > fluxtime)
+						if (jdutcF * 1440.0 > fluxtime)
 							tempspwrec = nextspwrec;
 						else
 							tempspwrec = lastspwrec;
-						fixf = (fluxtime - mfme) / 1440.0;
+						fixf = (fluxtime - jdutcF * 1440.0) / 1440.0;
 					}
 					else
 					{
 						tempspwrec = lastspwrec;
-						fixf = (mfme + (1440 - fluxtime)) / 1440.0;
+						fixf = (jdutcF * 1440.0 + (1440 - fluxtime)) / 1440.0;
 					}
 					if (fluxtype == 'a') // adjusted or observed values
 					{
@@ -707,9 +796,9 @@ namespace EopSpw {
 							tf107bar = tempspwrec.obsctrf81;
 					}
 					// ---- perform simple linear interpolation
-					if (mfme <= fluxtime)
+					if (jdutcF * 1440.0 <= fluxtime)
 					{
-						if (mfme > fluxtime - 720.0)
+						if (jdutcF * 1440.0 > fluxtime - 720.0)
 						{
 							f107 = f107 + (tf107 - f107) * fixf;
 							f107bar = f107bar + (tf107bar - f107bar) * fixf;
@@ -727,9 +816,9 @@ namespace EopSpw {
 					}
 					// ---- perform cubic splining
 					//                   f107 = astMath::cubicinterp ( lastspwrec.f107, f107, nextspwrec.f107, nextspwrec+1.f107,
-					//                                        1??, 2, 3, 4, mfme+?? );
+					//                                        1??, 2, 3, 4, jdutcF * 1440.0+?? );
 					//                   f107bar = astMath::cubicinterp ( lastspwrec.f107bar, f107bar, nextspwrec.f107bar, nextspwrec+1.f107bar,
-					//                                        1??, 2, 3, 4, mfme+?? );
+					//                                        1??, 2, 3, 4, jdutcF * 1440.0+?? );
 					//                   f107bar = astMath::cubicinterp ( bkp[idx-2], bkp[idx-1], bkp[idx], bkp[idx+1],
 					//                                        bap[idx-2], bap[idx-1], bap[idx], bap[idx+1],
 					//                                        apin );
@@ -743,20 +832,20 @@ namespace EopSpw {
 
 				if ((interp == 'a') | (interp == 'b'))
 				{
-					fixa = (720 - mfme) / 1440.0;
-					if (mfme > 720)
+					fixa = (720 - jdutcF * 1440.0) / 1440.0;
+					if (jdutcF * 1440.0 > 720)
 					{
 						avgap = avgap - (nextspwrec.avgap - avgap) * fixa;
-						sumkp = nextspwrec.sumkp - (nextspwrec.sumkp - sumkp) * (mfme / 1440.0);
+						sumkp = nextspwrec.sumkp - (nextspwrec.sumkp - sumkp) * (jdutcF * 1440.0 / 1440.0);
 					}
 					else
 					{
 						avgap = avgap - (avgap - lastspwrec.avgap) * fixa;
-						sumkp = sumkp - (sumkp - lastspwrec.sumkp) * (1440.0 - mfme) / 1440.0;
+						sumkp = sumkp - (sumkp - lastspwrec.sumkp) * (1440.0 - jdutcF * 1440.0) / 1440.0;
 					}
 
 					// this fraction is the same for the remainder of calculations
-					fixa = (fmod(mfme, 180)) / 180.0;
+					fixa = (fmod(jdutcF * 1440.0, 180)) / 180.0;
 					if (idx + 1 < 8)
 					{
 						ap = spwrec.aparr[idx] + (spwrec.aparr[idx + 1] - spwrec.aparr[idx]) * fixa;
@@ -770,7 +859,7 @@ namespace EopSpw {
 
 					// step down from idx through the 8 points
 					j = idx;
-					fixa = fmod(mfme, 90.0) / 180.0;
+					fixa = fmod(jdutcF * 1440.0, 90.0) / 180.0;
 					for (i = 1; i <= 8; i++)
 					{
 						if (j >= 0) // j = 0 .. 6
@@ -887,8 +976,8 @@ namespace EopSpw {
 
 		if (idx > 2)
 		{
-			return astMath::cubicinterp(bap[idx - 2], bap[idx - 1], bap[idx], bap[idx + 1],
-				bkp[idx - 2], bkp[idx - 1], bkp[idx], bkp[idx + 1],
+			return astMath::cubicinterp(bap[idx - 1], bap[idx], bap[idx + 1], bap[idx + 2],
+				bkp[idx - 1], bkp[idx], bkp[idx + 1], bkp[idx + 2],
 				kpin);
 		} // if idx > 3
 		else
@@ -953,10 +1042,11 @@ namespace EopSpw {
 			idx = idx + 1;
 		}
 
-		if (idx > 2)
+		if (idx > 1)
 		{
-			return astMath::cubicinterp(bkp[idx - 2], bkp[idx - 1], bkp[idx], bkp[idx + 1],
-				bap[idx - 2], bap[idx - 1], bap[idx], bap[idx + 1],
+			// desired point needs to be between 2 and 3
+			return astMath::cubicinterp(bkp[idx - 1], bkp[idx], bkp[idx + 1], bkp[idx + 2],
+				bap[idx - 1], bap[idx], bap[idx + 1], bap[idx + 2],
 				apin);
 		} // if idxs > 3
 		else
@@ -1001,7 +1091,7 @@ namespace EopSpw {
 	/*
 	void interfaceatmos
 	(
-	double jde, double mfme, double recef[3],
+	double jde, double jdutcF, double recef[3],
 	char interp, char fluxtype, char f81type, char inputtype,
 	msistype& msis00r,
 	spwdata spwarr[spwsize], double jdspwstart

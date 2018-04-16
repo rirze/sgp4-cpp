@@ -25,6 +25,9 @@
     <ClInclude Include="resource.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\Libraries\EopSpw\EopSpw\EopSpw.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="app.rc">
@@ -41,15 +44,6 @@
       <Filter>Source Files</Filter>
     </Library>
     <Library Include="..\..\Libraries\EopSpw\Debug\EopSpw.lib">
-      <Filter>Source Files</Filter>
-    </Library>
-    <Library Include="..\..\Libraries\ast2Body\Debug\ast2Body.lib">
-      <Filter>Source Files</Filter>
-    </Library>
-    <Library Include="..\..\Libraries\astMath\Debug\astMath.lib">
-      <Filter>Source Files</Filter>
-    </Library>
-    <Library Include="..\..\Libraries\astTime\Debug\astTime.lib">
       <Filter>Source Files</Filter>
     </Library>
   </ItemGroup>

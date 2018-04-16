@@ -17,9 +17,9 @@
 
 
 // dtm includes
-#include "astTime.h"
-#include "astMath.h"
-#include "ast2Body.h"
+//#include "astTime.h"
+//#include "astMath.h"
+//#include "ast2Body.h"
 #include "EopSpw.h"
 #include "DTM_12.h"
 
@@ -39,6 +39,11 @@ void mainplugin
         double recef[3], double vecef[3], double jdut1, double dut1
     );
 
+//double sgn
+//      (
+//	double x
+//   	)
+//
 //void ijk2ll
 //     (
 //       double recef[3], double jdut1,
@@ -170,6 +175,247 @@ using namespace std; // it allows you to do things like cin>> cout<< etc.
 //public :: f_out, fbar_out, akp_out                                       //export interesting intermediate results
 //public :: hl_out,dayofyear_out                                           //export interesting intermediate results
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++//
+
+
+double sgn(
+	double x
+	)
+{
+	if (x < 0.0)
+	{
+		return -1.0;
+	}
+	else
+	{
+		return 1.0;
+	}
+
+}  // end sgn
+
+/* -----------------------------------------------------------------------------
+*
+*                           function gc_gd
+*
+*  this function converts from geodetic to geocentric latitude for positions
+*    on the surface of the earth.  notice that (1-f) squared = 1-esqrd.
+*
+*  author        : david vallado                  719-573-2600    6 dec 2005
+*
+*  revisions
+*
+*  inputs          description                    range / units
+*    latgd       - geodetic latitude              -Pi to Pi rad
+*
+*  outputs       :
+*    latgc       - geocentric latitude            -Pi to Pi rad
+*
+*  locals        :
+*    none.
+*
+*  coupling      :
+*    none.
+*
+*  references    :
+*    vallado       2007, 148, eq 3-11
+* --------------------------------------------------------------------------- */
+
+void gc_gd
+(
+double&    latgc,
+edirection direct,
+double&    latgd
+)
+{
+	const double eesqrd = 0.006694385000;     // eccentricity of earth sqrd
+
+	if (direct == eTo)
+		latgd = atan(tan(latgc) / (1.0 - eesqrd));
+	else
+		latgc = atan((1.0 - eesqrd)*tan(latgd));
+}   // function gc_gd
+
+
+/* -----------------------------------------------------------------------------
+*
+*                           function mag
+*
+*  this procedure finds the magnitude of a vector.  the tolerance is set to
+*    0.000001, thus the 1.0e-12 for the squared test of underflows.
+*
+*  author        : david vallado                  719-573-2600    1 mar 2001
+*
+*  inputs          description                    range / units
+*    vec       - vector
+*
+*  outputs       :
+*    vec       - answer stored in function return
+*
+*  locals        :
+*    none.
+*
+*  coupling      :
+*    none.
+*
+* --------------------------------------------------------------------------- */
+
+double  mag
+(
+double x[3]
+)
+{
+	return sqrt(x[0] * x[0] + x[1] * x[1] + x[2] * x[2]);
+}  // end mag
+
+
+/* -----------------------------------------------------------------------------
+*
+*                           function gstime
+*
+*  this function finds the greenwich sidereal time (iau-82).
+*
+*  author        : david vallado                  719-573-2600    1 mar 2001
+*
+*  inputs          description                    range / units
+*    jdut1       - julian date in ut1             days from 4713 bc
+*
+*  outputs       :
+*    gstime      - greenwich sidereal time        0 to 2pi rad
+*
+*  locals        :
+*    temp        - temporary variable for doubles   rad
+*    tut1        - julian centuries from the
+*                  jan 1, 2000 12 h epoch (ut1)
+*
+*  coupling      :
+*    none
+*
+*  references    :
+*    vallado       2007, 193, eq 3-43
+*
+* --------------------------------------------------------------------------- */
+
+double  gstime
+(
+double jdut1
+)
+{
+	const double twopi = 2.0 * pi;
+	const double deg2rad = pi / 180.0;
+	double       temp, tut1;
+
+	tut1 = (jdut1 - 2451545.0) / 36525.0;
+	temp = -6.2e-6* tut1 * tut1 * tut1 + 0.093104 * tut1 * tut1 +
+		(876600.0 * 3600 + 8640184.812866) * tut1 + 67310.54841;  // sec
+	temp = fmod(temp * deg2rad / 240.0, twopi); //360/86400 = 1/240, to deg, to rad
+
+	// ------------------------ check quadrants ---------------------
+	if (temp < 0.0)
+		temp += twopi;
+
+	return temp;
+}
+
+
+/* -----------------------------------------------------------------------------
+*
+*                           function ijk2ll
+*
+*  these subroutines convert a geocentric equatorial position vector into
+*    latitude and longitude.  geodetic and geocentric latitude are found. the
+*    inputs must be ecef.
+*
+*  author        : david vallado                  719-573-2600    6 dec 2005
+*
+*  revisions
+*
+*  inputs          description                    range / units
+*    recef       - ecef position vector           km
+*    jdut1       - julian date (ut1)              days from 4713 bc
+*
+*  outputs       :
+*    latgc       - geocentric latitude            -Pi to Pi rad
+*    latgd       - geodetic latitude              -Pi to Pi rad
+*    lon         - longitude (west -)             -2pi to 2pi rad
+*    hellp       - height above the ellipsoid     km
+*
+*  locals        :
+*    temp        - diff between geocentric/
+*                  geodetic lat                   rad
+*    gst         - greenwich sidereal time        rad
+*    sintemp     - sine of temp                   rad
+*    olddelta    - previous value of deltalat     rad
+*    rtasc       - right ascension                rad
+*    decl        - declination                    rad
+*    i           - index
+*
+*  coupling      :
+*    mag         - magnitude of a vector
+*    gstime      - greenwich sidereal time
+*    gcgd        - converts between geocentric and geodetic latitude
+*
+*  references    :
+*    vallado       2007, 179-180, alg 12 and alg 13, ex 3-3
+* --------------------------------------------------------------------------- */
+
+void ijk2ll
+(
+double recef[3], double jdut1,
+double& latgc, double& latgd, double& lon, double& hellp
+)
+{
+	const double twopi = 2.0 * pi;
+	const double small = 0.00000001;         // small value for tolerances
+	const double re = 6378.137;
+	const double eesqrd = 0.006694385000;     // eccentricity of earth sqrd
+	double magr, gst, decl, rtasc, olddelta, temp, sintemp, s, c = 0.0;
+	int i;
+
+	// ---------------------------  implementation   -----------------------
+	magr = mag(recef);
+
+	// ---------------------- find longitude value  ------------------------
+	temp = sqrt(recef[0] * recef[0] + recef[1] * recef[1]);
+	if (fabs(temp) < small)
+		rtasc = sgn(recef[2])*pi*0.5;
+	else
+		rtasc = atan2(recef[1], recef[0]);
+
+	gst = gstime(jdut1);
+	lon = rtasc - gst;
+	if (fabs(lon) >= pi)   // mod it ?
+	{
+		if (lon < 0.0)
+			lon = twopi + lon;
+		else
+			lon = lon - twopi;
+
+	}
+	decl = asin(recef[2] / magr);
+	latgd = decl;
+
+	// ----------------- iterate to find geodetic latitude -----------------
+	i = 1;
+	olddelta = latgd + 10.0;
+
+	while ((fabs(olddelta - latgd) >= small) && (i<10))
+	{
+		olddelta = latgd;
+		sintemp = sin(latgd);
+		c = re / (sqrt(1.0 - eesqrd*sintemp*sintemp));
+		latgd = atan((recef[2] + c*eesqrd*sintemp) / temp);
+		i = i + 1;
+	}
+
+	if ((pi*0.5 - fabs(latgd)) > pi / 180.0)  // 1 deg
+		hellp = (temp / cos(latgd)) - c;
+	else
+	{
+		s = c * (1.0 - eesqrd);
+		hellp = recef[2] / sin(latgd) - s;
+	}
+
+	gc_gd(latgc, eFrom, latgd);
+}   // function ijk2ll
 
 
 
@@ -506,7 +752,7 @@ void mainplugin
     
 	// ----------------- setup specific test case
 	// convert pos/vel to lat,lon,alt
-	ast2Body::ijk2ll( recef, jdutc + dut1/86400.0, latgc, latgd, lon, hellp );
+	ijk2ll( recef, jdutc + dut1/86400.0, latgc, latgd, lon, hellp );
 
 	//longitude and latitude already in radians
     lat_rads = latgd;
@@ -565,232 +811,6 @@ void mainplugin
     printf("   mean molec mass        %16.7f \n", wmm );
 
 } // end mainplugin
-
-//
-///* -----------------------------------------------------------------------------
-//*
-//*                           function ijk2ll
-//*
-//*  these subroutines convert a geocentric equatorial position vector into
-//*    latitude and longitude.  geodetic and geocentric latitude are found. the
-//*    inputs must be ecef.
-//*
-//*  author        : david vallado                  719-573-2600    6 dec 2005
-//*
-//*  revisions
-//*
-//*  inputs          description                    range / units
-//*    recef       - ecef position vector           km
-//*    jdut1       - julian date (ut1)              days from 4713 bc
-//*
-//*  outputs       :
-//*    latgc       - geocentric latitude            -Pi to Pi rad
-//*    latgd       - geodetic latitude              -Pi to Pi rad
-//*    lon         - longitude (west -)             -2pi to 2pi rad
-//*    hellp       - height above the ellipsoid     km
-//*
-//*  locals        :
-//*    temp        - diff between geocentric/
-//*                  geodetic lat                   rad
-//*    gst         - greenwich sidereal time        rad
-//*    sintemp     - sine of temp                   rad
-//*    olddelta    - previous value of deltalat     rad
-//*    rtasc       - right ascension                rad
-//*    decl        - declination                    rad
-//*    i           - index
-//*
-//*  coupling      :
-//*    mag         - magnitude of a vector
-//*    gstime      - greenwich sidereal time
-//*    gcgd        - converts between geocentric and geodetic latitude
-//*
-//*  references    :
-//*    vallado       2007, 179-180, alg 12 and alg 13, ex 3-3
-//* --------------------------------------------------------------------------- */
-//
-//void ijk2ll
-//     (
-//       double recef[3], double jdut1,
-//       double& latgc, double& latgd, double& lon, double& hellp
-//     )
-//     {
-//       const double twopi      =    2.0 * Pi;
-//       const double small      =    0.00000001;         // small value for tolerances
-//       const double re         = 6378.137;
-//       const double eesqrd     =    0.006694385000;     // eccentricity of earth sqrd
-//       double magr, gst, decl, rtasc, olddelta, temp, sintemp, s, c = 0.0;
-//       int i;
-//
-//        // ---------------------------  implementation   -----------------------
-//        magr = mag( recef );
-//
-//        // ---------------------- find longitude value  ------------------------
-//        temp = sqrt( recef[0]*recef[0] + recef[1]*recef[1] );
-//        if ( fabs( temp ) < small )
-//            rtasc= sgn(recef[2])*Pi*0.5;
-//          else
-//            rtasc= atan2( recef[1], recef[0] );
-//
-//        gst  = gstime( jdut1 );
-//        lon  = rtasc - gst;
-//        if ( fabs(lon) >= Pi )   // mod it ?
-//          {
-//            if ( lon < 0.0  )
-//                lon= twopi + lon;
-//              else
-//                lon= lon - twopi;
-//
-//          }
-//        decl = asin( recef[2] / magr );
-//        latgd= decl;
-//
-//        // ----------------- iterate to find geodetic latitude -----------------
-//        i = 1;
-//        olddelta = latgd + 10.0;
-//
-//        while ((fabs(olddelta - latgd) >= small) && (i<10))
-//          {
-//            olddelta= latgd;
-//            sintemp = sin( latgd );
-//            c       = re  / (sqrt( 1.0 - eesqrd*sintemp*sintemp ));
-//            latgd   = atan( (recef[2] + c*eesqrd*sintemp)/temp );
-//            i = i + 1;
-//          }
-//
-//        if ((Pi*0.5 - fabs(latgd)) > Pi/180.0)  // 1 deg
-//           hellp   = (temp/cos(latgd)) - c;
-//         else
-//         {
-//           s = c * (1.0 - eesqrd);
-//           hellp   = recef[2]/sin(latgd) - s;
-//         }
-//
-//        gc_gd(latgc, eFrom, latgd);
-//   }   // function ijk2ll
-//
-//
-///* -----------------------------------------------------------------------------
-//*
-//*                           function gc_gd
-//*
-//*  this function converts from geodetic to geocentric latitude for positions
-//*    on the surface of the earth.  notice that (1-f) squared = 1-esqrd.
-//*
-//*  author        : david vallado                  719-573-2600    6 dec 2005
-//*
-//*  revisions
-//*
-//*  inputs          description                    range / units
-//*    latgd       - geodetic latitude              -Pi to Pi rad
-//*
-//*  outputs       :
-//*    latgc       - geocentric latitude            -Pi to Pi rad
-//*
-//*  locals        :
-//*    none.
-//*
-//*  coupling      :
-//*    none.
-//*
-//*  references    :
-//*    vallado       2007, 148, eq 3-11
-//* --------------------------------------------------------------------------- */
-//
-//void gc_gd
-//     (
-//       double&    latgc ,
-//       edirection direct,
-//       double&    latgd
-//     )
-//     {
-//       const double eesqrd = 0.006694385000;     // eccentricity of earth sqrd
-//
-//       if (direct == eTo)
-//           latgd= atan( tan(latgc)/(1.0  - eesqrd) );
-//         else
-//           latgc= atan( (1.0  - eesqrd)*tan(latgd) );
-//     }   // function gc_gd
-//
-///* -----------------------------------------------------------------------------
-//*
-//*                           function mag
-//*
-//*  this procedure finds the magnitude of a vector.  the tolerance is set to
-//*    0.000001, thus the 1.0e-12 for the squared test of underflows.
-//*
-//*  author        : david vallado                  719-573-2600    1 mar 2001
-//*
-//*  inputs          description                    range / units
-//*    vec       - vector
-//*
-//*  outputs       :
-//*    vec       - answer stored in function return
-//*
-//*  locals        :
-//*    none.
-//*
-//*  coupling      :
-//*    none.
-//*
-//* --------------------------------------------------------------------------- */
-//
-//double  mag
-//        (
-//          double x[3]
-//        )
-//   {
-//     return sqrt(x[0]*x[0] + x[1]*x[1] + x[2]*x[2]);
-//   }  // end mag
-//
-//
-///* -----------------------------------------------------------------------------
-//*
-//*                           function gstime
-//*
-//*  this function finds the greenwich sidereal time (iau-82).
-//*
-//*  author        : david vallado                  719-573-2600    1 mar 2001
-//*
-//*  inputs          description                    range / units
-//*    jdut1       - julian date in ut1             days from 4713 bc
-//*
-//*  outputs       :
-//*    gstime      - greenwich sidereal time        0 to 2pi rad
-//*
-//*  locals        :
-//*    temp        - temporary variable for doubles   rad
-//*    tut1        - julian centuries from the
-//*                  jan 1, 2000 12 h epoch (ut1)
-//*
-//*  coupling      :
-//*    none
-//*
-//*  references    :
-//*    vallado       2007, 193, eq 3-43
-//*
-//* --------------------------------------------------------------------------- */
-//
-//double  gstime
-//        (
-//          double jdut1
-//        )
-//   {
-//     const double twopi = 2.0 * Pi;
-//     const double deg2rad = Pi / 180.0;
-//     double       temp, tut1;
-//
-//     tut1 = (jdut1 - 2451545.0) / 36525.0;
-//     temp = -6.2e-6* tut1 * tut1 * tut1 + 0.093104 * tut1 * tut1 +
-//             (876600.0*3600 + 8640184.812866) * tut1 + 67310.54841;  // sec
-//     temp = fmod(temp * deg2rad / 240.0, twopi); //360/86400 = 1/240, to deg, to rad
-//
-//     // ------------------------ check quadrants ---------------------
-//     if (temp < 0.0)
-//         temp += twopi;
-//
-//     return temp;
-//   }
-//
 
 
 

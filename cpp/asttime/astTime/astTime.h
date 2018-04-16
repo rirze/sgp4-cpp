@@ -34,6 +34,7 @@
 #pragma once
 
 #define pi 3.14159265358979323846
+#define twopi 2.0 * pi
 
 // global object definitions
 typedef enum
@@ -44,13 +45,6 @@ typedef enum
 
 namespace astTime 
 {
-
-	//	public class astTimeCl
-	//	{
-
-	// make sure they are all visible
-	//	public:
-
 
 	int getmon
 		(
@@ -141,9 +135,6 @@ namespace astTime
 		double& tt, double& ttt, double& jdtt, double& jdttFrac, double& tcg, double& tdb,
 		double& ttdb, double& jdtdb, double& jdtdbFrac, double& tcb
 		);
-
-
-	//	};  // class
 
 };  // namespace 
 

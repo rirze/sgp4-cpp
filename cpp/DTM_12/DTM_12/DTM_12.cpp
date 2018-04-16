@@ -360,8 +360,8 @@ void density_uncertainty
 
 // cdav move if firstrun section to main
      steplat = 10.0;
-	 // cdav change latgd to deg for the index calculation * rad2deg
-     ind_lat = int((latgd * rad2deg + 90.0)/steplat) + 1;
+	 // cdav could change latgd to deg for the index calculation (* rad2deg), but the answer disagrees with provided answer
+     ind_lat = int((latgd + 90.0)/steplat) + 1;
      ind_lst = int(lst) + 1;
      // ---
      unc_nom = nomgrid[ind_lst][ind_lat];     //nominal relative variability: @350 km, flux = 65, kp<3
@@ -1198,7 +1198,7 @@ void InitSPW
       //Counter indexes
       int file_io_status;
       int idx;
-	  long int max_lines, tmpa, tmpb;
+	  long int max_lines, tmpa, tmpb, tmpc;
 	  char temp8[9];
 	  //save first_run,a_indexes,f_indexes, number_of_lines_in_a_file, number_of_lines_in_f_file;
 
@@ -1284,12 +1284,28 @@ void InitSPW
 			  //   1   12006   12193  12  14   7   7   8  21  16  13  11
 			  //   1   22006   22194  15  16  19  16  18   6  12  11  29
 			  //   1   32006   32195   6  10   3   3   5   8  15   8   2
+			  //  12  312009 3653653   1   1   2   0   2   3   2   4   1
+			  //   1   12010   1   1   3   1   1   1   2   0   4   4  14
+
 #ifdef _MSC_VER
 			  // some tricks. reading leading whitespace with string doesn't work. read starts at first non white space. c++ is lousy
-			  sscanf_s(longstr1, "%i %i %i %4i %4i %4i %4i %4i %4i %4i %4i %4i ", &a_indexes[idx].month, &tmpa, &tmpb, 
-			           &a_indexes[idx].mean_am, &a_indexes[idx].am[1], &a_indexes[idx].am[2], &a_indexes[idx].am[3],
-				       &a_indexes[idx].am[4], &a_indexes[idx].am[5], &a_indexes[idx].am[6], &a_indexes[idx].am[7], 
-					   &a_indexes[idx].am[8]);
+			  if (longstr1[16] == ' ')
+			  {
+				  //if (idx == 1464)  // 1462
+				  //{
+					 // idx = idx - 2;
+				  //}
+				  sscanf_s(longstr1, "%i %i %i %4i %4i %4i %4i %4i %4i %4i %4i %4i %4i ", &a_indexes[idx].month, &tmpa, &tmpb, &tmpc,
+					  &a_indexes[idx].mean_am, &a_indexes[idx].am[1], &a_indexes[idx].am[2], &a_indexes[idx].am[3],
+					  &a_indexes[idx].am[4], &a_indexes[idx].am[5], &a_indexes[idx].am[6], &a_indexes[idx].am[7],
+					  &a_indexes[idx].am[8]);
+			  }
+			  else
+				  sscanf_s(longstr1, "%i %i %i %4i %4i %4i %4i %4i %4i %4i %4i %4i ", &a_indexes[idx].month, &tmpa, &tmpb, 
+				  &a_indexes[idx].mean_am, &a_indexes[idx].am[1], &a_indexes[idx].am[2], &a_indexes[idx].am[3],
+				  &a_indexes[idx].am[4], &a_indexes[idx].am[5], &a_indexes[idx].am[6], &a_indexes[idx].am[7], 
+				  &a_indexes[idx].am[8]);
+
 #else
 			  sscanf_s(longstr1, "%i %i %i %4i %4i %4i %4i %4i %4i %4i %4i %4i ", &a_indexes[idx].month, &tmpa, &tmpb, 
 				  &a_indexes[idx].mean_am, &a_indexes[idx].am[1], &a_indexes[idx].am[2], &a_indexes[idx].am[3],
@@ -2355,6 +2371,7 @@ void dtm_wrapper
 	  //Find AKP from "a" structure
       //
       //According to the comments in DTM2012:
+	  // he uses am indicies, not ap
       // akp[2] = akp[4] = 0
       // akp[1] = kp delayed by 3 hours
       // akp[3] = mean of last 24 hours
@@ -2375,7 +2392,7 @@ void dtm_wrapper
 				 {
                     usr_hour_decimal = hms2hr(usr_hour,usr_min,usr_sec);
 
-                    //Each row contains 8 values for a day: from 0h to 3h, from 3h to 6h, and so..
+                    //Each row contains the mean, and then 8 values for a day: from 0h to 3h, from 3h to 6h, and so..
                     //So once the day matches, find the "a" corresponding to the input hour
 
                     if (usr_hour_decimal <= 3.0) 

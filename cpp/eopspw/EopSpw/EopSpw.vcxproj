@@ -92,6 +92,10 @@
   <ItemGroup>
     <ResourceCompile Include="app.rc" />
   </ItemGroup>
+  <ItemGroup>
+    <Library Include="..\..\astMath\Debug\astMath.lib" />
+    <Library Include="..\..\astTime\Debug\astTime.lib" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

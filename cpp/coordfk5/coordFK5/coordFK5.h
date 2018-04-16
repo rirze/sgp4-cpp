@@ -25,30 +25,19 @@
 *              21 feb 05  david vallado
 *                           original baseline
 *     *****************************************************************       */
-//#include "stdafx.h"
 
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
 
-#include "astMath.h"
-#include "astTime.h"
-#include "ast2Body.h"
-//#include "EopSpw.h"
-
-#define pi 3.14159265358979323846
-
+#include "D:/Codes/LIBRARY/CPP/Libraries/astMath/astMath/astMath.h"  // pi, infinite, undefined
+#include "D:/Codes/LIBRARY/CPP/Libraries/astTime/astTime/astTime.h"  // pi, twopi, edirection
+#include "D:/Codes/LIBRARY/CPP/Libraries/ast2Body/ast2Body/ast2Body.h"
+//#include "D:/Codes/LIBRARY/CPP/Libraries/eopspw/eopspw/eopspw.h"  // eopdata, spwdata, eopsize, spwsize
 
 #pragma once
 
-//using namespace System;
-
-
-/*    *****************************************************************
-*     type definitions
-*     ***************************************************************** */
-
-typedef enum eOpt
+typedef enum 
   {
     e80,
     e96,
@@ -64,13 +53,9 @@ typedef struct iau80data
   } iau80data;
 
 
-namespace coordFK5 {
+namespace coordFK5 
+{
 
-	//	public ref class coordFK5Cl
-	//	{
-
-
-	/*    *************************** routines ********************************** */
 	void sethelp
 		(
 		char& iauhelp, char iauopt
@@ -81,111 +66,6 @@ namespace coordFK5 {
 		double ttt, double& ddpsi, double& ddeps,
 		edirection direct,
 		double& dx, double& dy
-		);
-
-	void iau76fk5_itrf_gcrf
-		(
-		double ritrf[3], double vitrf[3], double aitrf[3],
-		edirection direct,
-		double rgcrf[3], double vgcrf[3], double agcrf[3],
-		iau80data& iau80rec,
-		char   nutopt,
-		double ttt, double jdut1, double lod, double xp,
-		double yp, int eqeterms, double ddpsi, double ddeps,
-		double deltapsi, double deltaeps,
-		std::vector< std::vector<double> > trans
-		);
-
-	void iau76fk5all_itrf_gcrf
-		(
-		double ritrf[3], double vitrf[3], double aitrf[3],
-		edirection direct,
-		double rgcrf[3], double vgcrf[3], double agcrf[3],
-		double rpef[3], double vpef[3], double apef[3],
-		double rtod[3], double vtod[3], double atod[3],
-		double rmod[3], double vmod[3], double amod[3],
-		iau80data& iau80rec,
-		char   nutopt,
-		double ttt, double jdut1, double lod, double xp,
-		double yp, int eqeterms, double ddpsi, double ddeps,
-		double deltapsi, double deltaeps,
-		std::vector< std::vector<double> > trans
-		);
-
-	void iau76fk5_itrf_j2k
-		(
-		double ritrf[3], double vitrf[3], double aitrf[3],
-		edirection direct,
-		double rj2k[3], double vj2k[3], double aj2k[3],
-		iau80data& iau80rec,
-		double ttt, double jdut1, double lod,
-		double xp, double yp, int eqeterms,
-		std::vector< std::vector<double> > &trans
-		);
-
-	void iau76fk5_itrf_mod
-		(
-		double ritrf[3], double vitrf[3], double aitrf[3],
-		edirection direct,
-		double rmod[3], double vmod[3], double amod[3],
-		iau80data& iau80rec,
-		double ttt, double jdut1, double lod, double xp,
-		double yp, int eqeterms, double ddpsi, double ddeps,
-		std::vector< std::vector<double> > &trans
-		);
-
-	void iau76fk5_itrf_teme
-		(
-		double ritrf[3], double vitrf[3], double aitrf[3],
-		edirection direct,
-		double rteme[3], double vteme[3], double ateme[3],
-		double ttt, double xp, double yp,
-		double jdut1, double lod,
-		std::vector< std::vector<double> > &trans
-		);
-
-	void pef_gcrf
-		(
-		double rpef[3], double vpef[3], double apef[3],
-		edirection direct,
-		double rgcrf[3], double vgcrf[3], double agcrf[3],
-		iau80data& iau80rec,
-		double ttt, double jdut1, double lod, int eqeterms,
-		double ddpsi, double ddeps
-		);
-
-	void tod_gcrf
-		(
-		double rtod[3], double vtod[3], double atod[3],
-		edirection direct,
-		double rgcrf[3], double vgcrf[3], double agcrf[3],
-		iau80data& iau80rec,
-		double ttt, double ddpsi, double ddeps
-		);
-
-	void mod_gcrf
-		(
-		double rmod[3], double vmod[3], double amod[3],
-		edirection direct,
-		double rgcrf[3], double vgcrf[3], double agcrf[3],
-		double ttt
-		);
-
-	//void teme_j2k
-	//	(
-	//	double rteme[3], double vteme[3], double ateme[3],
-	//	edirection direct,
-	//	double rj2k[3], double vj2k[3], double aj2k[3],
-	//	iau80data& iau80rec,
-	//	double ttt, int order, int eqeterms, char optteme
-	//	);
-
-	void teme_pef
-		(
-		double rteme[3], double vteme[3], double ateme[3],
-		edirection direct,
-		double rpef[3], double vpef[3], double apef[3],
-		double jdut1
 		);
 
 	void iau80in
@@ -213,7 +93,7 @@ namespace coordFK5 {
 	void nutation
 		(
 		double ttt, double ddpsi, double ddeps,
-		iau80data& iau80rec, char nutopt,
+		const iau80data &iau80rec,
 		double& deltapsi, double& deltaeps, double& trueeps, double& meaneps, double& omega,
 		std::vector< std::vector<double> > &nut
 		);
@@ -236,15 +116,105 @@ namespace coordFK5 {
 		char opt,
 		double& term1, double& term2, double& term3, std::vector< std::vector<double> > &fb
 		);
-
-	void truemean
+	
+	void itrf_gcrf
 		(
-		double ttt, int order, int eqeterms, char opt,
-		iau80data& iau80rec,
-		std::vector< std::vector<double> > &nutteme
+		double ritrf[3], double vitrf[3], double aitrf[3],
+		edirection direct,
+		double rgcrf[3], double vgcrf[3], double agcrf[3],
+		const iau80data &iau80rec,
+		double ttt, double jdut1, double lod, double xp,
+		double yp, int eqeterms, double ddpsi, double ddeps,
+		double deltapsi, double deltaeps,
+		std::vector< std::vector<double> > &trans
 		);
 
-	//	};  // Class
+
+	void itrf_j2k
+		(
+		double ritrf[3], double vitrf[3], double aitrf[3],
+		edirection direct,
+		double rj2k[3], double vj2k[3], double aj2k[3],
+		const iau80data &iau80rec,
+		double ttt, double jdut1, double lod,
+		double xp, double yp, int eqeterms,
+		std::vector< std::vector<double> > &trans
+		);
+
+	void itrf_mod
+		(
+		double ritrf[3], double vitrf[3], double aitrf[3],
+		edirection direct,
+		double rmod[3], double vmod[3], double amod[3],
+		const iau80data &iau80rec,
+		double ttt, double jdut1, double lod, double xp,
+		double yp, int eqeterms, double ddpsi, double ddeps,
+		std::vector< std::vector<double> > &trans
+		);
+
+	void itrf_tod
+		(
+		double ritrf[3], double vitrf[3], double aitrf[3],
+		edirection direct,
+		double rtod[3], double vtod[3], double atod[3],
+		const iau80data &iau80rec,
+		double ttt, double jdut1, double lod, double xp,
+		double yp, int eqeterms, double ddpsi, double ddeps,
+		std::vector< std::vector<double> > &trans
+		);
+
+	void itrf_pef
+		(
+		double ritrf[3], double vitrf[3], double aitrf[3],
+		edirection direct,
+		double rpef[3], double vpef[3], double apef[3],
+		double ttt, double xp, double yp,
+		std::vector< std::vector<double> > &trans
+		);
+
+	void pef_gcrf
+		(
+		double rpef[3], double vpef[3], double apef[3],
+		edirection direct,
+		double rgcrf[3], double vgcrf[3], double agcrf[3],
+		const iau80data &iau80rec,
+		double ttt, double jdut1, double lod, int eqeterms,
+		double ddpsi, double ddeps
+		);
+
+	void tod_gcrf
+		(
+		double rtod[3], double vtod[3], double atod[3],
+		edirection direct,
+		double rgcrf[3], double vgcrf[3], double agcrf[3],
+		const iau80data &iau80rec,
+		double ttt, double ddpsi, double ddeps
+		);
+
+	void mod_gcrf
+		(
+		double rmod[3], double vmod[3], double amod[3],
+		edirection direct,
+		double rgcrf[3], double vgcrf[3], double agcrf[3],
+		double ttt
+		);
+
+	void teme_eci
+		(
+		double rteme[3], double vteme[3], double ateme[3],
+		edirection direct,
+		double rgcrf[3], double vgcrf[3], double agcrf[3],
+		const iau80data &iau80rec,
+		double ttt, double ddpsi, double ddeps
+		);
+
+	void teme_ecef
+		(
+		double rteme[3], double vteme[3], double ateme[3],
+		edirection direct,
+		double recef[3], double vecef[3], double aecef[3],
+		double ttt, double jdut1, double lod, double xp, double yp, int eqeterms
+		);
 
 }  // namespace coordFK5
 

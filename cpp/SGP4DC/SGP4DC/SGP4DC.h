@@ -1,5 +1,5 @@
-#ifndef _sgp4dc_
-#define _sgp4dc_
+#ifndef _SGP4DC_
+#define _SGP4DC_
 /* -----------------------------------------------------------------------------
 *
 *                               sgp4DC.h
@@ -35,39 +35,30 @@
 *                           original version
 * --------------------------------------------------------------------------- */
 
-
-//#include "stdafx.h"
-
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <fstream>
 #include <vector>
-
 #include <assert.h>
 
-#include "astMath.h"
-#include "astTime.h"
-#include "ast2Body.h"
-#include "astIOD.h"                                                       
-#include "coordFK5.h"
-#include "EopSpw.h"
-#include "SGP4.h"
-
-#include "SGP4DC.h"
+#include "D:/Codes/LIBRARY/CPP/Libraries/astMath/astMath/astMath.h"  // pi, infinite, undefined
+#include "D:/Codes/LIBRARY/CPP/Libraries/astTime/astTime/astTime.h"  // pi, twopi, edirection
+#include "D:/Codes/LIBRARY/CPP/Libraries/ast2Body/ast2Body/ast2Body.h"
+#include "D:/Codes/LIBRARY/CPP/Libraries/astIOD/astIOD/astIOD.h"                                                       
+#include "D:/Codes/LIBRARY/CPP/Libraries/astPert/astPert/astPert.h"
+#include "D:/Codes/LIBRARY/CPP/Libraries/coordFK5/coordFK5/coordFK5.h"  // eOpt, iau80data
+#include "D:/Codes/LIBRARY/CPP/Libraries/eopspw/eopspw/eopspw.h"  // eopdata, spwdata, eopsize, spwsize
+#include "D:/Codes/LIBRARY/CPP/Libraries/SGP4/SGP4/SGP4.h"  // gravconsttype, elsetrec, SGP4Version
 
 // note that although a version is given here, a baseline version will be output
 // when the obs case difficulties are resolved.
 #define SGP4DCVersion      "SGP4DC Version 2014-11-03"
 
-#define pi 3.14159265358979323846
-#define twopi 2.0*3.14159265358979323846
 #define WGS72MU 3.986008e5
 //#define statesize 6   // 7 if solve for bstar, else 6
 
-
-//   elsetrec satrecold;
 
 // Individual obs types are as follows:
 //                     0 Rng
@@ -81,7 +72,7 @@ typedef struct obsrec
 	int    sennum;
 	long   satnum;
 	int    year, mon, day, hr, min;
-	double jd, sec, dtmin, lst;
+	double jd, jdf, sec, dtmin, lst;
 	int    error;
 	char   init, method;
 	double rsecef[3], vsecef[3];
@@ -107,15 +98,9 @@ typedef struct senrec
 
 #pragma once
 
-//using namespace System;
 
-namespace SGP4DC {
-
-	//	public ref class Class1
-	//	{
-	// TODO: Add your methods for this class here.
-
-
+namespace SGP4DC 
+{
 
 	void dsvbksb
 		(
@@ -147,7 +132,6 @@ namespace SGP4DC {
 	void state2satrec
 		(
 		std::vector<double> &xnom,
-		std::vector< std::vector<double> > &scalef,
 		char statetype, int statesize,
 		edirection direct,
 		elsetrec& satrec
@@ -156,17 +140,23 @@ namespace SGP4DC {
 	void findatwaatwb
 		(
 		int firstob, int lastob, int statesize,
-		double percentchg, double deltaamtchg, gravconsttype whichconst,
-		char interp, double jdeopstart, 
+		double percentchg, double deltaamtchg, gravconsttype whichconst, char interp, double jdeopstart,
 		elsetrec satrec,
-		std::vector<obsrec> obsrecarr,
+		const std::vector<obsrec> &obsrecarr,
 		char statetype,
-		std::vector< std::vector<double> > &scalef,
+		char proptype,
 		std::vector<double> &xnom,
-		double& drng2, double& daz2, double& del2, double& ddrng2, double& ddaz2,
-		double& ddel2, double& dtrtasc2, double& dtdecl2,
-		double& dx2, double& dy2, double& dz2, double& dxdot2,
-		double& dydot2, double& dzdot2,
+		int derivType, double cdam, double cram,
+		char opt,
+		const std::vector<jpldedata> &jpldearr,
+		double jdjpldestart,
+		iau80data iau80rec,
+		const std::vector<eopdata> &eoparr,
+		double& drng2, double& daz2, double& del2,
+		double& ddrng2, double& ddaz2, double& ddel2,
+		double& dtrtasc2, double& dtdecl2,
+		double& dx2, double& dy2, double& dz2,
+		double& dxdot2, double& dydot2, double& dzdot2,
 		std::vector< std::vector<double> > &atwa,
 		std::vector< std::vector<double> > &atwb,
 		std::vector< std::vector<double> > &atw,
@@ -176,9 +166,10 @@ namespace SGP4DC {
 	void finitediff
 		(
 		gravconsttype whichconst,
-		int pertelem, double percentchg, double deltaamtchg, char statetype, int statesize,
-		elsetrec& satrec, std::vector<double> xnom,
-		std::vector< std::vector<double> > &scalef,
+		int pertelem, double percentchg, double deltaamtchg, char statetype, int statesize, char proptype,
+		elsetrec& satrec,
+		std::vector<double> xnom,
+		std::vector< std::vector<double> > &xpert,
 		double &deltaamt
 		);
 
@@ -187,11 +178,16 @@ namespace SGP4DC {
 		double percentchg, double deltaamtchg, double epsilon, gravconsttype whichconst,
 		char interp, double jdeopstart,
 		elsetrec &satrec, elsetrec satrecx,
-		char typeans, char statetype,
+		char typeans, char statetype, char proptype,
 		int firstob, int lastob, int statesize,
-		std::vector<obsrec> obsrecarr, int &loops,
-		std::vector< std::vector<double> > &scalef,
+		const std::vector<obsrec> &obsrecarr, int &loops,
 		std::vector<double> &xnom,
+		int derivType, double cdam, double cram, 
+		char opt,
+		const std::vector<jpldedata> &jpldearr,
+		double jdjpldestart,
+		iau80data iau80rec,
+		const std::vector<eopdata> &eoparr, 
 		std::vector< std::vector<double> > &x,
 		std::vector< std::vector<double> > &dx,
 		std::vector< std::vector<double> > &atwai,
@@ -200,7 +196,6 @@ namespace SGP4DC {
 		FILE *outfile, FILE *outfile1
 		);
 
-	//	};  // class
 }  // namespace
 
 

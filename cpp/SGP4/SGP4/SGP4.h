@@ -1,5 +1,5 @@
-#ifndef _h_
-#define _h_
+#ifndef _SGP4h_
+#define _SGP4h_
 /*     ----------------------------------------------------------------
 *
 *                                 SGP4.h
@@ -48,13 +48,10 @@
 
 #pragma once
 
-//using namespace System;
-
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
 #include <iostream>
-
 
 #define SGP4Version  "SGP4 Version 2016-03-09"
 

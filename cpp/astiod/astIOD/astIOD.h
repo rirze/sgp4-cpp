@@ -34,32 +34,23 @@
 *              23 nov 87  david vallado
 *                           original baseline
 --------------------------------------------------------------------------  */
-//#include "stdafx.h"
 
 #include <stdio.h>
 #include <math.h>
 #include <string.h>
 
-#include "astMath.h"
-#include "astTime.h"
-#include "ast2Body.h"
-
-#define pi 3.14159265358979323846
+#include "D:/Codes/LIBRARY/CPP/Libraries/astMath/astMath/astMath.h"  // pi, infinite, undefined
+#include "D:/Codes/LIBRARY/CPP/Libraries/astTime/astTime/astTime.h"  // pi, twopi, edirection
+#include "D:/Codes/LIBRARY/CPP/Libraries/ast2Body/ast2Body/ast2Body.h"
 
 
-namespace astIOD {
-
-	//	public ref class Class1
-	//	{
-
-	/* --------- only for testgau test ----------- */
+namespace astIOD 
+{
 	void site
 		(
 		double latgd, double lon, double alt,
 		double rsecef[3], double vsecef[3]
 		);
-
-
 
 	/* ------------------------ angles-only techniques -------------------------- */
 	void anglesgauss
@@ -127,9 +118,6 @@ namespace astIOD {
 		double& rho, double& az, double& el, double& drho, double& daz, double& del
 		);
 
-
-	/* ------------------------- three double[] techniques ---------------------- */
-
 	void gibbs
 		(
 		double r1[3], double r2[3], double r3[3],
@@ -142,28 +130,29 @@ namespace astIOD {
 		double v2[3], double& theta, double& theta1, double& copa, char error[12]
 		);
 
-	/* ---------------------------- lambert techniques -------------------------- */
+	static double kbattin(double v);
 
-	void lambertbattin
-		(
-		double ro[3], double r[3], char dm, int overrev, double dtsec,
-		double vo[3], double v[3], int& error
-		);
+	static double seebattin(double v);
 
 	void lambertuniv
 		(
-		double ro[3], double r[3], char dm, int overrev, double dtsec,
+		double ro[3], double r[3], char dm, char df, int nrev, double dtsec,
 		double vo[3], double v[3], int& error, FILE *outfile
+		);
+
+	void lambertbattin
+		(
+		double r1[3], double r2[3], double v1[3], char dm, char df, int nrev, double dtsec,
+		double v1t[3], double v2t[3], int& error, FILE *outfile
 		);
 
 	void target
 		(
 		double rint[3], double vint[3], double rtgt[3], double vtgt[3],
-		char dm, char kind, double dtsec,
+		char dm, char df, char kind, double dtsec,
 		double v1t[3], double v2t[3], double dv1[3], double dv2[3], char error[12]
 		);
 
-	//	};  // class
 
 }  // namespace 
 

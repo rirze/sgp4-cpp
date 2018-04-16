@@ -2250,7 +2250,7 @@ namespace MSIS_Vers {
 		lsqvtype& lsqv,
 		int iyd, double sec, double alt, double glat, double glong, double stl, double f107a,
 		double f107, double ap[8],
-		double d[9], double t[3], double press
+		double d[10], double t[3], double press
 		);
 
 	double globe6
@@ -2353,10 +2353,10 @@ namespace MSIS_Vers {
 		lsqvtype& lsqv,
 		int iyd, double sec, double alt, double glat, double glong, double stl,
 		double f107a, double f107, double ap[8], int mass,
-		double d[9], double t[3]
+		double d[10], double t[3]
 		)
 	{
-		double d6[9], ts[3], v1, xlat, xmm, altt, dm28m, dmc, dz28, dmr, tz;
+		double d6[10], ts[3], v1, xlat, xmm, altt, dm28m, dmc, dz28, dmr, tz;
 		int i, mss;
 
 		// make sure and initilize the data through msis00init at the start
@@ -2579,7 +2579,7 @@ namespace MSIS_Vers {
 		lsqvtype& lsqv,
 		int iyd, double sec, double alt, double glat, double glong, double stl, double f107a,
 		double f107, double ap[8],
-		double d[9], double t[3], double press
+		double d[10], double t[3], double press
 		)
 	{
 		double pl, zi, cl, cl2, cd, ca, z, l, xm, g, xn, p, sh, diff;

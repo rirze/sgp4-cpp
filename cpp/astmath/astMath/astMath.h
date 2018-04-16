@@ -33,21 +33,8 @@
 
 #pragma once
 
-
-//using namespace std;
-//
-//using namespace System;
-//
-
-namespace astMath 
+namespace astMath
 {
-
-	//	public ref class astMathCl
-	//	{
-
-	// make sure they are all visible
-	//	public:
-
 	//global interfaces
 #define pi 3.14159265358979323846
 #define infinite  999999.9
@@ -68,8 +55,6 @@ namespace astMath
 	*  the type definition has no size so you can use any size you like ... and then change it :-)
 	*/
 	// typedef matrix (std::vector< std::vector<double> >);
-
-
 
 	double  sgn
 		(
@@ -106,65 +91,66 @@ namespace astMath
 		double x[3]
 		);
 
-	void    cross
+	void  cross
 		(
 		double vec1[3], double vec2[3], double outvec[3]
 		);
 
 
-	void    norm
+	void  norm
 		(
 		double vec[3],
 		double outvec[3]
 		);
 
-	void    rot1
-		(
-		double vec[3],
-		double xval,
-		double outvec[3]
-		);
-
-	void    rot2
+	void  rot1
 		(
 		double vec[3],
 		double xval,
 		double outvec[3]
 		);
 
-	void    rot3
+	void  rot2
 		(
 		double vec[3],
 		double xval,
 		double outvec[3]
 		);
 
-	void    rot1mat
+	void  rot3
+		(
+		double vec[3],
+		double xval,
+		double outvec[3]
+		);
+
+	void  rot1mat
+		(
+		double xval,
+		std::vector< std::vector<double> > &outmat
+		//          double& outmat[3][3]
+		);
+
+	void  rot2mat
 		(
 		double xval,
 		std::vector< std::vector<double> > &outmat
 		);
 
-	void    rot2mat
+	void  rot3mat
 		(
 		double xval,
 		std::vector< std::vector<double> > &outmat
 		);
 
-	void    rot3mat
-		(
-		double xval,
-		std::vector< std::vector<double> > &outmat
-		);
-
-	void    addvec
+	void  addvec
 		(
 		double a1, double vec1[3],
 		double a2, double vec2[3],
 		double vec3[3]
 		);
 
-	void    addvec3
+	void  addvec3
 		(
 		double a1, double vec1[3],
 		double a2, double vec2[3],
@@ -178,26 +164,26 @@ namespace astMath
 		double vec2[3]
 		);
 
-	void    writevec
+	void  writevec
 		(
 		char[],
 		double[], double[], double[]
 		);
 
-	void    matinverse
+	void  matinverse
 		(std::vector< std::vector<double> > mat,
 		int  order,
 		std::vector< std::vector<double> > &matinv
 		);
 
-	void    matvecmult
+	void  matvecmult
 		(
 		std::vector< std::vector<double> > mat,
 		double vec[3],
 		double vecout[3]
 		);
 
-	void    matmult
+	void  matmult
 		(
 		std::vector< std::vector<double> > mat1,
 		std::vector< std::vector<double> > mat2,
@@ -205,7 +191,7 @@ namespace astMath
 		int mat1r, int mat1c, int mat2c
 		);
 
-	void    mattrans
+	void  mattrans
 		(
 		std::vector< std::vector<double> > mat1,
 		std::vector< std::vector<double> > &mat2,
@@ -217,22 +203,22 @@ namespace astMath
 		std::vector< std::vector<double> > mat1,
 		int  order
 		);
-		
-    void    writemat
+
+	void  writemat
 		(
 		char matname[30],
 		std::vector< std::vector<double> > mat,
 		int row, int col
 		);
 
-	void    writeexpmat
+	void  writeexpmat
 		(
 		char matname[30],
 		std::vector< std::vector<double> > mat,
 		int row, int col
 		);
 
-	void    cubicspl
+	void  cubicspl
 		(
 		double p1, double p2, double p3, double p4,
 		double& acu0, double& acu1, double& acu2, double& acu3
@@ -257,8 +243,6 @@ namespace astMath
 		);
 
 	int factorial(int n);
-
-	//	}; // class
 
 };  // namespace
 

@@ -43,13 +43,17 @@
 
 
 #include "stdafx.h"
-
+#include "astTime.h"
+#include "coordFK5.h"
+#include "ast2Body.h"
+#include "astMath.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <fstream>
 #include <iostream>
+#include <time.h>
 
 extern char help;
 extern FILE *dbgfile;
@@ -75,7 +79,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	char infilename[75];
 	double ro[3];
 	double vo[3];
-	FILE *infile, *outfile, *outfilee; 
+	FILE *infile, *outfile, *outfilee, *outoutfile; 
 	errno_t err;
 
 	// ----------------------------  locals  -------------------------------
@@ -106,48 +110,58 @@ int _tmain(int argc, _TCHAR* argv[])
 
 	printf("%s\n", SGP4Version);
 
-	year = 2017;
-	mon = 8;
-	day = 23;
-	hr = 12;
-	int minute = 15;
-	sec = 16.0;
-	jd;
-	jdFrac;
-	SGP4Funcs::jday(year, mon, day, hr, minute, sec, jd, jdFrac);
-
-	double total = jd + jdFrac;
-	SGP4Funcs::invjday(total, 0.0, year, mon, day, hr, minute, sec);
-
-
-
 	//opsmode = 'a' best understanding of how afspc code works
 	//opsmode = 'i' improved sgp4 resulting in smoother behavior
-	printf("input operation mode (a), i \n\n");
+	
+	//printf("input operation mode (a), i \n\n");
+
+	/* 
 	opsmode = getchar();
 	fflush(stdin);
+	getchar();
+	*/
+	
+	opsmode = 'a';
+		
 
+	/*
 	printf("typerun = c compare 1 year of full satcat data \n",
 		"typerun = v verification run, requires modified elm file with \n",
 		"              start, stop, and delta times \n",
 		"typerun = m manual operation- either mfe, epoch, or day of yr \n");
-	printf("input type of run c, v, m \n\n");
+	printf("input type of run c, v, m \n\n"); 
+
+	
+
+	
 	typerun = getchar();
 	fflush(stdin);
+	getchar();
+	*/
+	
+	typerun = 'm';
+
+
 
 	//typeinput = 'm' input start stop mfe
 	//typeinput = 'e' input start stop ymd hms
 	//typeinput = 'd' input start stop yr dayofyr
+	/*
 	if ((typerun != 'v') && (typerun != 'c'))
 	{
 		printf("input mfe, epoch (YMDHMS), or dayofyr approach, m,e,d \n\n");
-		typeinput = getchar();
+		typeinput = getchar();	
 	}
 	else
 		typeinput = 'e';
+		
+	*/
+	
+	typeinput = 'e';
 
-	printf("input which constants 721 (72) 84 \n");
-	scanf_s("%i", &whichcon);
+	//printf("input which constants 721 (72) 84 \n");
+	//scanf_s("%i", &whichcon);
+	whichcon = 72;
 	if (whichcon == 721) whichconst = wgs72old;
 	if (whichcon == 72) whichconst = wgs72;
 	if (whichcon == 84) whichconst = wgs84;
@@ -158,8 +172,8 @@ int _tmain(int argc, _TCHAR* argv[])
 	// ---------------- setup files for operation ------------------
 	// input 2-line element set file
 	printf("input elset filename: \n");
-	//scanf_s("%s", infilename, sizeof(infilename));
-	std::cin >> infilename;
+	//infilename = "ISSlatest.txt";
+	scanf_s("%s", infilename, sizeof(infilename));
 	err = fopen_s(&infile, infilename, "r");
 	if (infile == NULL)
 	{
@@ -176,6 +190,7 @@ int _tmain(int argc, _TCHAR* argv[])
 		else
 			err = fopen_s(&outfile, "tcpp.out", "w");
 	}
+	err = fopen_s(&outoutfile, "plotInMatlab.txt", "w");
 
 	fopen_s(&dbgfile, "sgp4test.dbg", "w");
 	fprintf(dbgfile, "this is the debug output\n\n");
@@ -206,10 +221,36 @@ int _tmain(int argc, _TCHAR* argv[])
 			SGP4Funcs::twoline2rv(longstr1, longstr2, typerun, typeinput, opsmode, whichconst,
 				startmfe, stopmfe, deltamin, satrec);
 			fprintf(outfile, "%ld xx\n", satrec.satnum);
+
 			printf(" %ld\n", satrec.satnum);
 			// call the propagator to get the initial state vector value
 			// no longer need gravconst since it is assigned in sgp4init
 			SGP4Funcs::sgp4(satrec, 0.0, ro, vo);
+			
+
+			double rteme[3];
+			double vteme[3];
+			double ateme[3];
+
+			double rpef[3];
+			double vpef[3];
+			double apef[3];
+
+
+			for (int i = 0; i < 3; i++) {
+				rteme[i] = ro[i];
+				vteme[i] = vo[i];
+			}
+
+			// calculate ateme
+			double ateme_unit_vector[3];
+			double magnitude_of_rteme = sqrt(pow(rteme[0],2) + pow(rteme[1],2) + pow(rteme[2],2));
+			for (int i = 0; i < 3; i++) {
+				ateme_unit_vector[i] = -1*rteme[i]/magnitude_of_rteme;
+				ateme[i] = 9.81*ateme_unit_vector[i];
+			}
+
+			
 
 			// generate .e files for stk
 			jd = satrec.jdsatepoch;
@@ -219,6 +260,44 @@ int _tmain(int argc, _TCHAR* argv[])
 			outname[6] = 'e';
 			outname[7] = '\0';
 			SGP4Funcs::invjday(jd, jdFrac, year, mon, day, hr, min, sec);
+			// delta UT1 = UT1 - UTC; on 9/12/2016 delta UT1 = -0.3811866 seconds
+			// UTC = UT1 - delta UT1 => UT1 = UTC + delta UT1
+			double day_jdut1 = (jd+jdFrac + (-0.3811899))/86400;
+			double jdut1 =  (day_jdut1-2451545)/36525;
+
+
+
+			// convert from TEME to PEF
+			coordFK5::teme_pef(rteme, vteme, ateme, eTo, rpef, vpef, apef, jdut1);
+
+			
+			double recef[3];
+			for (int i = 0; i < 3; i++) {
+				recef[i] = rpef[i];
+			}
+			
+			double latgc, latgd, lon, hellp;
+			// PEF to LAT-LON-AL
+			ast2Body::ijk2ll(recef, jdut1, latgc, latgd, lon, hellp);
+			double latgc_in_degree = latgc*(180/pi);
+			double lon_in_degree = lon*(180/pi);
+			//fprintf(outfile, "1st LAT is %lf \n", latgc);
+			//fprintf(outoutfile,"Latitude\n");
+			//fprintf(outoutfile,"Longitude\n");
+			
+			//fprintf(outoutfile, "%.15lf\t%.15lf\n\n\n",day_jdut1,latgc_in_degree);
+			//fprintf(outoutfile, "%.15lf\t%.15lf\n\n\n",day_jdut1,lon_in_degree);
+
+			double magnitude_of_vteme = sqrt(pow(vteme[0],2) + pow(vteme[1],2) + pow(vteme[2],2));
+
+
+
+
+
+
+
+
+
 			err = fopen_s(&outfilee, outname, "w");
 			fprintf(outfilee, "stk.v.4.3 \n"); // must use 4.3...
 			fprintf(outfilee, "\n");
@@ -242,7 +321,12 @@ int _tmain(int argc, _TCHAR* argv[])
 
 			fprintf(outfile, " %16.8f %16.8f %16.8f %16.8f %12.9f %12.9f %12.9f\n",
 				satrec.t, ro[0], ro[1], ro[2], vo[0], vo[1], vo[2]);
-
+			//fprintf(outfile, "1st LAT number is %lf \n\n\n", latgc_in_degree);
+			fprintf(outfile, "1st LON degree is %lf \n\n\n", lon_in_degree);
+			//fprintf(outfile, "1st LON is %lf \n\n\n", lon);
+			fprintf(outfile, "1st LAT is %lf \n\n\n", latgc_in_degree);
+			fprintf(outfile, "1st altitude is %lf \n\n\n", hellp);
+			fprintf(outfile, "1st velocity (teme) is %lf \n\n\n", magnitude_of_vteme);
 			tsince = startmfe;
 			// check so the first value isn't written twice
 			if (fabs(tsince) > 1.0e-8)
@@ -256,7 +340,52 @@ int _tmain(int argc, _TCHAR* argv[])
 				if (tsince > stopmfe)
 					tsince = stopmfe;
 
+				
 				SGP4Funcs::sgp4(satrec, tsince, ro, vo);
+
+
+				for (int i = 0; i < 3; i++) {
+					rteme[i] = ro[i];
+					vteme[i] = vo[i];
+				}
+
+
+				magnitude_of_rteme = sqrt(pow(rteme[0], 2) + pow(rteme[1], 2) + pow(rteme[2], 2));
+				for (int i = 0; i < 3; i++) {
+					ateme_unit_vector[i] = -1 * (rteme[i] / magnitude_of_rteme);
+					ateme[i] = 9.81*ateme_unit_vector[i];
+				}
+
+				jd = satrec.jdsatepoch;
+				jdFrac = satrec.jdsatepochF;
+				//strncpy_s(outname, &longstr1[2], 5);
+				//outname[5] = '.';
+				//outname[6] = 'e';
+				//outname[7] = '\0';
+				SGP4Funcs::invjday(jd, jdFrac, year, mon, day, hr, min, sec);
+				// delta UT1 = UT1 - UTC; on 9/12/2016 delta UT1 = -0.3811866 seconds
+				// UTC = UT1 - delta UT1 => UT1 = UTC + delta UT1
+				day_jdut1 = (jd+jdFrac + (-0.3811899))/86400;
+				jdut1 =  (day_jdut1-2451545)/36525;
+
+
+
+
+				// convert TEME to PEF
+				coordFK5::teme_pef(rteme, vteme, ateme, eTo, rpef, vpef, apef, jdut1);
+
+				for (int i = 0; i < 3; i++) {
+					recef[i] = rpef[i];
+				}
+
+				// convert from PEF to LLA
+				ast2Body::ijk2ll(recef, jdut1, latgc, latgd, lon, hellp);
+				latgc_in_degree = latgc*(180 / pi);
+				lon_in_degree= lon*(180/pi);
+
+				magnitude_of_vteme = sqrt(pow(vteme[0],2) + pow(vteme[1],2) + pow(vteme[2],2));
+
+
 
 				if (satrec.error > 0)
 					printf("# *** error: t:= %f *** code = %3d\n",
@@ -266,20 +395,31 @@ int _tmain(int argc, _TCHAR* argv[])
 				{
 					if ((typerun != 'v') && (typerun != 'c'))
 					{
-						jd = satrec.jdsatepoch;
-						jdFrac = satrec.jdsatepochF + tsince / 1440.0;
+						double jd = satrec.jdsatepoch;
+						double jdFrac = satrec.jdsatepochF + tsince / 1440.0;
 						if (jdFrac < 0.0)
 						{
 							jd = jd - 1.0;
 							jdFrac = jdFrac + 1.0;
 						}
 						SGP4Funcs::invjday(jd, jdFrac, year, mon, day, hr, min, sec);
+						/*day_jdut1 = (jd+jdFrac + (-0.3811899))/86400;
+						jdut1 =  (day_jdut1-2451545)/36525;*/
 
 						fprintf(outfile,
 							" %16.8f %16.8f %16.8f %16.8f %12.9f %12.9f %12.9f %5i%3i%3i %2i:%2i:%9.6f\n",
 							tsince, ro[0], ro[1], ro[2], vo[0], vo[1], vo[2], year, mon, day, hr, min, sec);
 						//                            fprintf(outfile, " %16.8f %16.8f %16.8f %16.8f %12.9f %12.9f %12.9f\n",
 						//                                           tsince,ro[0],ro[1],ro[2],vo[0],vo[1],vo[2]);
+						fprintf(outfile, "please LONG degree be %lf at %d\n", lon_in_degree, min);
+						//fprintf(outfile, "LON is %lf \n",lon1);
+						fprintf(outfile, "LAT degree is %lf at minute %d \n", latgc_in_degree,min);
+						fprintf(outfile, "altitude is %lf at minute %d \n", hellp, min);
+						fprintf(outfile, "velocity (teme) is %lf at minute %d \n", magnitude_of_vteme, min);
+						//fprintf(outoutfile, "%.15lf\t%.15lf\n\n",day_jdut2,latgc_in_degree1);
+						//fprintf(outoutfile, "%.8ld\t%.8ld\n\n",day_jdut2,latgc_in_degree1);
+						//fprintf(outoutfile, "%.15lf\t%.15lf\n\n",day_jdut1,lon_in_degree);
+
 					}
 					else
 					{
@@ -291,6 +431,9 @@ int _tmain(int argc, _TCHAR* argv[])
 							jdFrac = jdFrac + 1.0;
 						}
 						SGP4Funcs::invjday(jd, jdFrac, year, mon, day, hr, min, sec);
+						/*day_jdut1 = (jd+jdFrac + (-0.3811899))/86400;
+						jdut1 =  (day_jdut1-2451545)/36525;*/
+
 
 						fprintf(outfilee, " %16.6f %16.8f %16.8f %16.8f %12.9f %12.9f %12.9f \n",
 							tsince*60.0, ro[0], ro[1], ro[2], vo[0], vo[1], vo[2]);

@@ -26,38 +26,56 @@
 *                           original baseline
   ----------------------------------------------------------------------      */
 
-// be sure to update to your specific paths!!
-// " " tells the compier to look in this directory first, usually the parent directory
-// you can leave generic as astMath.h, but you have to set the include directory in the property pages
-#include "astMath.h"
-#include "astTime.h"
-
 #include <vector>
+#include <stdint.h>
+
+// be sure to update to your specific paths!!
+// " " tells the compiler to look in this directory first, usually the parent directory
+// you can leave generic as astMath.h, but you have to set the include directory in the property pages
+#include "D:/Codes/LIBRARY/CPP/Libraries/astMath/astMath/astMath.h"  // pi, infinite, undefined
+#include "D:/Codes/LIBRARY/CPP/Libraries/astTime/astTime/astTime.h"  // pi, twopi, edirection
+#include "D:/Dataorig/Planet/jpl_eph-master/jpleph.h"  // several
+#include "D:/Dataorig/Planet/jpl_eph-master/jpl_int.h"  // several
 
 #pragma once
 
 
-namespace ast2Body {
+const int jpldesize = 60000; // 60000 if from 1957-2100
 
-	//  class ast2Body
-	//	{
+typedef struct jpldedata
+{
+	double rsun[3], rmoon[3];
+	int    year, mon, day;
+	double rsmag, mjd;
+} jpldedata;
 
-	// make sure they are all visible
-	//	public:
 
-	//astMathclass astMathCl;
+namespace ast2Body
 
+{
 	void rv2coe
 		(
-		double r[3], double v[3], const double mu, 
-		double& p, double& a, double& ecc, double& incl, double& omega, double& argp,
-		double& nu, double& m, double& arglat, double& truelon, double& lonper
+		double r[3], double v[3], const double mu,
+		double& p, double& a, double& ecc, double& incl, double& raan, double& argp,
+		double& nu, double& m, double& eccanom, double& arglat, double& truelon, double& lonper
 		);
 
 	void coe2rv
 		(
-		double p, double ecc, double incl, double omega, double argp, double nu,
+		double p, double ecc, double incl, double raan, double argp, double nu,
 		double arglat, double truelon, double lonper,
+		double r[3], double v[3]
+		);
+
+	void rv2eq
+		(
+		double r[3], double v[3],
+		double& a, double& n, double& af, double& ag, double& chi, double& psi, double& meanlonM, double& meanlonNu, int& fr
+		);
+
+	void eq2rv
+		(
+		double a, double af, double ag, double chi, double psi, double meanlon, int fr,
 		double r[3], double v[3]
 		);
 
@@ -72,13 +90,18 @@ namespace ast2Body {
 		double ro[3], double vo[3], double dtseco, double r[3], double v[3]
 		);
 
-	void rv2rsw
+	void pkepler
+		(
+		double r1[3], double v1[3], double& dtsec, double& ndot, double& nddot, double r2[3], double v2[3]
+		);
+		
+    void rv2rsw
 		(
 		double r[3], double v[3],
 		double rrsw[3], double vrsw[3], std::vector< std::vector<double> > &transmat
 		);
 
-	void  rv2ntw
+	void rv2ntw
 		(
 		double r[3], double v[3],
 		double rntw[3], double vntw[3], std::vector< std::vector<double> > &transmat
@@ -108,17 +131,64 @@ namespace ast2Body {
 		double& latgc, double& latgd, double& lon, double& hellp
 		);
 
+	void rvsez_razel
+		(
+		double rhosez[3], double drhosez[3],
+		edirection direct,
+		double& rho, double& az, double& el, double& drho, double& daz, double& del
+		);
+		
+	void rv2radec
+		(
+		double r[3], double v[3],
+		double& rr, double& rtasc, double& decl, double& drr, double& drtasc, double& ddecl
+		);
+
+	void rv_razel
+		(
+		double recef[3], double vecef[3], double rsecef[3], double latgd, double lon,
+		edirection direct,
+		double& rho, double& az, double& el, double& drho, double& daz, double& del
+		);
+		
+	void initjplde
+		(
+		std::vector<jpldedata> &jpldearr,
+		char infilename[140],
+		double& jdjpldestart, double& jdjpldestartFrac
+		);
+
+	void findjpldeparam
+		(
+		double  jdtdb, double jdtdbF, char interp,
+		const std::vector<jpldedata> &jpldearr,
+		double jdjpldestart,
+		double rsun[3], double& rsmag,
+		double rmoon[3]
+		);
+
 	void sun
 		(
-		double jd,
-		double rmoon[3], double& rtasc, double& decl
+		double jdtdb, double jdtdbF,
+		double rsun[3], double& rtasc, double& decl
+		);
+
+	void sunmoonjpl
+		(
+		double jdtdb, double jdtdbF,
+		char interp,
+		const std::vector<jpldedata> &jpldearr,
+		double jdjpldestart,
+		double rsun[3], double& rtascs, double& decls,
+		double rmoon[3], double& rtascm, double& declm
 		);
 
 	void moon
 		(
-		double jd,
+		double jdtdb, double jdtdbF,
 		double rmoon[3], double& rtasc, double& decl
 		);
+
 
 	//	};  // Class
 

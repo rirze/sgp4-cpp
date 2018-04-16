@@ -40,15 +40,4 @@
       <Filter>Resource Files</Filter>
     </Image>
   </ItemGroup>
-  <ItemGroup>
-    <Library Include="..\..\ast2Body\Debug\ast2Body.lib">
-      <Filter>Resource Files</Filter>
-    </Library>
-    <Library Include="..\..\astMath\Debug\astMath.lib">
-      <Filter>Resource Files</Filter>
-    </Library>
-    <Library Include="..\..\astTime\Debug\astTime.lib">
-      <Filter>Resource Files</Filter>
-    </Library>
-  </ItemGroup>
 </Project>

@@ -54,8 +54,6 @@
 *       ----------------------------------------------------------------      */
 
 #include "SGP4.h"
-//errors are from the order of routines...
-//must be defined in order of use...
 
 #define pi 3.14159265358979323846
 
@@ -152,7 +150,8 @@ double& cosio2, double& eccsq, double& omeosq, double& posq,
 double& rp, double& rteosq, double& sinio, double& gsto, char opsmode
 );
 
-namespace SGP4Funcs{
+namespace SGP4Funcs
+{
 
 	/* -----------------------------------------------------------------------------
 	*
@@ -3041,6 +3040,7 @@ namespace SGP4Funcs{
 	*
 	*  outputs       :
 	*    jd          - julian date                    days from 4713 bc
+	*    jdfrac      - julian date fraction into day  days from 4713 bc
 	*
 	*  locals        :
 	*    none.
@@ -3162,6 +3162,7 @@ namespace SGP4Funcs{
 	*
 	*  inputs          description                    range / units
 	*    jd          - julian date                    days from 4713 bc
+	*    jdfrac      - julian date fraction into day  days from 4713 bc
 	*
 	*  outputs       :
 	*    year        - year                           1900 .. 2100
@@ -3188,29 +3189,31 @@ namespace SGP4Funcs{
 
 	void    invjday
 		(
-		double jd, double jdFrac,
+		double jd, double jdfrac,
 		int& year, int& mon, int& day,
 		int& hr, int& minute, double& sec
 		)
 	{
 		int leapyrs;
-		double    days, tu, temp;
+		double dt, days, tu, temp;
 
 		// check jdfrac for multiple days
-		if (fabs(jdFrac) >= 1.000000)
+		if (fabs(jdfrac) >= 1.0)
 		{
-			double dtt = floor(jdFrac);
-			jd = jd + dtt;
-			jdFrac = jdFrac - dtt;
+			jd = jd + floor(jdfrac);
+			jdfrac = jdfrac - floor(jdfrac);
 		}
 
 		// check for fraction of a day included in the jd
-		double dt = jd - floor(jd);
-		if (fabs(dt - 0.5) > 0.00000001)
-			jdFrac = jdFrac + dt - 0.5;
+		dt = jd - floor(jd) - 0.5;
+		if (fabs(dt) > 0.00000001)
+		{
+			jd = jd - dt;
+			jdfrac = jdfrac + dt;
+		}
 
 		/* --------------- find year and days of the year --------------- */
-		temp = jd + jdFrac - 2415019.5;
+		temp = jd - 2415019.5;
 		tu = temp / 365.25;
 		year = 1900 + (int)floor(tu);
 		leapyrs = (int)floor((year - 1901) * 0.25);
@@ -3218,7 +3221,7 @@ namespace SGP4Funcs{
 		days = floor(temp - ((year - 1900) * 365.0 + leapyrs));
 
 		/* ------------ check for case of beginning of a year ----------- */
-		if (days < 1.0)
+		if (days + jdfrac < 1.0)
 		{
 			year = year - 1;
 			leapyrs = (int)floor((year - 1901) * 0.25);
@@ -3226,7 +3229,7 @@ namespace SGP4Funcs{
 		}
 
 		/* ----------------- find remaining data  ------------------------- */
-		days2mdhms(year, days + jdFrac, mon, day, hr, minute, sec);
+		days2mdhms(year, days + jdfrac, mon, day, hr, minute, sec);
 	}  // invjday
 
 

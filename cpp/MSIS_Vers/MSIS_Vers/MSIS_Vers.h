@@ -262,7 +262,7 @@
 				lsqvtype& lsqv,
 				int iyd, double sec, double alt, double glat, double glong, double stl,
 				double f107a, double f107, double ap[8], int mass,
-				double d[9], double t[3]
+				double d[10], double t[3]
 				);
 
 			void gts6

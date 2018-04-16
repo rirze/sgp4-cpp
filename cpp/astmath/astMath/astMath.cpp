@@ -12,9 +12,11 @@
 *       (w) 719-573-2600, email dvallado@agi.com, davallado@gmail.com
 *
 *    current :
+*              11 jan 18  david vallado
+*                           misc cleanup
+*    changes :
 *              30 sep 15  david vallado
 *                           fix jd, jdfrac
-*    changes :
 *               3 nov 14  david vallado
 *                           update to msvs2013 c++
 *               7 may 08  david vallado
@@ -34,39 +36,38 @@
 *                           original baseline
 *       ----------------------------------------------------------------      */
 
-// stdafx.h must be the first in cpp files
-//#include "stdafx.h"
-
 #include "astMath.h"
 
-namespace astMath {
+namespace astMath 
+{
 
-double sgn (
-          double x
-        )
-   {
-     if (x < 0.0)
-       {
-          return -1.0;
-       }
-       else
-       {
-          return 1.0;
-       }
+	double sgn
+		(
+		double x
+		)
+	{
+		if (x < 0.0)
+		{
+			return -1.0;
+		}
+		else
+		{
+			return 1.0;
+		}
 
-   }  // end sgn
+	} // sgn
 
 
-// round a number to the nearest integer
-double round
-       (
-         double x
-       )
-   {
-       double temp;
-       temp = floor( x + 0.5);
-       return int(temp);
-   }  // end round
+    // round a number to the nearest integer
+	double round
+		(
+		double x
+		)
+	{
+		double temp;
+		temp = floor(x + 0.5);
+		return int(temp);
+	}  // round
 
 /* -----------------------------------------------------------------------------
 *
@@ -89,22 +90,22 @@ double round
 *    none.
 * --------------------------------------------------------------------------- */
 
-double  acosh
-        (
-          double xval
-        )
-   {
-     double temp;
-     if ( xval*xval - 1.0 < 0.0 )
-       {
-         temp = undefined;
-         printf("error in arccosh function \n");
-       } 
-       else
-         temp= log( xval + sqrt( xval*xval - 1.0 ) );
+	double  acosh
+		(
+		double xval
+		)
+	{
+		double temp;
+		if (xval*xval - 1.0 < 0.0)
+		{
+			temp = undefined;
+			printf("error in arccosh function \n");
+		}
+		else
+			temp = log(xval + sqrt(xval*xval - 1.0));
 
-     return temp;
-   }
+		return temp;
+	}  // acosh
 
 
 /* -----------------------------------------------------------------------------
@@ -128,13 +129,13 @@ double  acosh
 *    none.
 * --------------------------------------------------------------------------- */
 
-double  asinh
-        (
-          double xval
-        )
-   {
-     return log( xval + sqrt( xval*xval + 1.0 ) );
-   }  // end asinh
+	double  asinh
+		(
+		double xval
+		)
+	{
+		return log(xval + sqrt(xval*xval + 1.0));
+	}  // asinh
 
 
 /* ------------------------------------------------------------------------------
@@ -155,19 +156,19 @@ double  asinh
 *    temp        - temporary real variable
  ---------------------------------------------------------------------------- */
 
-double cot
-       (
-         double xval
-       )
-   {
-      double temp;
+	double cot
+		(
+		double xval
+		)
+	{
+		double temp;
 
-      temp = tan( xval );
-      if (fabs( temp ) < 0.00000001 )
-          return infinite;
-        else
-          return 1.0 / temp;
-   }  // procedure cot
+		temp = tan(xval);
+		if (fabs(temp) < 0.00000001)
+			return infinite;
+		else
+			return 1.0 / temp;
+	}  // cot
 
 
 /* -----------------------------------------------------------------------------
@@ -192,13 +193,13 @@ double cot
 *    none.
 * --------------------------------------------------------------------------- */
 
-double  dot
-        (
-          double x[3], double y[3]
-        )
-   {
-     return (x[0]*y[0] + x[1]*y[1] + x[2]*y[2]);
-   }  // end dot
+	double  dot
+		(
+		double x[3], double y[3]
+		)
+	{
+		return (x[0] * y[0] + x[1] * y[1] + x[2] * y[2]);
+	}  // dot
 
 /* -----------------------------------------------------------------------------
 *
@@ -222,13 +223,13 @@ double  dot
 *    none.
 * --------------------------------------------------------------------------- */
 
-double  mag
-        (
-          double x[3]
-        )
-   {
-     return sqrt(x[0]*x[0] + x[1]*x[1] + x[2]*x[2]);
-   }  // end mag
+	double  mag
+		(
+		double x[3]
+		)
+	{
+		return sqrt(x[0] * x[0] + x[1] * x[1] + x[2] * x[2]);
+	}  // mag
 
 /* -----------------------------------------------------------------------------
 *
@@ -252,15 +253,15 @@ double  mag
 *    none
  ---------------------------------------------------------------------------- */
 
-void    cross
-        (
-          double vec1[3], double vec2[3], double outvec[3]
-        )
-   {
-     outvec[0]= vec1[1]*vec2[2] - vec1[2]*vec2[1];
-     outvec[1]= vec1[2]*vec2[0] - vec1[0]*vec2[2];
-     outvec[2]= vec1[0]*vec2[1] - vec1[1]*vec2[0];
-   }  // end cross
+	void    cross
+		(
+		double vec1[3], double vec2[3], double outvec[3]
+		)
+	{
+		outvec[0] = vec1[1] * vec2[2] - vec1[2] * vec2[1];
+		outvec[1] = vec1[2] * vec2[0] - vec1[0] * vec2[2];
+		outvec[2] = vec1[0] * vec2[1] - vec1[1] * vec2[0];
+	}  // cross
 
 /* -----------------------------------------------------------------------------
 *
@@ -286,26 +287,26 @@ void    cross
 *    mag           magnitude of a vector
 * --------------------------------------------------------------------------- */
 
-void    norm
-        (
-          double vec[3],
-          double outvec[3]
-        )
-   {
-     const double small = 0.000001;
-     double magv;
-     int i;
+	void    norm
+		(
+		double vec[3],
+		double outvec[3]
+		)
+	{
+		const double small = 0.000001;
+		double magv;
+		int i;
 
-     magv = mag( vec );
-     if (magv > small)
-       {
-         for (i = 0; i <= 2; i++)
-             outvec[i]= vec[i]/magv;
-       }
-       else
-         for (i = 0; i <= 2; i++)
-             outvec[i]= 0.0;
-   }
+		magv = mag(vec);
+		if (magv > small)
+		{
+			for (i = 0; i <= 2; i++)
+				outvec[i] = vec[i] / magv;
+		}
+		else
+		for (i = 0; i <= 2; i++)
+			outvec[i] = 0.0;
+	}  // norm
 
 /* -----------------------------------------------------------------------------
 *
@@ -332,59 +333,59 @@ void    norm
 *    none.
 * --------------------------------------------------------------------------- */
 
-void    rot1
-        (
-          double vec[3],
-          double xval,
-          double outvec[3]
-        )
-   {
-      double c, s, temp;
+	void    rot1
+		(
+		double vec[3],
+		double xval,
+		double outvec[3]
+		)
+	{
+		double c, s, temp;
 
-      temp= vec[2];
-      c= cos( xval );
-      s= sin( xval );
+		temp = vec[2];
+		c = cos(xval);
+		s = sin(xval);
 
-      outvec[2]= c*vec[2] - s*vec[1];
-      outvec[1]= c*vec[1] + s*temp;
-      outvec[0]= vec[0];
-   }
+		outvec[2] = c*vec[2] - s*vec[1];
+		outvec[1] = c*vec[1] + s*temp;
+		outvec[0] = vec[0];
+	}  //  rot1
 
-void    rot2
-        (
-          double vec[3],
-          double xval,
-          double outvec[3]
-        )
-   {
-      double c, s, temp;
+	void    rot2
+		(
+		double vec[3],
+		double xval,
+		double outvec[3]
+		)
+	{
+		double c, s, temp;
 
-      temp= vec[2];
-      c= cos( xval );
-      s= sin( xval );
+		temp = vec[2];
+		c = cos(xval);
+		s = sin(xval);
 
-      outvec[2]= c*vec[2] + s*vec[0];
-      outvec[0]= c*vec[0] - s*temp;
-      outvec[1]= vec[1];
-   }
+		outvec[2] = c*vec[2] + s*vec[0];
+		outvec[0] = c*vec[0] - s*temp;
+		outvec[1] = vec[1];
+	}  // rot2
 
-void    rot3
-        (
-          double vec[3],
-          double xval,
-          double outvec[3]
-        )
-   {
-      double c, s, temp;
+	void    rot3
+		(
+		double vec[3],
+		double xval,
+		double outvec[3]
+		)
+	{
+		double c, s, temp;
 
-      temp= vec[1];
-      c= cos( xval );
-      s= sin( xval );
+		temp = vec[1];
+		c = cos(xval);
+		s = sin(xval);
 
-      outvec[1]= c*vec[1] - s*vec[0];
-      outvec[0]= c*vec[0] + s*temp;
-      outvec[2]= vec[2];
-   }
+		outvec[1] = c*vec[1] - s*vec[0];
+		outvec[0] = c*vec[0] + s*temp;
+		outvec[2] = vec[2];
+	}  // rot3
 
 /* -----------------------------------------------------------------------------
 *
@@ -412,86 +413,85 @@ void    rot3
 *    none.
 * --------------------------------------------------------------------------- */
 
-void    rot1mat
-        (
-          double xval,
-          std::vector< std::vector<double> > &outmat
-//          double& outmat[3][3]
-        )
-   {
-     outmat.resize(3);  // rows
-     for (std::vector< std::vector<double> >::iterator it=outmat.begin(); it != outmat.end();++it)
-          it->resize(3);
-     double c, s;
-     c= cos( xval );
-     s= sin( xval );
+	void    rot1mat
+		(
+		double xval,
+		std::vector< std::vector<double> > &outmat
+		//  double& outmat[3][3]
+		)
+	{
+		outmat.resize(3);  // rows
+		for (std::vector< std::vector<double> >::iterator it = outmat.begin(); it != outmat.end(); ++it)
+			it->resize(3);
+		double c, s;
+		c = cos(xval);
+		s = sin(xval);
 
-     outmat[0][0]= 1.0;
-     outmat[0][1]= 0.0;
-     outmat[0][2]= 0.0;
+		outmat[0][0] = 1.0;
+		outmat[0][1] = 0.0;
+		outmat[0][2] = 0.0;
 
-     outmat[1][0]= 0.0;
-     outmat[1][1]= c;
-     outmat[1][2]= s;
+		outmat[1][0] = 0.0;
+		outmat[1][1] = c;
+		outmat[1][2] = s;
 
-     outmat[2][0]= 0.0;
-     outmat[2][1]= -s;
-     outmat[2][2]= c;
-   }
+		outmat[2][0] = 0.0;
+		outmat[2][1] = -s;
+		outmat[2][2] = c;
+	}  //  rot1mat
+	void    rot2mat
+		(
+		double xval,
+		std::vector< std::vector<double> > &outmat
+		//          double outmat[3][3]
+		)
+	{
+		outmat.resize(3);  // rows
+		for (std::vector< std::vector<double> >::iterator it = outmat.begin(); it != outmat.end(); ++it)
+			it->resize(3);
+		double c, s;
+		c = cos(xval);
+		s = sin(xval);
 
-void    rot2mat
-        (
-          double xval,
-          std::vector< std::vector<double> > &outmat
-//          double outmat[3][3]
-        )
-   {
-     outmat.resize(3);  // rows
-     for (std::vector< std::vector<double> >::iterator it=outmat.begin(); it != outmat.end();++it)
-          it->resize(3);
-     double c, s;
-     c= cos( xval );
-     s= sin( xval );
+		outmat[0][0] = c;
+		outmat[0][1] = 0.0;
+		outmat[0][2] = -s;
 
-     outmat[0][0]= c;
-     outmat[0][1]= 0.0;
-     outmat[0][2]= -s;
+		outmat[1][0] = 0.0;
+		outmat[1][1] = 1.0;
+		outmat[1][2] = 0.0;
 
-     outmat[1][0]= 0.0;
-     outmat[1][1]= 1.0;
-     outmat[1][2]= 0.0;
+		outmat[2][0] = s;
+		outmat[2][1] = 0.0;
+		outmat[2][2] = c;
+	}  // rot2mat
 
-     outmat[2][0]= s;
-     outmat[2][1]= 0.0;
-     outmat[2][2]= c;
-   }
+	void    rot3mat
+		(
+		double xval,
+		std::vector< std::vector<double> > &outmat
+		//          double outmat[3][3]
+		)
+	{
+		outmat.resize(3);  // rows
+		for (std::vector< std::vector<double> >::iterator it = outmat.begin(); it != outmat.end(); ++it)
+			it->resize(3);
+		double c, s;
+		c = cos(xval);
+		s = sin(xval);
 
-void    rot3mat
-        (
-          double xval,
-          std::vector< std::vector<double> > &outmat
-//          double outmat[3][3]
-        )
-   {
-     outmat.resize(3);  // rows
-     for (std::vector< std::vector<double> >::iterator it=outmat.begin(); it != outmat.end();++it)
-          it->resize(3);
-     double c, s;
-     c= cos( xval );
-     s= sin( xval );
+		outmat[0][0] = c;
+		outmat[0][1] = s;
+		outmat[0][2] = 0.0;
 
-     outmat[0][0]= c;
-     outmat[0][1]= s;
-     outmat[0][2]= 0.0;
+		outmat[1][0] = -s;
+		outmat[1][1] = c;
+		outmat[1][2] = 0.0;
 
-     outmat[1][0]= -s;
-     outmat[1][1]= c;
-     outmat[1][2]= 0.0;
-
-     outmat[2][0]= 0.0;
-     outmat[2][1]= 0.0;
-     outmat[2][2]= 1.0;
-   }
+		outmat[2][0] = 0.0;
+		outmat[2][1] = 0.0;
+		outmat[2][2] = 1.0;
+	}  // rot3mat
 
 
 /* -----------------------------------------------------------------------------
@@ -518,21 +518,21 @@ void    rot3mat
 *     none
 * --------------------------------------------------------------------------- */
 
-void    addvec
-        (
-          double a1, double vec1[3],
-          double a2, double vec2[3],
-          double vec3[3]
-        )
-   {
-     int row;
+	void    addvec
+		(
+		double a1, double vec1[3],
+		double a2, double vec2[3],
+		double vec3[3]
+		)
+	{
+		int row;
 
-     for (row = 0; row <= 2; row++)
-       {
-         vec3[row]= 0.0;
-         vec3[row] = a1* vec1[row] + a2* vec2[row];
-       }
-   }
+		for (row = 0; row <= 2; row++)
+		{
+			vec3[row] = 0.0;
+			vec3[row] = a1* vec1[row] + a2* vec2[row];
+		}
+	}  // addvec
 
 /* -----------------------------------------------------------------------------
 *
@@ -560,22 +560,22 @@ void    addvec
 *     none
 * --------------------------------------------------------------------------- */
 
-void    addvec3
-        (
-          double a1, double vec1[3],
-          double a2, double vec2[3],
-          double a3, double vec3[3],
-          double vec4[3]
-        )
-   {
-     int row;
+	void    addvec3
+		(
+		double a1, double vec1[3],
+		double a2, double vec2[3],
+		double a3, double vec3[3],
+		double vec4[3]
+		)
+	{
+		int row;
 
-     for (row = 0; row <= 2; row++)
-       {
-         vec4[row]= 0.0;
-         vec4[row] = a1* vec1[row] + a2* vec2[row]+ a3* vec3[row];
-       }
-   }
+		for (row = 0; row <= 2; row++)
+		{
+			vec4[row] = 0.0;
+			vec4[row] = a1* vec1[row] + a2* vec2[row] + a3* vec3[row];
+		}
+	}  // addvec3
 
 
 /* -----------------------------------------------------------------------------
@@ -608,40 +608,40 @@ void    addvec3
 *    mag           magnitude of a vector
 * --------------------------------------------------------------------------- */
 
-double  angle
-        (
-          double vec1[3],
-          double vec2[3]
-        )
-   {
-     double small, magv1, magv2, temp;
-     small     = 0.00000001;
+	double  angle
+		(
+		double vec1[3],
+		double vec2[3]
+		)
+	{
+		double small, magv1, magv2, temp;
+		small = 0.00000001;
 
-     magv1 = mag(vec1);
-     magv2 = mag(vec2);
+		magv1 = mag(vec1);
+		magv2 = mag(vec2);
 
-     if (magv1*magv2 > small*small)
-       {
-         temp= dot(vec1,vec2) / (magv1*magv2);
-         if (fabs( temp ) > 1.0)
-             temp= sgn(temp) * 1.0;
-         return acos( temp );
-       }
-       else
-         return undefined;
-   }  // end angle
+		if (magv1*magv2 > small*small)
+		{
+			temp = dot(vec1, vec2) / (magv1*magv2);
+			if (fabs(temp) > 1.0)
+				temp = sgn(temp) * 1.0;
+			return acos(temp);
+		}
+		else
+			return undefined;
+	}  // angle
 
 // this writes a vector out to the screen
-void    writevec
-        (
-          char title[10],
-          double r[3], double v[3], double a[3]
-        )
-   {
-     printf("%10s  %15.8f%15.8f%15.8f",title, r[0],r[1],r[2] );
-     printf(" v %15.9f%15.9f%15.9f"   ,v[0],v[1],v[2] );
-     printf(" a %14.9f%14.9f%14.9f\n" ,a[0],a[1],a[2] );
-   }
+	void    writevec
+		(
+		char title[10],
+		double r[3], double v[3], double a[3]
+		)
+	{
+		printf("%10s  %15.8f%15.8f%15.8f", title, r[0], r[1], r[2]);
+		printf(" v %15.9f%15.9f%15.9f", v[0], v[1], v[2]);
+		printf(" a %14.9f%14.9f%14.9f\n", a[0], a[1], a[2]);
+	}  //  writevec
 
 /* -----------------------------------------------------------------------------
 *
@@ -666,23 +666,23 @@ void    writevec
 *  coupling      :
 * --------------------------------------------------------------------------- */
 
-void    matvecmult
-        (
-          std::vector< std::vector<double> > mat,
-//          double mat[3][3],
-          double vec[3],
-          double vecout[3]
-        )
-   {
-     int row, ktr;
+	void    matvecmult
+		(
+		std::vector< std::vector<double> > mat,
+		//          double mat[3][3],
+		double vec[3],
+		double vecout[3]
+		)
+	{
+		int row, ktr;
 
-     for (row = 0; row <= 2; row++)
-       {
-         vecout[row]= 0.0;
-         for (ktr = 0; ktr <= 2; ktr++)
-             vecout[row]= vecout[row] + mat[row][ktr] * vec[ktr];
-       }
-   }
+		for (row = 0; row <= 2; row++)
+		{
+			vecout[row] = 0.0;
+			for (ktr = 0; ktr <= 2; ktr++)
+				vecout[row] = vecout[row] + mat[row][ktr] * vec[ktr];
+		}
+	}  // matvecmult
 
 /* -----------------------------------------------------------------------------
 *
@@ -710,34 +710,34 @@ void    matvecmult
 *  coupling      :
 * --------------------------------------------------------------------------- */
 
-void    matmult
-        (
-          std::vector< std::vector<double> > mat1,
-          std::vector< std::vector<double> > mat2,
-          std::vector< std::vector<double> > &mat3,
-//          double mat1[3][3],
-//          double mat2[3][3],
-//          double mat3[3][3],
-          int mat1r, int mat1c, int mat2c
-        )
-   {
-     int row,col,ktr;
-     // specify the actual sizes
-     mat3.resize(mat1r);  // rows
-     for (std::vector< std::vector<double> >::iterator it=mat3.begin(); it != mat3.end();++it)
-          it->resize(mat2c);
+	void    matmult
+		(
+		std::vector< std::vector<double> > mat1,
+		std::vector< std::vector<double> > mat2,
+		std::vector< std::vector<double> > &mat3,
+		//          double mat1[3][3],
+		//          double mat2[3][3],
+		//          double mat3[3][3],
+		int mat1r, int mat1c, int mat2c
+		)
+	{
+		int row, col, ktr;
+		// specify the actual sizes
+		mat3.resize(mat1r);  // rows
+		for (std::vector< std::vector<double> >::iterator it = mat3.begin(); it != mat3.end(); ++it)
+			it->resize(mat2c);
 
 
-     for (row = 0; row < mat1r; row++)
-       {
-         for (col = 0; col < mat2c; col++)
-           {
-             mat3[row][col]= 0.0;
-             for (ktr = 0; ktr < mat1c; ktr ++)
-                 mat3[row][col]= mat3[row][col] + mat1[row][ktr] * mat2[ktr][col];
-           }
-       }
-   }
+		for (row = 0; row < mat1r; row++)
+		{
+			for (col = 0; col < mat2c; col++)
+			{
+				mat3[row][col] = 0.0;
+				for (ktr = 0; ktr < mat1c; ktr++)
+					mat3[row][col] = mat3[row][col] + mat1[row][ktr] * mat2[ktr][col];
+			}
+		}
+	}  // matmult
 
 /* -----------------------------------------------------------------------------
 *
@@ -762,27 +762,27 @@ void    matmult
 *  coupling      :
 * --------------------------------------------------------------------------- */
 
-void    mattrans
-        (
-          std::vector< std::vector<double> > mat1,
-          std::vector< std::vector<double> > &mat2,
-//          double mat1[3][3],
-//          double mat2[3][3],
-          int mat1r, int mat1c
-        )
-   {
-     int row,col;
+	void    mattrans
+		(
+		std::vector< std::vector<double> > mat1,
+		std::vector< std::vector<double> > &mat2,
+		//          double mat1[3][3],
+		//          double mat2[3][3],
+		int mat1r, int mat1c
+		)
+	{
+		int row, col;
 
-     mat2.resize(mat1c);  // rows
-     for (std::vector< std::vector<double> >::iterator it=mat2.begin(); it != mat2.end();++it)
-          it->resize(mat1r);
+		mat2.resize(mat1c);  // rows
+		for (std::vector< std::vector<double> >::iterator it = mat2.begin(); it != mat2.end(); ++it)
+			it->resize(mat1r);
 
-     for (row = 0; row < mat1r; row++)
-       {
-         for (col = 0; col < mat1c; col++)
-             mat2[col][row] = mat1[row][col];
-       }
-   }
+		for (row = 0; row < mat1r; row++)
+		{
+			for (col = 0; col < mat1c; col++)
+				mat2[col][row] = mat1[row][col];
+		}
+	}  // mattrans
 
 /* ------------------------------------------------------------------------------
 *
@@ -816,81 +816,81 @@ void    mattrans
 *    numerical recipes - flannery
  ----------------------------------------------------------------------------- */
 
-void ludecomp
-     (
-       std::vector< std::vector<double> > &lu,
-       std::vector< int > &indexx,
-//          double lu[3][3],
-//          double indexx[3],
-       int order
-     )
-   {
-     const double small = 0.000001;
-     int i, j, k, imax;
-//     std::vector< std::vector<double> > scale(order+1,2);
-	 std::vector< std::vector<double> > scale = std::vector< std::vector<double> >(order + 1, std::vector<double>(2, 0.0));
+	void ludecomp
+		(
+		std::vector< std::vector<double> > &lu,
+		std::vector< int > &indexx,
+		//          double lu[3][3],
+		//          double indexx[3],
+		int order
+		)
+	{
+		const double small = 0.000001;
+		int i, j, k, imax;
+		//     std::vector< std::vector<double> > scale(order+1,2);
+		std::vector< std::vector<double> > scale = std::vector< std::vector<double> >(order + 1, std::vector<double>(2, 0.0));
 
-     double sum, amax, dum;
+		double sum, amax, dum;
 
-     imax = 0;
-     for (i = 1; i <= order; i++)
-       {
-         amax = 0.0;
-         for (j = 1; j <= order; j++)
-             if (fabs( lu[i][j] ) > amax)
-                 amax = fabs(lu[i][j]);
-         if (fabs(amax) < small)
-           {
-             printf(" singular matrix amax ");
-           }
-         scale[i][1] =  1.0 / amax;
-       }
-     for (j = 1; j <= order; j++)
-       {
-         for (i = 1; i <= j - 1; i++)
-           {
-             sum = lu[i][j];
-             for (k = 1; k <= i - 1; k++)
-                 sum = sum - lu[i][k] * lu[k][j];
-             lu[i][j] = sum;
-           }
-         amax = 0.0;
-         for (i = j; i <= order; i++)
-           {
-             sum = lu[i][j];
-             for (k = 1; k <= j - 1; k++)
-                 sum = sum - lu[i][k] * lu[k][j];
-             lu[i][j] = sum;
-             dum = scale[i][1] * fabs(sum);
-             if (dum >= amax)
-               {
-                 imax = i;
-                 amax = dum;
-               }
-           }
-         if (j != imax)
-           {
-             for (k = 1; k <= order; k++)
-               {
-                 dum = lu[imax][k];
-                 lu[imax][k] = lu[j][k];
-                 lu[j][k] =  dum;
-               }
-             scale[imax][1] = scale[j][1];
-           }
-         indexx[j] = imax;
-         if (fabs( lu[j][j]) < small)
-           {
-             printf(" matrix is singular lu ");
-           }
-         if (j != order)
-           {
-             dum = 1.0 / lu[j][j];
-             for (i = j + 1; i <= order; i++)
-                 lu[i][j] = dum * lu[i][j];
-           }
-       }
-   } // procedure ludecmp
+		imax = 0;
+		for (i = 1; i <= order; i++)
+		{
+			amax = 0.0;
+			for (j = 1; j <= order; j++)
+			if (fabs(lu[i][j]) > amax)
+				amax = fabs(lu[i][j]);
+			if (fabs(amax) < small)
+			{
+				printf(" singular matrix amax ");
+			}
+			scale[i][1] = 1.0 / amax;
+		}
+		for (j = 1; j <= order; j++)
+		{
+			for (i = 1; i <= j - 1; i++)
+			{
+				sum = lu[i][j];
+				for (k = 1; k <= i - 1; k++)
+					sum = sum - lu[i][k] * lu[k][j];
+				lu[i][j] = sum;
+			}
+			amax = 0.0;
+			for (i = j; i <= order; i++)
+			{
+				sum = lu[i][j];
+				for (k = 1; k <= j - 1; k++)
+					sum = sum - lu[i][k] * lu[k][j];
+				lu[i][j] = sum;
+				dum = scale[i][1] * fabs(sum);
+				if (dum >= amax)
+				{
+					imax = i;
+					amax = dum;
+				}
+			}
+			if (j != imax)
+			{
+				for (k = 1; k <= order; k++)
+				{
+					dum = lu[imax][k];
+					lu[imax][k] = lu[j][k];
+					lu[j][k] = dum;
+				}
+				scale[imax][1] = scale[j][1];
+			}
+			indexx[j] = imax;
+			if (fabs(lu[j][j]) < small)
+			{
+				printf(" matrix is singular lu ");
+			}
+			if (j != order)
+			{
+				dum = 1.0 / lu[j][j];
+				for (i = j + 1; i <= order; i++)
+					lu[i][j] = dum * lu[i][j];
+			}
+		}
+	} // ludecmp
 
 /* ------------------------------------------------------------------------------
 *
@@ -922,45 +922,45 @@ void ludecomp
 *    numerical recipes - flannery
  ----------------------------------------------------------------------------- */
 
-void lubksub
-     (
-       std::vector< std::vector<double> > lu,
-       std::vector< int > indexx,
-//          double lu[3][3],
-//          double indexx[3],
-       int order,
-       std::vector< std::vector<double> > &b
-//          double b[3][3]
-     )
-   {
-     int i, j, iptr, i0;
-     double sum;
+	void lubksub
+		(
+		std::vector< std::vector<double> > lu,
+		std::vector< int > indexx,
+		//          double lu[3][3],
+		//          double indexx[3],
+		int order,
+		std::vector< std::vector<double> > &b
+		//          double b[3][3]
+		)
+	{
+		int i, j, iptr, i0;
+		double sum;
 
-     i0 = 0;
-     for (i = 1; i <= order; i++)
-       {
-         iptr = indexx[i];
-         sum  = b[iptr][1];
-         b[iptr][1] = b[i][1];
-         if (i0 != 0)
-             for (j = i0; j <= i - 1; j++)
-                 sum = sum - lu[i][j] * b[j][1];
-           else
-             if (sum != 0.0)
-                i0 = i;
-         b[i][1] = sum;
-       }
+		i0 = 0;
+		for (i = 1; i <= order; i++)
+		{
+			iptr = indexx[i];
+			sum = b[iptr][1];
+			b[iptr][1] = b[i][1];
+			if (i0 != 0)
+			for (j = i0; j <= i - 1; j++)
+				sum = sum - lu[i][j] * b[j][1];
+			else
+			if (sum != 0.0)
+				i0 = i;
+			b[i][1] = sum;
+		}
 
-     b[order][1] = b[order][1] / lu[order][order];
+		b[order][1] = b[order][1] / lu[order][order];
 
-     for (i = order - 1; i >= 1; i--)
-       {
-         sum = b[i][1];
-         for (j = i + 1; j <= order; j++)
-            sum = sum - lu[i][j] * b[j][1];
-         b[i][1] = sum / lu[i][i];
-       }
-  }  //  procedure lubksub
+		for (i = order - 1; i >= 1; i--)
+		{
+			sum = b[i][1];
+			for (j = i + 1; j <= order; j++)
+				sum = sum - lu[i][j] * b[j][1];
+			b[i][1] = sum / lu[i][i];
+		}
+	}  // lubksub
 
 /* ------------------------------------------------------------------------------
 *
@@ -994,47 +994,47 @@ void lubksub
 *    numerical recipes - flannery
  ----------------------------------------------------------------------------- */
 
-void matinverse
-     ( std::vector< std::vector<double> > mat,
-//          double mat[3][3],
-       int  order,
-       std::vector< std::vector<double> > &matinv
-//          double matinv[3][3]
-     )
-   {
-      int i, j;
-      std::vector< int > indexx(order+1);
-      //std::vector< std::vector<double> > lu(order+1,order+1);
-	  //std::vector< std::vector<double> >  b(order+1,2);
-	  std::vector< std::vector<double> > lu = std::vector< std::vector<double> >(order + 1, std::vector<double>(order + 1, 0.0));
-	  std::vector< std::vector<double> >  b = std::vector< std::vector<double> >(order + 1, std::vector<double>(2, 0.0));
+	void matinverse
+		(std::vector< std::vector<double> > mat,
+		//          double mat[3][3],
+		int  order,
+		std::vector< std::vector<double> > &matinv
+		//          double matinv[3][3]
+		)
+	{
+		int i, j;
+		std::vector< int > indexx(order + 1);
+		//std::vector< std::vector<double> > lu(order+1,order+1);
+		//std::vector< std::vector<double> >  b(order+1,2);
+		std::vector< std::vector<double> > lu = std::vector< std::vector<double> >(order + 1, std::vector<double>(order + 1, 0.0));
+		std::vector< std::vector<double> >  b = std::vector< std::vector<double> >(order + 1, std::vector<double>(2, 0.0));
 
-      matinv.resize(order);  // rows
-      for (std::vector< std::vector<double> >::iterator it=matinv.begin(); it != matinv.end();++it)
-          it->resize(order);
+		matinv.resize(order);  // rows
+		for (std::vector< std::vector<double> >::iterator it = matinv.begin(); it != matinv.end(); ++it)
+			it->resize(order);
 
-      for (i = 1; i <= order; i++)
-        {
-          indexx[i] = i;
-          for (j = 1; j <= order; j++)
-              lu[i][j] = mat[i-1][j-1];
-        }
-      ludecomp(lu, indexx, order);
-       for (j = 1; j <= order; j++)
-        {
-          for (i = 1; i <= order; i++)
-            {
-             if (i == j)
-                 b[i][1] = 1.0;
-               else
-                 b[i][1] = 0.0;
-            }
+		for (i = 1; i <= order; i++)
+		{
+			indexx[i] = i;
+			for (j = 1; j <= order; j++)
+				lu[i][j] = mat[i - 1][j - 1];
+		}
+		ludecomp(lu, indexx, order);
+		for (j = 1; j <= order; j++)
+		{
+			for (i = 1; i <= order; i++)
+			{
+				if (i == j)
+					b[i][1] = 1.0;
+				else
+					b[i][1] = 0.0;
+			}
 
-          lubksub(lu, indexx, order, b);
-          for (i = 1; i <= order; i++)
-             matinv[i-1][j-1] = b[i][1];
-        }
-   } // procedure matinverse
+			lubksub(lu, indexx, order, b);
+			for (i = 1; i <= order; i++)
+				matinv[i - 1][j - 1] = b[i][1];
+		}
+	} // matinverse
 
 
 /* ---------------------------------------------------------------------------- 
@@ -1069,108 +1069,108 @@ void matinverse
 *    Marion        pg. 168 - 172, 126 - 127
  ---------------------------------------------------------------------------- - */
 
-double determinant
-    (
-    std::vector< std::vector<double> > mat1,
-    int  order
-    )
-{
-	double small = 0.00000001;
-	int i, j, k;
-	double temp, d, sum;
-	std::vector< std::vector<double> > l = std::vector< std::vector<double> >(order, std::vector<double>(order, 0.0));
-	std::vector< std::vector<double> > u = std::vector< std::vector<double> >(order, std::vector<double>(order, 0.0));
-
-	sum = 0.0;
-	// ----------- Switch a non zero row to the first row---------- 
-	if (abs(mat1[1][1]) < small)
+	double determinant
+		(
+		std::vector< std::vector<double> > mat1,
+		int  order
+		)
 	{
-		j = 1;
-		while (j <= order)
+		double small = 0.00000001;
+		int i, j, k;
+		double temp, d, sum;
+		std::vector< std::vector<double> > l = std::vector< std::vector<double> >(order, std::vector<double>(order, 0.0));
+		std::vector< std::vector<double> > u = std::vector< std::vector<double> >(order, std::vector<double>(order, 0.0));
+
+		sum = 0.0;
+		// ----------- Switch a non zero row to the first row---------- 
+		if (abs(mat1[1][1]) < small)
 		{
-			if (abs(mat1[j][1]) > small)
+			j = 1;
+			while (j <= order)
 			{
-				for (k = 1; k <= order; k++)
+				if (abs(mat1[j][1]) > small)
 				{
-					temp = mat1[1][k];
-					mat1[1][k] = mat1[j][k];
-					mat1[j][k] = temp;
+					for (k = 1; k <= order; k++)
+					{
+						temp = mat1[1][k];
+						mat1[1][k] = mat1[j][k];
+						mat1[j][k] = temp;
+					}
+					j = order + 1;
 				}
-				j = order + 1;
-			}
-			j = j + 1;
-		} // if abs
-	}
+				j = j + 1;
+			} // if abs
+		}
 
-	for (i = 1; i <= order; i++)
-		l[i][1] = mat1[i][1];
-	for (j = 1; j <= order; j++)
-		u[1][j] = mat1[1][j] / l[1][1];
-	for (j = 2; j <= order; j++)
-	{
-		for (i = j; i <= order; i++)
+		for (i = 1; i <= order; i++)
+			l[i][1] = mat1[i][1];
+		for (j = 1; j <= order; j++)
+			u[1][j] = mat1[1][j] / l[1][1];
+		for (j = 2; j <= order; j++)
 		{
-			sum = 0.0;
-			for (k = 1; k <= j - 1; k++)
-				sum = sum + l[i][k] * u[k][j];
-			l[i][j] = mat1[i][j] - sum;
-		} // for i 
-		u[j][j] = 1.0;
-		if (j != order)
-		{
-			for (i = j + 1; i <= order; i++)
+			for (i = j; i <= order; i++)
 			{
 				sum = 0.0;
 				for (k = 1; k <= j - 1; k++)
-					sum = sum + l[j][k] * u[k][i];
-				u[j][i] = (mat1[j][i] - sum) / l[j][j];
+					sum = sum + l[i][k] * u[k][j];
+				l[i][j] = mat1[i][j] - sum;
 			} // for i 
-		} // if j 
-	} //  for j 
-	d = 1.0;
-	for (i = 1; i <= order; i++)
-		d = d * l[i][i];
-	return d;
-} // determinant
+			u[j][j] = 1.0;
+			if (j != order)
+			{
+				for (i = j + 1; i <= order; i++)
+				{
+					sum = 0.0;
+					for (k = 1; k <= j - 1; k++)
+						sum = sum + l[j][k] * u[k][i];
+					u[j][i] = (mat1[j][i] - sum) / l[j][j];
+				} // for i 
+			} // if j 
+		} //  for j 
+		d = 1.0;
+		for (i = 1; i <= order; i++)
+			d = d * l[i][i];
+		return d;
+	} // determinant
 
 
-void writemat
-     (
-       char matname[30],
-       std::vector< std::vector<double> > mat,
-//          double mat[3][3],
-       int row, int col
-     )
-   {
-     int r, c;
+	void writemat
+		(
+		char matname[30],
+		std::vector< std::vector<double> > mat,
+		//          double mat[3][3],
+		int row, int col
+		)
+	{
+		int r, c;
 
-     printf("matrix %15s \n",matname );
-     for (r = 0; r < row; r++)
-       {
-         for (c = 0; c < col; c++)
-             printf("%16.11f ",mat[r][c] );
-         printf(" \n");
-       }
-   }
+		printf("matrix %15s \n", matname);
+		for (r = 0; r < row; r++)
+		{
+			for (c = 0; c < col; c++)
+				printf("%16.11f ", mat[r][c]);
+			printf(" \n");
+		}
+	}  // writemat
 
-void writeexpmat
-     (
-       char matname[30],
-       std::vector< std::vector<double> > mat,
-//          double mat[3][3],
-       int row, int col
-     )
-   {
-     int r, c;
+	void writeexpmat
+		(
+		char matname[30],
+		std::vector< std::vector<double> > mat,
+		//          double mat[3][3],
+		int row, int col
+		)
+	{
+		int r, c;
 
-     printf("matrix %15s \n",matname );
-     for (r = 0; r < row; r++)
-       {
-         for (c = 0; c < col; c++)
-             printf("%14g ",mat[r][c] );
-         printf(" \n");
-       }
-   }
+		printf("matrix %15s \n", matname);
+		for (r = 0; r < row; r++)
+		{
+			for (c = 0; c < col; c++)
+				printf("%14g ", mat[r][c]);
+			printf(" \n");
+		}
+	}  // writeexpmat
 
 /* -----------------------------------------------------------------------------
 *
@@ -1199,17 +1199,17 @@ void writeexpmat
 *    vallado       2013, 1034
 * --------------------------------------------------------------------------- */
 
-void cubicspl
-     (
-       double p1, double p2, double p3, double p4,
-       double& acu0, double& acu1, double& acu2, double& acu3
-     )
-     {
-        acu0 = p2;
-        acu1 = -p1/3.0 - 0.5*p2 + p3 -p4/6.0;
-        acu2 = 0.5*p1 - p2 + 0.5*p3;
-        acu3 = -p1/6.0 + 0.5*p2 - 0.5*p3 + p4/6.0;
-     }
+	void cubicspl
+		(
+		double p1, double p2, double p3, double p4,
+		double& acu0, double& acu1, double& acu2, double& acu3
+		)
+	{
+		acu0 = p2;
+		acu1 = -p1 / 3.0 - 0.5 * p2 + p3 - p4 / 6.0;
+		acu2 = 0.5 * p1 - p2 + 0.5 * p3;
+		acu3 = -p1 / 6.0 + 0.5 * p2 - 0.5 * p3 + p4 / 6.0;
+	}  // cubicspl
 
 /* -----------------------------------------------------------------------------
 *
@@ -1248,60 +1248,60 @@ void cubicspl
 *    vallado       2013, 1027
 * ----------------------------------------------------------------------------*/
 
-void quadric
-     (
-       double a, double b, double c, char opt,
-       double& r1r, double& r1i, double& r2r, double& r2i
-     )
-   {
-        const double small    = 0.0000001;
-        double discrim;
-        // --------------------  implementation   ----------------------
-        r1r = 0.0;
-        r1i = 0.0;
-        r2r = 0.0;
-        r2i = 0.0;
+	void quadric
+		(
+		double a, double b, double c, char opt,
+		double& r1r, double& r1i, double& r2r, double& r2i
+		)
+	{
+		const double small = 0.0000001;
+		double discrim;
+		// --------------------  implementation   ----------------------
+		r1r = 0.0;
+		r1i = 0.0;
+		r2r = 0.0;
+		r2i = 0.0;
 
-        discrim = b*b - 4.0 *a*c;
+		discrim = b*b - 4.0 *a*c;
 
-        // ---------------------  real roots  --------------------------
-        if ( fabs(discrim) < small  )
-          {
-            r1r = -b / ( 2.0 *a );
-            r2r = r1r;
-            if (opt=='U')
-                r2r = 99999.9;
-          }
-          else
-           {
-            if (fabs(a) < small)
-                 r1r = -c/b;
-              else
-               {
-                if ( discrim > 0.0  )
-                  {
-                    r1r = ( -b + sqrt(discrim) ) / ( 2.0 *a );
-                    r2r = ( -b - sqrt(discrim) ) / ( 2.0 *a );
-                  }
-                  else
-                  {
-                    // ------------------ complex roots --------------------
-                    if (opt=='I')
-                      {
-                        r1r = -b / ( 2.0 *a );
-                        r2r = r1r;
-                        r1i =  sqrt(-discrim) / ( 2.0 *a );
-                        r2i = -sqrt(-discrim) / ( 2.0 *a );
-                      }
-                      else
-                      {
-                        r1r = 99999.9;
-                        r2r = 99999.9;
-                      }
-                  }
-                }
-             }
-   }  // quadric
+		// ---------------------  real roots  --------------------------
+		if (fabs(discrim) < small)
+		{
+			r1r = -b / (2.0 *a);
+			r2r = r1r;
+			if (opt == 'U')
+				r2r = 99999.9;
+		}
+		else
+		{
+			if (fabs(a) < small)
+				r1r = -c / b;
+			else
+			{
+				if (discrim > 0.0)
+				{
+					r1r = (-b + sqrt(discrim)) / (2.0 *a);
+					r2r = (-b - sqrt(discrim)) / (2.0 *a);
+				}
+				else
+				{
+					// ------------------ complex roots --------------------
+					if (opt == 'I')
+					{
+						r1r = -b / (2.0 *a);
+						r2r = r1r;
+						r1i = sqrt(-discrim) / (2.0 *a);
+						r2i = -sqrt(-discrim) / (2.0 *a);
+					}
+					else
+					{
+						r1r = 99999.9;
+						r2r = 99999.9;
+					}
+				}
+			}
+		}
+	}  // quadric
 
 
 /* -----------------------------------------------------------------------------
@@ -1354,92 +1354,92 @@ void quadric
 *    vallado       2013, 1027
 * --------------------------------------------------------------------------- */
 
-void cubic
-         (
-           double a3, double b2, double c1, double d0, char opt,
-           double& r1r, double& r1i, double& r2r, double& r2i, double& r3r, double& r3i
-         )
-   {
-        const double rad      = 57.29577951308230;
-        const double onethird = 1.0/3.0;
-        const double small    = 0.00000001;
-        double temp1, temp2, p, q, r, delta, e0, cosphi, sinphi, phi;
-        // ------------------------  implementation   --------------------------
-        r1r  = 0.0;
-        r1i  = 0.0;
-        r2r  = 0.0;
-        r2i  = 0.0;
-        r3r  = 0.0;
-        r3i  = 0.0;
+	void cubic
+		(
+		double a3, double b2, double c1, double d0, char opt,
+		double& r1r, double& r1i, double& r2r, double& r2i, double& r3r, double& r3i
+		)
+	{
+		const double rad = 57.29577951308230;
+		const double onethird = 1.0 / 3.0;
+		const double small = 0.00000001;
+		double temp1, temp2, p, q, r, delta, e0, cosphi, sinphi, phi;
+		// ------------------------  implementation   --------------------------
+		r1r = 0.0;
+		r1i = 0.0;
+		r2r = 0.0;
+		r2i = 0.0;
+		r3r = 0.0;
+		r3i = 0.0;
 
-        if (fabs(a3) > small)
-          {
-           // ------------- force coefficients into std form -------------------
-            p= b2/a3;
-            q= c1/a3;
-            r= d0/a3;
+		if (fabs(a3) > small)
+		{
+			// ------------- force coefficients into std form -------------------
+			p = b2 / a3;
+			q = c1 / a3;
+			r = d0 / a3;
 
-            a3= onethird*( 3.0 *q - p*p );
-            b2= (1.0 /27.0 )*( 2.0 *p*p*p - 9.0 *p*q + 27.0 *r );
+			a3 = onethird * (3.0 * q - p * p);
+			b2 = (1.0 / 27.0) * (2.0 * p * p * p - 9.0 * p * q + 27.0 * r);
 
-            delta= (a3*a3*a3/27.0 ) + (b2*b2*0.25 );
+			delta = (a3 * a3 * a3 / 27.0) + (b2 * b2 * 0.25);
 
-            // -------------------- use cardans formula ------------------------
-            if ( delta > small )
-              {
-                temp1= (-b2*0.5 )+sqrt(delta);
-                temp2= (-b2*0.5 )-sqrt(delta);
-                temp1= sgn(temp1)*pow( fabs(temp1),onethird );
-                temp2= sgn(temp2)*pow( fabs(temp2),onethird );
-                r1r= temp1 + temp2 - p*onethird;
+			// -------------------- use cardans formula ------------------------
+			if (delta > small)
+			{
+				temp1 = (-b2 * 0.5) + sqrt(delta);
+				temp2 = (-b2 * 0.5) - sqrt(delta);
+				temp1 = sgn(temp1) * pow(fabs(temp1), onethird);
+				temp2 = sgn(temp2) * pow(fabs(temp2), onethird);
+				r1r = temp1 + temp2 - p * onethird;
 
-                if (opt=='I')
-                  {
-                    r2r= -0.5 *(temp1 + temp2) - p*onethird;
-                    r2i= -0.5 *sqrt( 3.0  )*(temp1 - temp2);
-                    r3r= -0.5 *(temp1 + temp2) - p*onethird;
-                    r3i= -r2i;
-                  }
-                  else
-                  {
-                    r2r= 99999.9;
-                    r3r= 99999.9;
-                  }
-               }
-              else
-               {
-            // -------------------- evaluate zero point ------------------------
-            if ( fabs( delta ) < small  )
-              {
-                r1r= -2.0*sgn(b2)*pow(fabs(b2*0.5),onethird) - p*onethird;
-                r2r=      sgn(b2)*pow(fabs(b2*0.5),onethird) - p*onethird;
-                if (opt=='U')
-                    r3r= 99999.9;
-                  else
-                    r3r= r2r;
-              }
-              else
-              {
-                // --------------- use trigonometric identities ----------------
-                e0     = 2.0 *sqrt(-a3*onethird);
-                cosphi = (-b2/(2.0 *sqrt(-a3*a3*a3/27.0 )) );
-                sinphi = sqrt( 1.0 -cosphi*cosphi );
-                phi    = atan2( sinphi,cosphi );
-                if (phi < 0.0)
-                    phi = phi + 2.0*pi;
-                r1r= e0*cos( phi*onethird ) - p*onethird;
-                r2r= e0*cos( phi*onethird + 120.0 /rad ) - p*onethird;
-                r3r= e0*cos( phi*onethird + 240.0 /rad ) - p*onethird;
-              } // if fabs(delta)...
-             }  // if delta > small
-          }  // if fabs > small
-        else
-        {
-          quadric( b2, c1, d0, opt, r1r, r1i, r2r, r2i );
-          r3r  = 99999.9;
-          r3i  = 99999.9;
-        }
-   }  // cubic
+				if (opt == 'I')
+				{
+					r2r = -0.5 * (temp1 + temp2) - p * onethird;
+					r2i = -0.5 * sqrt(3.0) * (temp1 - temp2);
+					r3r = -0.5 * (temp1 + temp2) - p * onethird;
+					r3i = -r2i;
+				}
+				else
+				{
+					r2r = 99999.9;
+					r3r = 99999.9;
+				}
+			}
+			else
+			{
+				// -------------------- evaluate zero point ------------------------
+				if (fabs(delta) < small)
+				{
+					r1r = -2.0 * sgn(b2) * pow(fabs(b2 * 0.5), onethird) - p * onethird;
+					r2r = sgn(b2) * pow(fabs(b2 * 0.5), onethird) - p * onethird;
+					if (opt == 'U')
+						r3r = 99999.9;
+					else
+						r3r = r2r;
+				}
+				else
+				{
+					// --------------- use trigonometric identities ----------------
+					e0 = 2.0 * sqrt(-a3 * onethird);
+					cosphi = (-b2 / (2.0 *sqrt(-a3 * a3 * a3 / 27.0)));
+					sinphi = sqrt(1.0 - cosphi * cosphi);
+					phi = atan2(sinphi, cosphi);
+					if (phi < 0.0)
+						phi = phi + 2.0 * pi;
+					r1r = e0 * cos(phi * onethird) - p * onethird;
+					r2r = e0 * cos(phi * onethird + 120.0 / rad) - p * onethird;
+					r3r = e0 * cos(phi * onethird + 240.0 / rad) - p * onethird;
+				} // if fabs(delta)...
+			}  // if delta > small
+		}  // if fabs > small
+		else
+		{
+			quadric(b2, c1, d0, opt, r1r, r1i, r2r, r2i);
+			r3r = 99999.9;
+			r3i = 99999.9;
+		}
+	}  // cubic
 
 /* -----------------------------------------------------------------------------
 *
@@ -1467,50 +1467,63 @@ void cubic
 *    vallado       2013, 1034
 * --------------------------------------------------------------------------- */
 
-double  cubicinterp
-        (
-          double p1a, double p1b, double p1c, double p1d, double p2a, double p2b,
-          double p2c, double p2d, double valuein
-        )
-   {
-        double kc0, kc1, kc2, kc3, ac0, ac1, ac2, ac3,
-               r1r, r1i, r2r, r2i, r3r, r3i, value;
+	double  cubicinterp
+		(
+		double p1a, double p1b, double p1c, double p1d, double p2a, double p2b,
+		double p2c, double p2d, double valuein
+		)
+	{
+		double kc0, kc1, kc2, kc3, ac0, ac1, ac2, ac3,
+			r1r, r1i, r2r, r2i, r3r, r3i, value;
+	
+		//p2b = (p2b - p2a) / (p2d - p2a);
+		//p2c = (p2c - p2a) / (p2d - p2a);
+		//p2a = 0.0;
+		//p2d = 1.0;
 
-           // -------- assign function points ---------
-           cubicspl(p1a, p1b, p1c, p1d, ac0, ac1, ac2, ac3);
-           cubicspl(p2a, p2b, p2c, p2d, kc0, kc1, kc2, kc3);
+		// -------- assign function points ---------
+		cubicspl(p1a, p1b, p1c, p1d, ac0, ac1, ac2, ac3);
+		cubicspl(p2a, p2b, p2c, p2d, kc0, kc1, kc2, kc3);
 
-           // recover the original function values
-           // use the normalized time first, but at an arbitrary interval
-           cubic(kc3, kc2, kc1, kc0-valuein, 'R', r1r, r1i, r2r, r2i, r3r, r3i);
+		// recover the original function values
+		// use the normalized time first, but at an arbitrary interval
+		cubic(kc3, kc2, kc1, kc0 - valuein, 'R', r1r, r1i, r2r, r2i, r3r, r3i);
 
-           if ((r1r >= -0.000001) && (r1r <= 1.001))
-             {
-               value = r1r;
-             }
-             else
-             {
-               if ((r2r >= -0.000001) && (r2r <= 1.001))
-                 {
-                   value = r2r;
-                 }
-                 else
-                 {
-                   if ((r3r >= -0.000001) && (r3r <= 1.001))
-                     {
-                       value = r3r;
-                     }
-                     else
-                     {
-                       value = 0.0;
-                       printf("error in cubicinterp root %17.14f %11.7f %11.7f %11.7f \n",
-                               valuein,r1r,r2r,r3r);
-                     }
-                 }
-             }
-           return (ac3*pow(value,3)  + ac2*value*value  + ac1*value + ac0);
+		//if ((r1r >= -0.000001) && (r1r <= 1.001))
+		if (fabs(r1i) < 0.000001)
+		{
+			value = r1r;
+		}
+		else
+		{
+			//if ((r2r >= -0.000001) && (r2r <= 1.001))
+			if (fabs(r2i) < 0.000001)
+			{
+				value = r2r;
+			}
+			else
+			{
+				//if ((r3r >= -0.000001) && (r3r <= 1.001))
+				if (fabs(r3i) <= 0.000001)
+				{
+					value = r3r;
+				}
+				else
+				{
+					value = 0.0;
+					printf("\nerror in cubicinterp root %17.14f %11.7f %11.7f %11.7f \n",
+						valuein, r1r, r2r, r3r);
+					printf("valuein %lf value(pos root) %lf \n", valuein, value);
+				}
+			}
+		}
 
-   } // cubicinterp
+		//printf("valuein %lf value(pos root) %lf %lf\n", valuein, value, ac3 * pow(value, 3) + ac2 * value * value + ac1 * value + ac0);
+		//printf("in p1a %lf  %lf  %lf  %lf cubspl  %lf %lf  %lf  %lf  %lf \n", p1a, p1b, p1c, p1d, ac0, ac1, ac2, ac3);
+		//printf("in p2a %lf  %lf  %lf  %lf cubspl  %lf %lf  %lf  %lf  %lf \n", p2a, p2b, p2c, p2d, kc0, kc1, kc2, kc3);
+		//printf("cubic %lf  %lf  %lf  %lf cubspl  %lf %lf r2 %lf  %lf r3 %lf  %lf \n", kc3, kc2, kc1, kc0 - valuein, r1r, r1i, r2r, r2i, r3r, r3i);
+		return (ac3 * pow(value, 3) + ac2 * value * value + ac1 * value + ac0);
+	} // cubicinterp
 
 
 /* -----------------------------------------------------------------------------
@@ -1536,14 +1549,14 @@ double  cubicinterp
 *    none
 * --------------------------------------------------------------------------- */
 
-int factorial(int n)
-{
-	if (n == 0)
-		return 1;
-	return n * factorial(n - 1);
-}
+	int factorial(int n)
+	{
+		if (n == 0)
+			return 1;
+		return n * factorial(n - 1);
+	}  // factorial 
 
 
 
-} // namespace
+}  // namespace
 
